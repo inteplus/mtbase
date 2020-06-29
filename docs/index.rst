@@ -13,7 +13,6 @@ Welcome to mtbase's documentation!
 
    install	     
    autoapi/mt/base/index
-   autoapi/mtbase/index
 
    
 Indices and tables
