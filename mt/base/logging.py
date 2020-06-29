@@ -354,10 +354,10 @@ def init():
     if init._completed:
         return
 
-    setattr(init, '_home_dirpath', _op.join(_op.expanduser('~'), '.basemt'))
+    setattr(init, '_home_dirpath', _op.join(_op.expanduser('~'), '.mtbase'))
     _os.makedirs(init._home_dirpath, exist_ok=True)
 
-    temp_dirpath = _op.join(_tf.gettempdir(), _gp.getuser(), '.basemt')
+    temp_dirpath = _op.join(_tf.gettempdir(), _gp.getuser(), '.mtbase')
     _os.makedirs(temp_dirpath, exist_ok=True)
     setattr(init, '_temp_dirpath', temp_dirpath)
 

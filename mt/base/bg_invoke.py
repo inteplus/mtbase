@@ -35,7 +35,7 @@ class BgInvoke(object):
     ...         cnt = cnt+1
     ...     return cnt
     ...
-    >>> from basemt.bg_invoke import BgInvoke
+    >>> from mt.base.bg_invoke import BgInvoke
     >>> from time import sleep
     >>> a = BgInvoke(slow_count, nbTimes=100000000)
     >>> while a.is_running():

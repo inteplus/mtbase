@@ -1,9 +1,9 @@
-.. basemt documentation master file, created by
+.. mtbase documentation master file, created by
    sphinx-quickstart on Fri May 22 12:17:47 2020.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to basemt's documentation!
+Welcome to mtbase's documentation!
 ==================================
 
 .. toctree::
@@ -13,7 +13,7 @@ Welcome to basemt's documentation!
 
    install	     
    autoapi/mt/base/index
-   autoapi/basemt/index
+   autoapi/mtbase/index
 
    
 Indices and tables

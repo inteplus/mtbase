@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath('..'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'basemt'
+project = 'mtbase'
 copyright = '2020, Minh-Tri Pham'
 author = 'Minh-Tri Pham'
 
@@ -40,7 +40,7 @@ extensions = [
 ]
 
 # sphinx-autoapi
-autoapi_dirs = ["../mt", "../basemt"]
+autoapi_dirs = ["../mt"]
 autoapi_python_use_implicit_namespaces = True
 
 master_doc = 'index'

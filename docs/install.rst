@@ -3,10 +3,10 @@ Installation
 
 Install via pip::
 
-    pip3 install basemt
+    pip3 install mtbase
 
 Build from source::
 
-    git clone https://github.com/inteplus/basemt.git
-    cd basemt
+    git clone https://github.com/inteplus/mtbase.git
+    cd mtbase
     python3 setup.py install
