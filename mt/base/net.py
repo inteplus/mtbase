@@ -6,6 +6,9 @@ from time import sleep
 from .logging import dummy_scope
 
 
+__all__ = ['is_port_open', 'get_hostname', 'get_username', 'get_all_inet4_ipaddresses', 'set_keepalive_linux', 'set_keepalive_osx', 'SSHTunnelWatcher', 'launch_port_forwarder', 'launch_ssh_forwarder']
+
+
 def is_port_open(addr, port, timeout=2.0):
     '''Checks if a port is open, with timeout.
 

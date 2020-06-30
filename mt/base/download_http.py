@@ -12,6 +12,8 @@ from threading import Lock, Semaphore
 from .concurrency import bg_run, is_future
 
 
+__all__ = ['download_http', 'download_http_single', 'download_http_with_file_size', 'download_http_without_file_size', 'request_file_size']
+
 
 # ---------------------------------------------------------------------------------
 # download with single connection

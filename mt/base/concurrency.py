@@ -1,8 +1,14 @@
+'''An old module to deal with concurrency. Probably not used anymore.'''
+
 from dask.distributed import Client
 from distributed.client import Future
 import os.path as op
 import os
 import warnings
+
+
+__all__ = ['get_dd_client', 'reset_dd_client', 'bg_run']
+
 
 def get_dd_client():
     '''Gets the dask.distributed client created internally.'''

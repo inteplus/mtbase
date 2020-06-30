@@ -10,6 +10,9 @@ from .logging import dummy_scope
 from .traceback import format_exception
 
 
+__all__ = ['BgException', 'BgInvoke', 'parallelise']
+
+
 class BgException(Exception):
 
     def __init__(self, message, exc_info):

@@ -1,6 +1,9 @@
 '''Some utilities to manipulate strings.'''
 
 
+__all__ = ['straighten']
+
+
 def straighten(s, length, align_left=True, delimiter=' '):
     '''Straighten a Unicode string to have a fixed length.
 
