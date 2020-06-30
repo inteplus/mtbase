@@ -16,7 +16,7 @@ setup(name='mtbase',
       ],
       url='https://github.com/inteplus/mtbase',
       project_urls={
-          'Documentation': 'https://mtbase.readthedocs.io/en/stable/',
+          'Documentation': 'https://mtdoc.readthedocs.io/en/latest/mt.base/mt.base.html',
           'Source Code': 'https://github.com/inteplus/mtbase',
           }
       )
