@@ -108,6 +108,7 @@ def scoped_error(indented_logger_adapter, msg='', curly=True):
     return ScopedLog(indented_logger_adapter, ERROR, msg=msg, curly=curly)
 def scoped_warning(indented_logger_adapter, msg='', curly=True):
     return ScopedLog(indented_logger_adapter, WARNING, msg=msg, curly=curly)
+scoped_warn = scoped_warning
 def scoped_info(indented_logger_adapter, msg='', curly=True):
     return ScopedLog(indented_logger_adapter, INFO, msg=msg, curly=curly)
 def scoped_debug(indented_logger_adapter, msg='', curly=True):
