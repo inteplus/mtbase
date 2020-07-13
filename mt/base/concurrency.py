@@ -13,7 +13,7 @@ __all__ = ['get_dd_client', 'reset_dd_client', 'bg_run']
 def get_dd_client():
     '''Gets the dask.distributed client created internally.'''
     if get_dd_client.client is None:
-        home_path = op.join(op.expanduser('~'), '.basemt', 'dask-worker-space')
+        home_path = op.join(op.expanduser('~'), '.mtbase', 'dask-worker-space')
         os.makedirs(home_path, exist_ok=True)
         get_dd_client.client = Client(local_dir=home_path)
     return get_dd_client.client
