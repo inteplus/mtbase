@@ -25,18 +25,11 @@ def castable(obj, dst_type):
     -------
     bool
         whether or not the object is castable to `dst_type`
-
-    Raises
-    ------
-    NotImplementedError
-        if the castable function has not been registered using functions `register_castable` or `register_cast`
     '''
     key = (type(obj), dst_type)
     if key in _castable_registry:
         return _castable_registry[key](obj)
-    if key in _cast_registry:
-        return True
-    raise NotImplementedError("Castable function to cast from type {} to type {} not found.".format(key[0], key[1]))
+    return key in _cast_registry
 
 
 def cast(obj, dst_type):
