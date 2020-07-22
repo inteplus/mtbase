@@ -46,10 +46,14 @@ def deprecated_func(deprecated_version, suggested_func=None, removed_version=Non
         deprecated_func_warned[func] = False # register the function
 
         the_doc = func_wrapper.__doc__
-        if not the_doc:
-            the_doc = ""
 
-        the_doc += "\n{}.. deprecated:: {}\n".format(docstring_prefix, deprecated_version)
+        msg = "{}.. deprecated:: {}\n".format(docstring_prefix, deprecated_version)
+        if not the_doc or len(the_doc) == 0:
+            the_doc = msg
+        else:
+            if the_doc[-1] != '\n':
+                the_doc += '\n'
+            the_doc += '\n'+msg
 
         if removed_version:
             the_doc += "{}   It will be removed in version {}.\n".format(docstring_prefix, removed_version)
