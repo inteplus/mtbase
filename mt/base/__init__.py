@@ -1,6 +1,6 @@
 from .logging import dummy_scope, make_logger, logger, init as _log_init
 from .deprecated import deprecated_func
-from .cast import cast, castable
+from .casting import cast, castable
 
 home_dirpath = _log_init._home_dirpath
 temp_dirpath = _log_init._temp_dirpath
