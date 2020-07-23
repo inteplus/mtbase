@@ -16,7 +16,7 @@ def deprecated_func(deprecated_version, suggested_func=None, removed_version=Non
     ----------
     deprecated_version : str
         the version since which the function has been deprecated
-    suggested_func : str, optional
+    suggested_func : str or list of strings, optional
         the function to be used in replacement of the deprecated function
     removed_version : str, optional
         the future version from which the function will be removed
@@ -39,7 +39,10 @@ def deprecated_func(deprecated_version, suggested_func=None, removed_version=Non
                 if removed_version:
                     logger.warn("  It will be removed in version {}.".format(removed_version))
                 if suggested_func:
-                    logger.warn("  Use function '{}' instead.".format(suggested_func))
+                    if isinstance(suggested_func, str):
+                        logger.warn("  Use function '{}' instead.".format(suggested_func))
+                    else:
+                        logger.warn("  Use a function in {} instead.".format(suggested_func))
                 deprecated_func_warned[func] = True
             return func(*args, **kwargs)
 
@@ -59,7 +62,11 @@ def deprecated_func(deprecated_version, suggested_func=None, removed_version=Non
             the_doc += "{}   It will be removed in version {}.\n".format(docstring_prefix, removed_version)
 
         if suggested_func:
-            the_doc += "{}   Use :func:`{}` instead.\n".format(docstring_prefix, suggested_func)
+            if isinstance(suggested_func, str):
+                msg = ':func:`{}`'.format(suggested_func)
+            else:
+                msg = ' or '.join([':func:`{}`'.format(x) for x in suggested_func])
+            the_doc += "{}   Use {} instead.\n".format(docstring_prefix, msg)
 
         func_wrapper.__doc__ = the_doc
         return func_wrapper
