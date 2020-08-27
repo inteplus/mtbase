@@ -12,6 +12,7 @@ setup(name='mtbase',
           'psutil',
           'colorama',  # for colored text
           'Cython',  # for fast speed on tiny objects
+          'dask', # for simple multiprocessing jobs
           'dask[distributed]',  # for simple multiprocessing jobs
       ],
       url='https://github.com/inteplus/mtbase',
