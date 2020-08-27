@@ -7,7 +7,7 @@ from .path import join, make_dirs
 from .deprecated import deprecated_func
 
 
-__all__ = ['get_dd_client', 'reset_dd_client', 'bg_run']
+__all__ = ['get_dd_client', 'reset_dd_client', 'bg_run', 'is_future']
 
 
 def get_dd_client():
