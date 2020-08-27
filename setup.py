@@ -12,6 +12,7 @@ setup(name='mtbase',
           'psutil',
           'colorama',  # for colored text
           'Cython',  # for fast speed on tiny objects
+          'tornado<6.0.0', # currently tornado 6 does not fully work with dask distributed
           'dask', # for simple multiprocessing jobs
           'distributed',  # for simple multiprocessing jobs
       ],
