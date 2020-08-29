@@ -13,8 +13,9 @@ setup(name='mtbase',
           'colorama',  # for colored text
           'Cython',  # for fast speed on tiny objects
           'tornado>=6.0.4', # 2020/08/27: tornado 6 is needed and distributed must be >= v2.24.0
-          'dask>=v2.24.0', # for simple multiprocessing jobs
-          'distributed>=v2.24.0',  # for simple multiprocessing jobs
+          'dask>=2.24.0', # for simple multiprocessing jobs
+          'distributed>=2.24.0',  # for simple multiprocessing jobs
+          'streamz>=0.5.5', # for streaming
       ],
       url='https://github.com/inteplus/mtbase',
       project_urls={
