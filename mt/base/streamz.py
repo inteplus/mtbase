@@ -2,6 +2,7 @@
 
 
 from streamz import *
+from distributed.client import default_client, Future
 
 
 __all__ =  ['map_list']
@@ -66,6 +67,7 @@ class map_list(Stream):
             
         # process each block of items from self.item_buffer
         result_list = []
+        client = None
         while len(self.item_buffer) >= self.block_size:
             # extract
             work_list = self.item_buffer[:self.block_size]
@@ -75,7 +77,13 @@ class map_list(Stream):
             func_result_list = [None]*self.block_size
             for i in range(self.block_size):
                 try:
-                    func_result_list[i] = self.func(work_list[i][0], *self.args, **self.kwargs)
+                    item = work_list[i][0]
+                    if isinstance(item, Future): # dask
+                        if not client:
+                            client = default_client()
+                        func_result_list[i] = client.submit(self.func, item, *self.args, **self.kwargs)
+                    else:
+                        func_result_list[i] = self.func(item, *self.args, **self.kwargs)
                 except Exception as e:
                     logger.exception(e)
                     raise
