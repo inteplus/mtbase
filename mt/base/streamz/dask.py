@@ -2,7 +2,7 @@
 
 
 from streamz import DaskStream, logger
-from distributed.client import default_client
+from ..concurrency import get_dd_client
 
 
 __all__ =  ['map_list']
@@ -51,6 +51,7 @@ class map_list(DaskStream):
         stream_name = kwargs.pop('stream_name', None)
         self.kwargs = kwargs
         self.args = args
+        self.client = get_dd_client()
 
         DaskStream.__init__(self, upstream, stream_name=stream_name)
 
@@ -67,7 +68,6 @@ class map_list(DaskStream):
             
         # process each block of items from self.item_buffer
         result_list = []
-        client = default_client()
         while len(self.item_buffer) >= self.block_size:
             # extract
             work_list = self.item_buffer[:self.block_size]
@@ -78,7 +78,7 @@ class map_list(DaskStream):
             for i in range(self.block_size):
                 try:
                     item = work_list[i][0]
-                    func_result_list[i] = client.submit(self.func, item, *self.args, **self.kwargs)
+                    func_result_list[i] = self.client.submit(self.func, item, *self.args, **self.kwargs)
                 except Exception as e:
                     logger.exception(e)
                     raise

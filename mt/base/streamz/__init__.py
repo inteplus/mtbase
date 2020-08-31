@@ -1,4 +1,4 @@
-'''streamz utilities.'''
+'''Additional utilities for using streamz.'''
 
 
 from . import core
