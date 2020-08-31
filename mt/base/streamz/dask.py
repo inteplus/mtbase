@@ -1,15 +1,15 @@
-'''streamz utilities.'''
+'''streamz utilities, dask component.'''
 
 
-from streamz import *
-from distributed.client import default_client, Future
+from streamz import DaskStream, logger
+from distributed.client import default_client
 
 
 __all__ =  ['map_list']
 
 
-@Stream.register_api()
-class map_list(Stream):
+@DaskStream.register_api()
+class map_list(DaskStream):
     """ Apply a function to every non-null element in the stream of lists or iterables, but group the non-null elements into blocks of fixed size for efficiency.
 
     This operation is equivalent to `stream.flatten().filter(lambda x: x is not None).partition(block_size).map(func, *args, **kwargs)`, but without breaking this chain into 3 different threads. It should be used when `func` is too quick and we want to batch in large groups to avoid speed penalties due to switching context.
@@ -52,7 +52,7 @@ class map_list(Stream):
         self.kwargs = kwargs
         self.args = args
 
-        Stream.__init__(self, upstream, stream_name=stream_name)
+        DaskStream.__init__(self, upstream, stream_name=stream_name)
 
     def update(self, iterables, who=None, metadata=None):
 
@@ -67,7 +67,7 @@ class map_list(Stream):
             
         # process each block of items from self.item_buffer
         result_list = []
-        client = None
+        client = default_client()
         while len(self.item_buffer) >= self.block_size:
             # extract
             work_list = self.item_buffer[:self.block_size]
@@ -78,12 +78,7 @@ class map_list(Stream):
             for i in range(self.block_size):
                 try:
                     item = work_list[i][0]
-                    if isinstance(item, Future): # dask
-                        if not client:
-                            client = default_client()
-                        func_result_list[i] = client.submit(self.func, item, *self.args, **self.kwargs)
-                    else:
-                        func_result_list[i] = self.func(item, *self.args, **self.kwargs)
+                    func_result_list[i] = client.submit(self.func, item, *self.args, **self.kwargs)
                 except Exception as e:
                     logger.exception(e)
                     raise
