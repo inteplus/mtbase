@@ -25,12 +25,10 @@ def reset_dd_client():
         get_dd_client.client.close()
         get_dd_client.client = None
 
-@deprecated_func("0.4.9", suggested_func="mt.base.bg_invoke.BgInvoke", removed_version="0.6.0", docstring_prefix="    ")
 def bg_run(func, *args, **kwargs):
-    '''Runs a function in background and return a future object.'''
+    '''Runs a function in dask.distributed client's background and return a future object.'''
     return get_dd_client().submit(func, *args, **kwargs)
 
-@deprecated_func("0.4.9", suggested_func="mt.base.bg_invoke.BgInvoke", removed_version="0.6.0", docstring_prefix="    ")
 def is_future(obj):
-    '''Checks if an object is a Future object.'''
+    '''Checks if an object is a dask Future object.'''
     return isinstance(obj, Future)

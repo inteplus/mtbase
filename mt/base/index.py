@@ -67,7 +67,7 @@ class IndexGrouping(object):
 
 
 def on_list(func):
-    '''Turns a function that operates on each element at a time into a function that operates on a colletion of elements at a time.
+    '''Turns a function that operates on each element at a time into a function that operates on a colletion of elements at a time. Can be used as a decorator.
 
     Parameters
     ----------
