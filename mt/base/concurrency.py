@@ -7,7 +7,7 @@ from .path import join, make_dirs
 from .deprecated import deprecated_func
 
 
-__all__ = ['get_dd_client', 'reset_dd_client', 'bg_run', 'is_future']
+__all__ = ['get_dd_client', 'reset_dd_client', 'bg_run', 'is_future', 'max_num_threads']
 
 
 def get_dd_client():
@@ -24,6 +24,10 @@ def reset_dd_client():
     if get_dd_client.client is not None:
         get_dd_client.client.close()
         get_dd_client.client = None
+
+def max_num_threads(client):
+    '''Retrieves the maximum number of threads the client can handle concurrently.'''
+    return sum(client.nthreads().values())
 
 def bg_run(func, *args, **kwargs):
     '''Runs a function in dask.distributed client's background and return a future object.'''
