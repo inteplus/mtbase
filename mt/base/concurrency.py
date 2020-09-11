@@ -25,8 +25,10 @@ def reset_dd_client():
         get_dd_client.client.close()
         get_dd_client.client = None
 
-def max_num_threads(client):
-    '''Retrieves the maximum number of threads the client can handle concurrently.'''
+def max_num_threads(client=None):
+    '''Retrieves the maximum number of threads the client can handle concurrently. Uses the default dask.distributed client if None is given.'''
+    if client is None:
+        client = get_dd_client()
     return sum(client.nthreads().values())
 
 def bg_run(func, *args, **kwargs):
