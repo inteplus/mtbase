@@ -12,6 +12,7 @@ setup(name='mtbase',
           'psutil',
           'colorama',  # for colored text
           'Cython',  # for fast speed on tiny objects
+          'numpy', # common ndarray
           'tornado>=6.0.4', # 2020/08/27: tornado 6 is needed and distributed must be >= v2.24.0
           'dask>=2.24.0', # for simple multiprocessing jobs
           'distributed>=2.24.0',  # for simple multiprocessing jobs
