@@ -10,7 +10,7 @@ __all__ = ['create', 'valid', 'count', 'keys', 'has', 'get', 'put', 'remove']
 
 
 # main server process
-server_process = _mp.Manager()
+server_process = None
 
 
 def create(min_free_mem_pct=0.2, put_policy='rotate'):
@@ -32,6 +32,9 @@ def create(min_free_mem_pct=0.2, put_policy='rotate'):
         raise ValueError("Unknown put policy: '{}'.".format(put_policy))
 
     global server_process
+    if not server_process:
+        server_process = _mp.Manager()
+
     store = server_process.dict()
     store['type'] = 'object_store'
     store['min_free_mem_pct'] = min_free_mem_pct
