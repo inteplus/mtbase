@@ -1,5 +1,6 @@
 '''Concurrency in dask way. Needed for streaming workloads.'''
 
+import multiprocessing as _mp
 from dask.distributed import Client
 from distributed.client import Future
 from . import home_dirpath
@@ -7,7 +8,7 @@ from .path import join, make_dirs
 from .deprecated import deprecated_func
 
 
-__all__ = ['get_dd_client', 'reset_dd_client', 'bg_run', 'is_future', 'max_num_threads']
+__all__ = ['get_dd_client', 'reset_dd_client', 'bg_run', 'is_future', 'max_num_threads', 'Counter']
 
 
 def get_dd_client():
@@ -38,3 +39,19 @@ def bg_run(func, *args, **kwargs):
 def is_future(obj):
     '''Checks if an object is a dask Future object.'''
     return isinstance(obj, Future)
+
+
+class Counter(object):
+
+    '''Counter class without the race-condition bug'''
+
+    def __init__(self):
+        self.val = _mp.Value('i', 0)
+
+    def increment(self, n=1):
+        with self.val.get_lock():
+            self.val.value += n
+
+    @property
+    def value(self):
+        return self.val.value
