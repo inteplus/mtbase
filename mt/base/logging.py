@@ -157,23 +157,33 @@ class IndentedLoggerAdapter(LoggerAdapter):
     # ----- break mutli-line messages -----
 
     def critical(self, msg, *args, **kwargs):
+        if not isintance(msg, (str, bytes)):
+            msg = str(msg)
         for m in msg.split(b'\n') if isinstance(msg, bytes) else msg.split('\n'):
             super(IndentedLoggerAdapter, self).critical(m, *args, **kwargs)
 
     def error(self, msg, *args, **kwargs):
+        if not isintance(msg, (str, bytes)):
+            msg = str(msg)
         for m in msg.split(b'\n') if isinstance(msg, bytes) else msg.split('\n'):
             super(IndentedLoggerAdapter, self).error(m, *args, **kwargs)
 
     def warning(self, msg, *args, **kwargs):
+        if not isintance(msg, (str, bytes)):
+            msg = str(msg)
         for m in msg.split(b'\n') if isinstance(msg, bytes) else msg.split('\n'):
             super(IndentedLoggerAdapter, self).warning(m, *args, **kwargs)
     warn = warning
 
     def info(self, msg, *args, **kwargs):
+        if not isintance(msg, (str, bytes)):
+            msg = str(msg)
         for m in msg.split(b'\n') if isinstance(msg, bytes) else msg.split('\n'):
             super(IndentedLoggerAdapter, self).info(m, *args, **kwargs)
 
     def debug(self, msg, *args, **kwargs):
+        if not isintance(msg, (str, bytes)):
+            msg = str(msg)
         for m in msg.split(b'\n') if isinstance(msg, bytes) else msg.split('\n'):
             super(IndentedLoggerAdapter, self).debug(m, *args, **kwargs)
 
