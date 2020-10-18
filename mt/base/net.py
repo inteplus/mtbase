@@ -3,27 +3,27 @@ import psutil as _p
 import getpass as _getpass
 import threading as _t
 import netifaces as _n
-from ipcalc import IP
+import ipaddress as _ia
 from getmac import get_mac_address
 from time import sleep
 from .logging import dummy_scope
 
 
-__all__ = ['get_default_ifaces', 'is_port_open', 'get_hostname', 'get_username', 'get_all_hosts_from_subnet', 'get_all_inet4_ipaddresses', 'set_keepalive_linux', 'set_keepalive_osx', 'SSHTunnelWatcher', 'launch_port_forwarder', 'launch_ssh_forwarder']
+__all__ = ['get_default_ifaces', 'is_port_open', 'get_hostname', 'get_username', 'get_all_hosts_from_network', 'get_all_inet4_ipaddresses', 'set_keepalive_linux', 'set_keepalive_osx', 'SSHTunnelWatcher', 'launch_port_forwarder', 'launch_ssh_forwarder']
 
 
 def get_default_ifaces():
-    '''Returns a list of (addr, netmask, subnet, broadcast, gateway, iface, version) tuples of default ifaces.'''
+    '''Returns a list of (host_ip_addr, subnet, broadcast, gateway_ip_address, iface) tuples of default ifaces.'''
     res = []
     for k, v in _n.gateways()['default'].items():
         gw, iface = v
         item = _n.ifaddresses(iface)[k][0]
-        item['gateway'] = gw
-        item['iface'] = iface
-        ip = IP(item['addr'], mask=item['netmask'])
-        item['subnet'] = ip.subnet()
-        item['version'] = ip.version()
-        res.append(item)
+        ip_addr = _ia.ip_address(item['addr'])
+        net_str = "{}/{}".format(item['addr'], item['netmask'])
+        ip_network = _ia.ip_network(net_str, strict=False)
+        gw_addr = _ia.ip_address(gw)
+        bc_addr = _ia.ip_address(item['broadcast'])
+        res.append((ip_addr, ip_network, bc_addr, gw_addr, iface))
     return res
 
 
@@ -70,33 +70,22 @@ def get_username():
     return _getpass.getuser()
 
 
-def get_all_hosts_from_subnet(ip_addr, net_mask):
-    '''Gets all hosts (ip_addr, mac_addr) from a given subnet.
+def get_all_hosts_from_network(ip_network):
+    '''Gets all hosts (ip_addr, mac_addr) from a given ip network.
 
     Parameters
     ----------
-    ip_addr : str
-        one IP address in the subnet. E.g. '192.168.0.1'.
-    net_mask : str
-        net mask of the subnet. E.g. '255.255.255.0'.
+    ip_network : ipaddress.IpNetwork
+        IP network
 
     Returns
     -------
     list
         list of (ip_addr, mac_addr) pairs of detected hosts in the subnet.
     '''
-    ip = IP(ip_addr, mask=net_mask)
-    if ip.version() != 4:
-        raise ValueError("Only IPv4 is supported for now. Got version {}.".format(ip.version()))
-    subnet = ip.subnet()
-    if subnet != 24:
-        raise ValueError("Only subnet/24 is supported for now. Got {}.".format(ip.subnet()))
-    sub_addr = ip_addr[:ip_addr.rfind('.')]
-    
     res = []
-    for i in range(256):
-        addr = "{}.{}".format(sub_addr, i)
-        mac = get_mac_address(ip=addr)
+    for addr in ip_network.hosts():
+        mac = get_mac_address(ip=addr.exploded)
         if mac is not None and mac != '00:00:00:00:00:00':
             res.append((addr, mac))
 

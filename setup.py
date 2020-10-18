@@ -10,7 +10,6 @@ setup(name='mtbase',
       packages=find_namespace_packages(include=['mt.*']),
       install_requires=[
           'psutil',
-          'ipcalc',
           'getmac',
           'colorama',  # for colored text
           'Cython',  # for fast speed on tiny objects
