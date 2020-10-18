@@ -75,13 +75,13 @@ def get_all_hosts_from_network(ip_network):
 
     Parameters
     ----------
-    ip_network : ipaddress.IpNetwork
+    ip_network : ipaddress.Ipv4Network
         IP network
 
     Returns
     -------
     list
-        list of (ip_addr, mac_addr) pairs of detected hosts in the subnet.
+        list of (ip_addr -> ipaddress.Ipv4Address, mac_addr -> str) pairs of detected hosts in the subnet.
     '''
     res = []
     for addr in ip_network.hosts():
