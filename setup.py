@@ -11,6 +11,7 @@ setup(name='mtbase',
       install_requires=[
           'psutil',
           'getmac',
+          'netifaces',
           'colorama',  # for colored text
           'Cython',  # for fast speed on tiny objects
           'numpy', # common ndarray
