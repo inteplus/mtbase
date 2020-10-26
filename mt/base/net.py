@@ -4,12 +4,13 @@ import getpass as _getpass
 import threading as _t
 import netifaces as _n
 import ipaddress as _ia
+import requests as _r
 from getmac import get_mac_address
 from time import sleep
 from .logging import dummy_scope
 
 
-__all__ = ['get_default_ifaces', 'is_port_open', 'get_hostname', 'get_username', 'get_all_hosts_from_network', 'get_all_inet4_ipaddresses', 'set_keepalive_linux', 'set_keepalive_osx', 'SSHTunnelWatcher', 'launch_port_forwarder', 'launch_ssh_forwarder']
+__all__ = ['get_default_ifaces', 'is_port_open', 'get_hostname', 'get_username', 'get_all_hosts_from_network', 'get_all_inet4_ipaddresses', 'set_keepalive_linux', 'set_keepalive_osx', 'SSHTunnelWatcher', 'launch_port_forwarder', 'launch_ssh_forwarder', 'get_public_ip_address']
 
 
 def get_default_ifaces():
@@ -462,3 +463,15 @@ def launch_ssh_forwarder(listen_config, ssh_tunnel_forwarder, timeout=30, logger
             "The argument `ssh_tunnel_forwarder` is not an instance of sshtunnel.SSHTunnelForwarder.")
     _t.Thread(target=_pf_tunnel_server, args=(listen_config, ssh_tunnel_forwarder),
               kwargs={'timeout': timeout, 'logger': logger}).start()
+
+
+def get_public_ip_address():
+    '''Obtains the public IP address using AWS.
+
+    Returns
+    -------
+    ipaddress.Ipv4Address
+        public ip address of the current host
+    '''
+    ip = _r.get('https://checkip.amazonaws.com').text.strip()
+    return _ia.ip_address(ip)
