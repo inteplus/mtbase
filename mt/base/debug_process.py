@@ -143,8 +143,10 @@ def debug_process(pid):
 
 def listen():
     if os.name != 'posix':
-        raise OSError("This function only runs on a posix system like Unix, Linux or Mac.")
-    signal.signal(signal.SIGUSR1, remote_debug) # Register for remote debugging.
+        from .logging import logger
+        logger.warning("Unable to register a pipe for remote-debugging the current process. The functionality only works in a posix system like Unix, Linux or Mac.")
+    else:
+        signal.signal(signal.SIGUSR1, remote_debug) # Register for remote debugging.
 
 
 if __name__=='__main__':
