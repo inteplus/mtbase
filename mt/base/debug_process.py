@@ -2,7 +2,7 @@
 
 '''Useful module to debug a process remotely.
 
-The process to be remotely debugged should import this module and invoke :func:`listen` during startup. Invoke :func:`debug_process` with the PID of the process being the argument.
+The process to be remotely debugged should import this module and invoke :func:`listen` during startup. Invoke :func:`debug_process` with the PID of the process being the argument. As of 2020/11/20, as long as you import mt.base, this module is imported and registered automatically.
 
 Reference: https://code.activestate.com/recipes/576515/
 '''
