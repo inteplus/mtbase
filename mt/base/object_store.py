@@ -193,7 +193,7 @@ def put(store, key, value):
         # find the key corresponding to the oldest object
         old_key = None
         old_time = None
-        for key2 in store['data']:
+        for key2 in store:
             if not key2.startswith('item_'):
                 continue
             pair = store[key2]
