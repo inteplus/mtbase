@@ -39,6 +39,7 @@ def create(min_free_mem_pct=0.2, put_policy='rotate'):
     store['type'] = 'object_store'
     store['min_free_mem_pct'] = min_free_mem_pct
     store['put_policy'] = put_policy
+    store['lock'] = store.RLock()
     return store
 
     
@@ -71,7 +72,8 @@ def count(store):
     int
         number of objects in the store
     '''
-    return len(store)-3
+    with store['lock']:
+        return len(store)-4
 
 
 def has(store, key):
@@ -89,7 +91,8 @@ def has(store, key):
     bool
         whether or not the key exists in the store
     '''
-    return 'item_'+key in store
+    with store['lock']:
+        return 'item_'+key in store
 
 
 def keys(store):
@@ -105,7 +108,8 @@ def keys(store):
     list
         list of keys
     '''
-    return [key[5:] for keys in store if keys.startswith('item_')]
+    with store['lock']:
+        return [key[5:] for keys in store if keys.startswith('item_')]
 
 
 def get(store, key, default_value=None):
@@ -123,13 +127,14 @@ def get(store, key, default_value=None):
     object
         the object associated with the key, or default value if not found
     '''
-    if not has(store, key):
-        return default_value
+    with store['lock']:
+        if not has(store, key):
+            return default_value
 
-    pair = store['item_'+key]
-    obj = pair[0] # actual object
-    pair[1] = time() # access time
-    return obj
+        pair = store['item_'+key]
+        obj = pair[0] # actual object
+        pair[1] = time() # access time
+        return obj
 
 
 def remove(store, key):
@@ -147,14 +152,15 @@ def remove(store, key):
     bool
         whether or not the object has been removed.
     '''
-    if not has(store, key):
-        return False
+    with store['lock']:
+        if not has(store, key):
+            return False
 
-    try:
-        del store['item_'+key]
-        return True
-    except:
-        return False
+        try:
+            del store['item_'+key]
+            return True
+        except:
+            return False
 
 
 def put(store, key, value):
@@ -174,41 +180,42 @@ def put(store, key, value):
     bool
         whether or not the object has been stored. Check :func:`create` for more details about the put policy.
     '''
-    # delete if the key exists
-    remove(store, key)
+    with store['lock']:
+        # delete if the key exists
+        remove(store, key)
 
-    while True:
-        stats = _pu.virtual_memory()
-        free_mem_pct = stats.available / stats.total
-        if free_mem_pct >= store['min_free_mem_pct']:
-            outcome = True
-            break
-        if count(store) == 0:
-            outcome = False
-            break
-        if store['put_policy'] == 'strict':
-            outcome = False
-            break
+        while True:
+            stats = _pu.virtual_memory()
+            free_mem_pct = stats.available / stats.total
+            if free_mem_pct >= store['min_free_mem_pct']:
+                outcome = True
+                break
+            if count(store) == 0:
+                outcome = False
+                break
+            if store['put_policy'] == 'strict':
+                outcome = False
+                break
 
-        # find the key corresponding to the oldest object
-        old_key = None
-        old_time = None
-        for key2 in store:
-            if not key2.startswith('item_'):
-                continue
-            pair = store[key2]
-            if not old_time or old_time > pair[1]:
-                old_key = key2[5:]
-                old_time = pair[1]
-        if not old_key:
-            outcome = False
-            break
-        remove(store, old_key)
+            # find the key corresponding to the oldest object
+            old_key = None
+            old_time = None
+            for key2 in store:
+                if not key2.startswith('item_'):
+                    continue
+                pair = store[key2]
+                if not old_time or old_time > pair[1]:
+                    old_key = key2[5:]
+                    old_time = pair[1]
+            if not old_key:
+                outcome = False
+                break
+            remove(store, old_key)
 
-    if not outcome:
-        return False
+        if not outcome:
+            return False
 
-    store['item_'+key] = [value, time()]
-    return True
+        store['item_'+key] = [value, time()]
+        return True
 
     
