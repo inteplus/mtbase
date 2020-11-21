@@ -51,7 +51,7 @@ class NamedPipe(object):
         if self.is_open():
             data = cPickle.dumps(msg,1)
             self.out.write("%d\n" % len(data))
-            self.out.write(data.decode(encoding='ascii'))
+            self.out.write(data.decode(encoding='iso-8859-1'))
             self.out.flush()
         else:
             raise Exception("Pipe closed")
@@ -64,7 +64,7 @@ class NamedPipe(object):
             l = int(txt)
             data=self.inp.read(l)
             if len(data) < l: self.inp.close()
-            return cPickle.loads(data.encode(encoding='ascii'))  # Convert back to python object.
+            return cPickle.loads(data.encode(encoding='iso-8859-1'))  # Convert back to python object.
             
     def close(self):
         self.inp.close()
