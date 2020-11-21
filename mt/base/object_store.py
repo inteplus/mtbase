@@ -39,7 +39,7 @@ def create(min_free_mem_pct=0.2, put_policy='rotate'):
     store['type'] = 'object_store'
     store['min_free_mem_pct'] = min_free_mem_pct
     store['put_policy'] = put_policy
-    store['lock'] = store.RLock()
+    store['lock'] = server_process.RLock()
     return store
 
     
