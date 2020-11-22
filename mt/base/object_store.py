@@ -200,13 +200,16 @@ def put(store, key, value):
             # find the key corresponding to the oldest object
             old_key = None
             old_time = None
-            for key2 in store:
-                if not key2.startswith('item_'):
-                    continue
-                pair = store[key2]
-                if not old_time or old_time > pair[1]:
-                    old_key = key2[5:]
-                    old_time = pair[1]
+            try:
+                for key2 in store:
+                    if not key2.startswith('item_'):
+                        continue
+                    pair = store[key2]
+                    if not old_time or old_time > pair[1]:
+                        old_key = key2[5:]
+                        old_time = pair[1]
+            except:
+                pass # MT-NOTE: Can't go through all keys. Something went wrong. Just bail out.
             if not old_key:
                 outcome = False
                 break
