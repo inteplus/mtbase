@@ -1,7 +1,11 @@
-'''In-memory object store that can be used by multiple processes.'''
+'''In-memory object store that can be used by multiple processes.
+
+MT is tring to make sure that the functions in this module are multiprocessing-safe and thread-safe.
+'''
 
 
 import multiprocessing as _mp
+import threading as _t
 import psutil as _pu
 from time import time
 
@@ -11,6 +15,9 @@ __all__ = ['create', 'valid', 'count', 'keys', 'has', 'get', 'put', 'remove']
 
 # main server process
 server_process = None
+
+# thread lock to make sure one thread runs a command at a time
+_thread_lock = _t.RLock()
 
 
 def create(min_free_mem_pct=0.2, put_policy='rotate'):
@@ -73,7 +80,8 @@ def count(store):
         number of objects in the store
     '''
     with store['lock']:
-        return len(store)-4
+        with _thread_lock:
+            return len(store)-4
 
 
 def has(store, key):
@@ -109,7 +117,8 @@ def keys(store):
         list of keys
     '''
     with store['lock']:
-        return [key[5:] for keys in store if keys.startswith('item_')]
+        with _thread_lock:
+            return [key[5:] for keys in store if keys.startswith('item_')]
 
 
 def get(store, key, default_value=None):
@@ -128,13 +137,14 @@ def get(store, key, default_value=None):
         the object associated with the key, or default value if not found
     '''
     with store['lock']:
-        if not has(store, key):
-            return default_value
+        with _thread_lock:
+            if not has(store, key):
+                return default_value
 
-        pair = store['item_'+key]
-        obj = pair[0] # actual object
-        pair[1] = time() # access time
-        return obj
+            pair = store['item_'+key]
+            obj = pair[0] # actual object
+            pair[1] = time() # access time
+            return obj
 
 
 def remove(store, key):
@@ -153,14 +163,15 @@ def remove(store, key):
         whether or not the object has been removed.
     '''
     with store['lock']:
-        if not has(store, key):
-            return False
+        with _thread_lock:
+            if not has(store, key):
+                return False
 
-        try:
-            del store['item_'+key]
-            return True
-        except:
-            return False
+            try:
+                del store['item_'+key]
+                return True
+            except:
+                return False
 
 
 def put(store, key, value):
@@ -181,44 +192,45 @@ def put(store, key, value):
         whether or not the object has been stored. Check :func:`create` for more details about the put policy.
     '''
     with store['lock']:
-        # delete if the key exists
-        remove(store, key)
+        with _thread_lock:
+            # delete if the key exists
+            remove(store, key)
 
-        while True:
-            stats = _pu.virtual_memory()
-            free_mem_pct = stats.available / stats.total
-            if free_mem_pct >= store['min_free_mem_pct']:
-                outcome = True
-                break
-            if count(store) == 0:
-                outcome = False
-                break
-            if store['put_policy'] == 'strict':
-                outcome = False
-                break
+            while True:
+                stats = _pu.virtual_memory()
+                free_mem_pct = stats.available / stats.total
+                if free_mem_pct >= store['min_free_mem_pct']:
+                    outcome = True
+                    break
+                if count(store) == 0:
+                    outcome = False
+                    break
+                if store['put_policy'] == 'strict':
+                    outcome = False
+                    break
 
-            # find the key corresponding to the oldest object
-            old_key = None
-            old_time = None
-            try:
-                for key2 in store:
-                    if not key2.startswith('item_'):
-                        continue
-                    pair = store[key2]
-                    if not old_time or old_time > pair[1]:
-                        old_key = key2[5:]
-                        old_time = pair[1]
-            except:
-                pass # MT-NOTE: Can't go through all keys. Something went wrong. Just bail out.
-            if not old_key:
-                outcome = False
-                break
-            remove(store, old_key)
+                # find the key corresponding to the oldest object
+                old_key = None
+                old_time = None
+                try:
+                    for key2 in store:
+                        if not key2.startswith('item_'):
+                            continue
+                        pair = store[key2]
+                        if not old_time or old_time > pair[1]:
+                            old_key = key2[5:]
+                            old_time = pair[1]
+                except:
+                    pass # MT-NOTE: Can't go through all keys. Something went wrong. Just bail out.
+                if not old_key:
+                    outcome = False
+                    break
+                remove(store, old_key)
 
-        if not outcome:
-            return False
+            if not outcome:
+                return False
 
-        store['item_'+key] = [value, time()]
-        return True
+            store['item_'+key] = [value, time()]
+            return True
 
     
