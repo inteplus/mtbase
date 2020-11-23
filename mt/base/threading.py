@@ -5,7 +5,7 @@
 from threading import *
 
 
-__all__ = ['ReadWriteLock', 'ReadRWLock', 'WriteRWLock']
+__all__ = ['ReadWriteLock', 'ReadRWLock', 'WriteRWLock', 'LockedIterator']
 
 
 class ReadWriteLock:
@@ -105,5 +105,26 @@ class WriteRWLock:
   def __exit__(self, exc_type, exc_value, traceback):
     self.rwLock.release_write()
     return False        # Raise the exception, if exited due to an exception
+
+#----------------------------------------------------------------------------------------------------------
+
+class LockedIterator(object):
+  '''An wrapper that locks the input iterator to make sure it is thread-safe.'''
+  def __init__(self, it):
+    self.lock = Lock()
+    self.it = it.__iter__()
+
+  def __iter__(self):
+    return self
+
+  def __next__(self):
+    self.lock.acquire()
+    try:
+      return next(self.it)
+    finally:
+      self.lock.release()
+
+  def next(self):
+    return self.__next__()
 
 #----------------------------------------------------------------------------------------------------------
