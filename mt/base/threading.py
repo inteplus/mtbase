@@ -118,11 +118,8 @@ class LockedIterator(object):
     return self
 
   def __next__(self):
-    self.lock.acquire()
-    try:
+    with self.lock:
       return next(self.it)
-    finally:
-      self.lock.release()
 
   def next(self):
     return self.__next__()
