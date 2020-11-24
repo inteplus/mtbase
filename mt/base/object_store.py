@@ -17,6 +17,7 @@ __all__ = ['create', 'valid', 'count', 'keys', 'has', 'get', 'put', 'remove']
 server_process = None
 
 # thread lock to make sure one thread runs a command at a time
+_mp_lock = _mp.RLock()
 _thread_lock = _t.RLock()
 
 
@@ -46,7 +47,7 @@ def create(min_free_mem_pct=0.2, put_policy='rotate'):
     store['type'] = 'object_store'
     store['min_free_mem_pct'] = min_free_mem_pct
     store['put_policy'] = put_policy
-    store['lock'] = server_process.RLock()
+    #store['lock'] = server_process.RLock()
     return store
 
     
@@ -90,7 +91,8 @@ def store_exec(func, store, *args, **kwargs):
     TimeoutError
         if we cannot lock the object store to proceed
     '''
-    process_lock = store['lock']
+    #process_lock = store['lock']
+    process_lock = _mp_lock
     if not process_lock.acquire(block=True, timeout=30.0): # multiprocessing-safe
         raise TimeoutError("Timeout in acquiring the object store's process lock.")
     try:
@@ -117,7 +119,7 @@ def count(store):
     int
         number of objects in the store
     '''
-    return store_exec(lambda x: len(x)-4, store)
+    return store_exec(lambda x: len(x)-3, store)
 
 
 def has(store, key):
