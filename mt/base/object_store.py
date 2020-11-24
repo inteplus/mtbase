@@ -96,7 +96,7 @@ def store_exec(func, store, *args, **kwargs):
     if not process_lock.acquire(block=True, timeout=30.0): # multiprocessing-safe
         raise TimeoutError("Timeout in acquiring the object store's process lock.")
     try:
-        if not _thread_lock.acquire(block=True, timeout=30.0): # thread-safe
+        if not _thread_lock.acquire(blocking=True, timeout=30.0): # thread-safe
             raise TimeoutError("Timeout in acquiring the object store's thread lock.")
         try:
             return func(store, *args, **kwargs)
