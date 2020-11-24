@@ -26,8 +26,19 @@ def reset_dd_client():
         get_dd_client.client.close()
         get_dd_client.client = None
 
-def max_num_threads(client=None):
-    '''Retrieves the maximum number of threads the client can handle concurrently. Uses the default dask.distributed client if None is given.'''
+def max_num_threads(client=None, use_dask=True):
+    '''Retrieves the maximum number of threads the client can handle concurrently. 
+
+    Parameters
+    ----------
+    client : dask.distributed.Client, optional
+        If 'use_dask' is True, this argument specifies the dask distributed client. It uses the default dask.distributed client if None is given.
+    use_dask : bool
+        whether or not we use dask distributed to count the number of threads. If not, we use :func:`multiprocessing.cpu_count`.
+    '''
+    if not use_dask:
+        return _mp.cpu_count()
+
     if client is None:
         client = get_dd_client()
     return sum(client.nthreads().values())
