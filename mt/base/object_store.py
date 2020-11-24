@@ -66,6 +66,44 @@ def valid(store):
     return hasattr(store, 'get') and store.get('type', None) == 'object_store'
 
 
+def store_exec(func, store, *args, **kwargs):
+    '''Executes a function related to a store safely by locking the store, executing the function, then unlocking the store.
+
+    Parameters
+    ----------
+    func : function
+        function to be invoked
+    store : multiprocessing.managers.DictProxy
+        object store
+    args : list
+        positional arguments to pass to the function
+    kwargs : dict
+        keyword arguments to pass to the function
+    
+    Returns
+    -------
+    object
+        whatever that the function returns
+
+    Raises
+    ------
+    TimeoutError
+        if we cannot lock the object store to proceed
+    '''
+    process_lock = store['lock']
+    if not process_lock.acquire(block=True, timeout=30.0): # multiprocessing-safe
+        raise TimeoutError("Timeout in acquiring the object store's process lock.")
+    try:
+        if not _thread_lock.acquire(block=True, timeout=30.0): # thread-safe
+            raise TimeoutError("Timeout in acquiring the object store's thread lock.")
+        try:
+            return func(store, *args, **kwargs)
+        finally:
+            _thread_lock.release()
+    finally:
+        process_lock.release()
+
+
 def count(store):
     '''Returns the number of objects in the store.
 
@@ -79,9 +117,7 @@ def count(store):
     int
         number of objects in the store
     '''
-    with store['lock']:
-        with _thread_lock:
-            return len(store)-4
+    return store_exec(lambda x: len(x)-4, store)
 
 
 def has(store, key):
@@ -99,8 +135,7 @@ def has(store, key):
     bool
         whether or not the key exists in the store
     '''
-    with store['lock']:
-        return 'item_'+key in store
+    return store_exec((lambda store, key: 'item_'+key in store), store, key)
 
 
 def keys(store):
@@ -116,9 +151,7 @@ def keys(store):
     list
         list of keys
     '''
-    with store['lock']:
-        with _thread_lock:
-            return [key[5:] for keys in store if keys.startswith('item_')]
+    return store_exec(lambda store: [key[5:] for keys in store if keys.startswith('item_')], store)
 
 
 def get(store, key, default_value=None):
@@ -136,15 +169,15 @@ def get(store, key, default_value=None):
     object
         the object associated with the key, or default value if not found
     '''
-    with store['lock']:
-        with _thread_lock:
-            if not has(store, key):
-                return default_value
+    def func(store, key, default_value=None):
+        if not has(store, key):
+            return default_value
 
-            pair = store['item_'+key]
-            obj = pair[0] # actual object
-            pair[1] = time() # access time
-            return obj
+        pair = store['item_'+key]
+        obj = pair[0] # actual object
+        pair[1] = time() # access time
+        return obj
+    return store_exec(func, store, key, default_value=default_value)
 
 
 def remove(store, key):
@@ -161,17 +194,22 @@ def remove(store, key):
     -------
     bool
         whether or not the object has been removed.
-    '''
-    with store['lock']:
-        with _thread_lock:
-            if not has(store, key):
-                return False
 
-            try:
-                del store['item_'+key]
-                return True
-            except:
-                return False
+    Raises
+    ------
+    TimeoutError
+        if we cannot lock the object store to proceed
+    '''
+    def func(store, key):
+        if not has(store, key):
+            return False
+
+        try:
+            del store['item_'+key]
+            return True
+        except:
+            return False
+    return store_exec(func, store, key)
 
 
 def put(store, key, value):
@@ -190,47 +228,51 @@ def put(store, key, value):
     -------
     bool
         whether or not the object has been stored. Check :func:`create` for more details about the put policy.
+
+    Raises
+    ------
+    TimeoutError
+        if we cannot lock the object store to proceed
     '''
-    with store['lock']:
-        with _thread_lock:
-            # delete if the key exists
-            remove(store, key)
+    def func(store, key, value):
+        # delete if the key exists
+        remove(store, key)
 
-            while True:
-                stats = _pu.virtual_memory()
-                free_mem_pct = stats.available / stats.total
-                if free_mem_pct >= store['min_free_mem_pct']:
-                    outcome = True
-                    break
-                if count(store) == 0:
-                    outcome = False
-                    break
-                if store['put_policy'] == 'strict':
-                    outcome = False
-                    break
+        while True:
+            stats = _pu.virtual_memory()
+            free_mem_pct = stats.available / stats.total
+            if free_mem_pct >= store['min_free_mem_pct']:
+                outcome = True
+                break
+            if count(store) == 0:
+                outcome = False
+                break
+            if store['put_policy'] == 'strict':
+                outcome = False
+                break
 
-                # find the key corresponding to the oldest object
-                old_key = None
-                old_time = None
-                try:
-                    for key2 in store:
-                        if not key2.startswith('item_'):
-                            continue
-                        pair = store[key2]
-                        if not old_time or old_time > pair[1]:
-                            old_key = key2[5:]
-                            old_time = pair[1]
-                except:
-                    pass # MT-NOTE: Can't go through all keys. Something went wrong. Just bail out.
-                if not old_key:
-                    outcome = False
-                    break
-                remove(store, old_key)
+            # find the key corresponding to the oldest object
+            old_key = None
+            old_time = None
+            try:
+                for key2 in store:
+                    if not key2.startswith('item_'):
+                        continue
+                    pair = store[key2]
+                    if not old_time or old_time > pair[1]:
+                        old_key = key2[5:]
+                        old_time = pair[1]
+            except:
+                pass # MT-NOTE: Can't go through all keys. Something went wrong. Just bail out.
+            if not old_key:
+                outcome = False
+                break
+            remove(store, old_key)
 
-            if not outcome:
-                return False
+        if not outcome:
+            return False
 
-            store['item_'+key] = [value, time()]
-            return True
-
+        store['item_'+key] = [value, time()]
+        return True
+    return store_exec(func, store, key, value)
     
