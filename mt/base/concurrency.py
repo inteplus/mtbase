@@ -94,7 +94,7 @@ class ProcessParalleliser(object):
         self.func = func
         self.queue_in = _mp.Queue()
         self.queue_out = _mp.Queue()
-        self.process_list = [_mp.Process(target=_worker_process, args=(func, self.queue_in, self.queue_out)) or i in range(_mp.cpu_count())]
+        self.process_list = [_mp.Process(target=_worker_process, args=(func, self.queue_in, self.queue_out)) for i in range(_mp.cpu_count())]
 
         # start all background processes
         for p in self.process_list:
