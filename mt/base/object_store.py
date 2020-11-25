@@ -153,7 +153,7 @@ def keys(store):
     list
         list of keys
     '''
-    return store_exec(lambda store: [key[5:] for keys in store if keys.startswith('item_')], store)
+    return store_exec(lambda store: [key[5:] for keys in store if key.startswith('item_')], store)
 
 
 def get(store, key, default_value=None):
