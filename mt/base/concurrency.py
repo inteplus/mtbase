@@ -108,6 +108,8 @@ class ProcessParalleliser(object):
         # wait for them to be terminated
         for p in self.process_list:
             p.join()
+            p.terminate()
+            p.close()
 
 
     def push(self, worker_id):
@@ -134,4 +136,4 @@ class ProcessParalleliser(object):
 
     def pop(self):
         '''Returns a pair (worker_id, result) when at least one such pair is available.'''
-        return self.queue_out.pop()
+        return self.queue_out.get()
