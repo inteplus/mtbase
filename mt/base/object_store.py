@@ -153,7 +153,7 @@ def keys(store):
     list
         list of keys
     '''
-    return store_exec(lambda store: [key[5:] for key in store if key.startswith('item_')], store)
+    return store_exec(lambda store: [key[5:] for key in store.keys() if key.startswith('item_')], store)
 
 
 def get(store, key, default_value=None):
@@ -257,7 +257,7 @@ def put(store, key, value):
             old_key = None
             old_time = None
             try:
-                for key2 in store:
+                for key2 in store.keys():
                     if not key2.startswith('item_'):
                         continue
                     pair = store[key2]
