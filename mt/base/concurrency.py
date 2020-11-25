@@ -8,7 +8,7 @@ from .path import join, make_dirs
 from .deprecated import deprecated_func
 
 
-__all__ = ['get_dd_client', 'reset_dd_client', 'bg_run', 'is_future', 'max_num_threads', 'Counter']
+__all__ = ['get_dd_client', 'reset_dd_client', 'bg_run', 'is_future', 'max_num_threads', 'Counter', 'ProcessParalleliser']
 
 
 def get_dd_client():
@@ -66,3 +66,72 @@ class Counter(object):
     @property
     def value(self):
         return self.val.value
+
+
+# ----------------------------------------------------------------------
+
+
+def _worker_process(func, queue_in, queue_out):
+    while True:
+        worker_id = queue_in.get()
+        if not isinstance(worker_id, int) or worker_id < 0:
+            return # stop the process
+
+        res = func(worker_id)
+        queue_out.put((worker_id, res))
+
+
+class ProcessParalleliser(object):
+    '''Run a function with different inputs in parallel using multiprocessing.
+
+    Parameters
+    ----------
+    func : function
+        a function to be run in parallel. The function takes as input a non-negative integer 'worker_id' and returns something.
+    '''
+
+    def __init__(self, func):
+        self.func = func
+        self.queue_in = _mp.Queue()
+        self.queue_out = _mp.Queue()
+        self.process_list = [_mp.Process(target=_worker_process, args=(func, self.queue_in, self.queue_out)) or i in range(_mp.cpu_count())]
+
+        # start all background processes
+        for p in self.process_list:
+            p.start()
+
+    def __del__(self):
+        # send commands to terminate the processes
+        for n in range(len(self.process_list)*2):
+            self.queue_in.put(-1)
+
+        # wait for them to be terminated
+        for p in self.process_list:
+            p.join()
+
+
+    def push(self, worker_id):
+        '''Pushes a worker id to the background to run the provided function in parallel.
+
+        Parameters
+        ----------
+        worker_id : int
+            non-negative integer to be provided to the function
+
+        Notes
+        -----
+        This function returns nothing. You should use :func:`pop` or :func:`empty` to check the output.
+        '''
+        if not isinstance(worker_id, int):
+            raise ValueError("Worker id is not an integer. Got {}.".format(worker_id))
+        if worker_id < 0:
+            raise ValueError("Worker id is negative. Got {}.".format(worker_id))
+        self.queue_in.put(worker_id)
+
+    def empty(self):
+        '''Returns whether the output queue is empty.'''
+        return self.queue_out.empty()
+
+    def pop(self):
+        '''Returns a pair (worker_id, result) when at least one such pair is available.'''
+        return self.queue_out.pop()
