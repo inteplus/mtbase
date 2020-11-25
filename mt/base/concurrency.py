@@ -6,6 +6,7 @@ from distributed.client import Future
 from . import home_dirpath
 from .path import join, make_dirs
 from .deprecated import deprecated_func
+from .logging import logger
 
 
 __all__ = ['get_dd_client', 'reset_dd_client', 'bg_run', 'is_future', 'max_num_threads', 'Counter', 'ProcessParalleliser']
@@ -77,7 +78,12 @@ def _worker_process(func, queue_in, queue_out):
         if not isinstance(worker_id, int) or worker_id < 0:
             return # stop the process
 
-        res = func(worker_id)
+        try:
+            res = func(worker_id)
+        except:
+            with logger.scoped_warn("Returning None since background worker has caught an exception", curly=False):
+                logger.warn_last_exception()
+            res = None
         queue_out.put((worker_id, res))
 
 
@@ -109,7 +115,7 @@ class ProcessParalleliser(object):
         for p in self.process_list:
             p.join()
             p.terminate()
-            p.close()
+            #p.close()
 
 
     def push(self, worker_id):
