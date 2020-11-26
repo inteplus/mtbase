@@ -1,11 +1,13 @@
 '''Concurrency in dask way. Needed for streaming workloads.'''
 
+import queue as _q
 import multiprocessing as _mp
 from dask.distributed import Client
 from distributed.client import Future
 from . import home_dirpath
 from .path import join, make_dirs
 from .deprecated import deprecated_func
+from time import sleep
 
 
 __all__ = ['get_dd_client', 'reset_dd_client', 'bg_run', 'is_future', 'max_num_threads', 'Counter', 'ProcessParalleliser']
@@ -73,17 +75,31 @@ class Counter(object):
 
 def _worker_process(func, queue_in, queue_out, logger=None):
     while True:
-        worker_id = queue_in.get()
-        if not isinstance(worker_id, int) or worker_id < 0:
+        try:
+            work_id = queue_in.get(block=True, timeout=24*60*60)
+        except _q.Empty:
+            if logger:
+                logger.error("Waited a for a day without receiving a work id.")
+                logger.error("Shutting down the background process.")
+            return
+        
+        if not isinstance(work_id, int) or work_id < 0:
             return # stop the process
 
         try:
-            res = func(worker_id)
+            res = func(work_id)
         except:
             with logger.scoped_warn("Returning None since background worker has caught an exception", curly=False):
                 logger.warn_last_exception()
             res = None
-        queue_out.put((worker_id, res))
+        try:
+            queue_out.put((work_id, res), block=True, timeout=30)
+        except _q.Full:
+            if logger:
+                logger.error("Unable to send the result of work id {} to the main process.".format(work_id))
+                logger.error("Shutting down the background process.")
+            return
+            
 
 
 class ProcessParalleliser(object):
@@ -92,7 +108,7 @@ class ProcessParalleliser(object):
     Parameters
     ----------
     func : function
-        a function to be run in parallel. The function takes as input a non-negative integer 'worker_id' and returns something.
+        a function to be run in parallel. The function takes as input a non-negative integer 'work_id' and returns something.
     logger : IndentedLoggerAdapter, optional
         for logging messages
     '''
@@ -108,39 +124,76 @@ class ProcessParalleliser(object):
             p.start()
 
     def __del__(self):
-        # send commands to terminate the processes
-        for n in range(len(self.process_list)*2):
-            self.queue_in.put(-1)
+        is_alive = True
+        while is_alive:
+            # check if any process is alive
+            is_alive = False
+            for p in self.process_list:
+                if p.is_alive():
+                    is_alive = True
+                    break
 
-        # wait for them to be terminated
+            if is_alive and self.queue_in.empty():
+                # send commands to terminate the processes
+                for n in range(len(self.process_list)):
+                    self.queue_in.put(-1)
+
+        # wait for them to be terminated and joined back
         for p in self.process_list:
             p.join()
-            p.terminate()
-            #p.close()
 
 
-    def push(self, worker_id):
-        '''Pushes a worker id to the background to run the provided function in parallel.
+    def push(self, work_id, timeout=30):
+        '''Pushes a work id to the background to run the provided function in parallel.
 
         Parameters
         ----------
-        worker_id : int
+        work_id : int
             non-negative integer to be provided to the function
+        timeout : float
+            number of seconds to wait to push the id to the queue before bailing out
+
+        Returns
+        -------
+        bool
+            whether or not the work id has been pushed
 
         Notes
         -----
-        This function returns nothing. You should use :func:`pop` or :func:`empty` to check the output.
+        You should use :func:`pop` or :func:`empty` to check for the output of each work.
         '''
-        if not isinstance(worker_id, int):
-            raise ValueError("Worker id is not an integer. Got {}.".format(worker_id))
-        if worker_id < 0:
-            raise ValueError("Worker id is negative. Got {}.".format(worker_id))
-        self.queue_in.put(worker_id)
+        if not isinstance(work_id, int):
+            raise ValueError("Work id is not an integer. Got {}.".format(work_id))
+        if work_id < 0:
+            raise ValueError("Work id is negative. Got {}.".format(work_id))
+        try:
+            self.queue_in.put(work_id, block=True, timeout=timeout)
+            return True
+        except _q.Full:
+            return False
 
     def empty(self):
         '''Returns whether the output queue is empty.'''
         return self.queue_out.empty()
 
-    def pop(self):
-        '''Returns a pair (worker_id, result) when at least one such pair is available.'''
-        return self.queue_out.get()
+    def pop(self, timeout=60*60):
+        '''Returns a pair (work_id, result) when at least one such pair is available.
+
+        Parameters
+        ----------
+        timeout : float
+            number of seconds to wait to pop a work result from the queue before bailing output
+        
+        Returns
+        -------
+        int
+            non-negative integer representing the work id
+        object
+            work result
+
+        Raises
+        ------
+        queue.Empty
+            if there is no work result after the timeout
+        '''
+        return self.queue_out.get(block=True, timeout=timeout)
