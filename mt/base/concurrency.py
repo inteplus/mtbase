@@ -6,7 +6,6 @@ from distributed.client import Future
 from . import home_dirpath
 from .path import join, make_dirs
 from .deprecated import deprecated_func
-from .logging import logger
 
 
 __all__ = ['get_dd_client', 'reset_dd_client', 'bg_run', 'is_future', 'max_num_threads', 'Counter', 'ProcessParalleliser']
@@ -72,7 +71,7 @@ class Counter(object):
 # ----------------------------------------------------------------------
 
 
-def _worker_process(func, queue_in, queue_out):
+def _worker_process(func, queue_in, queue_out, logger=None):
     while True:
         worker_id = queue_in.get()
         if not isinstance(worker_id, int) or worker_id < 0:
@@ -94,13 +93,15 @@ class ProcessParalleliser(object):
     ----------
     func : function
         a function to be run in parallel. The function takes as input a non-negative integer 'worker_id' and returns something.
+    logger : IndentedLoggerAdapter, optional
+        for logging messages
     '''
 
-    def __init__(self, func):
+    def __init__(self, func, logger=None):
         self.func = func
         self.queue_in = _mp.Queue()
         self.queue_out = _mp.Queue()
-        self.process_list = [_mp.Process(target=_worker_process, args=(func, self.queue_in, self.queue_out)) for i in range(_mp.cpu_count())]
+        self.process_list = [_mp.Process(target=_worker_process, args=(func, self.queue_in, self.queue_out), kwargs={'logger': logger}) for i in range(_mp.cpu_count())]
 
         # start all background processes
         for p in self.process_list:
