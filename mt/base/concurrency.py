@@ -123,7 +123,19 @@ class ProcessParalleliser(object):
         for p in self.process_list:
             p.start()
 
+        self.alive = True
+
+
     def __del__(self):
+        self.close()
+
+        
+    def close(self):
+        '''Closes the instance properly.'''
+
+        if not self.alive:
+            return
+
         is_alive = True
         while is_alive:
             # check if any process is alive
@@ -134,13 +146,15 @@ class ProcessParalleliser(object):
                     break
 
             if is_alive and self.queue_in.empty():
-                # send commands to terminate the processes
-                for n in range(len(self.process_list)):
-                    self.queue_in.put(-1)
+                # send a command to terminate one process
+                self.queue_in.put(-1)
+
+            sleep(0.01) # sleep a bit to give other threads/processes some time to work
 
         # wait for them to be terminated and joined back
         for p in self.process_list:
             p.join()
+        self.alive = False
 
 
     def push(self, work_id, timeout=30):
@@ -162,6 +176,8 @@ class ProcessParalleliser(object):
         -----
         You should use :func:`pop` or :func:`empty` to check for the output of each work.
         '''
+        if not self.alive:
+            raise RuntimeError("The process paralleliser has been closed. Please reinstantiate.")
         if not isinstance(work_id, int):
             raise ValueError("Work id is not an integer. Got {}.".format(work_id))
         if work_id < 0:
@@ -196,4 +212,6 @@ class ProcessParalleliser(object):
         queue.Empty
             if there is no work result after the timeout
         '''
+        if not self.alive:
+            raise RuntimeError("The process paralleliser has been closed. Please reinstantiate.")
         return self.queue_out.get(block=True, timeout=timeout)
