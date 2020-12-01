@@ -1,6 +1,7 @@
 '''Concurrency in dask way. Needed for streaming workloads.'''
 
 import queue as _q
+import threading as _t
 import multiprocessing as _mp
 from dask.distributed import Client
 from distributed.client import Future
@@ -10,7 +11,7 @@ from .deprecated import deprecated_func
 from time import sleep
 
 
-__all__ = ['get_dd_client', 'reset_dd_client', 'bg_run', 'is_future', 'max_num_threads', 'Counter', 'ProcessParalleliser']
+__all__ = ['get_dd_client', 'reset_dd_client', 'bg_run', 'is_future', 'max_num_threads', 'Counter', 'ProcessParalleliser', 'WorkIterator']
 
 
 def get_dd_client():
@@ -108,7 +109,7 @@ class ProcessParalleliser(object):
     Parameters
     ----------
     func : function
-        a function to be run in parallel. The function takes as input a non-negative integer 'work_id' and returns something.
+        a function to be run in parallel. The function takes as input a non-negative integer 'work_id' and returns some result.
     logger : IndentedLoggerAdapter, optional
         for logging messages
     '''
@@ -215,3 +216,82 @@ class ProcessParalleliser(object):
         if not self.alive:
             raise RuntimeError("The process paralleliser has been closed. Please reinstantiate.")
         return self.queue_out.get(block=True, timeout=timeout)
+
+
+class WorkIterator(object):
+    '''Iterates work from id 0 to infinity, returning the work result in each iteration, but using ProcessParalleliser to do a few works ahead of time.
+
+    Parameters
+    ----------
+    func : function
+        a function representing the work process. The function takes as input a non-negative integer 'work_id' and returns some result.
+    push_timeout : float
+        timeout in second for each push to input queue. See :func:`ProcessParalleliser.push`.
+    pop_timeout : float
+        timeout in second for each pop from output queue. See :func:`ProcessParalleliser.pop`.
+    skip_null : bool
+        whether or not to skip the iteration that contains None as the work result.
+    logger : IndentedLoggerAdapter, optional
+        for logging messages
+
+    Notes
+    -----
+    Instances of the class qualify as a thread-safe Python iterator. Each iteration returns a (work_id, result) pair. To avoid a possible deadlock during garbage collection, it is recommended to explicitly invoke :func:`close` to clean up background processes.
+    '''
+
+    def __init__(self, func, push_timeout=30, pop_timeout=60*60, skip_null=True, logger=None):
+        self.paralleliser = ProcessParalleliser(func, logger=logger)
+        self.push_timeout = push_timeout
+        self.pop_timeout = pop_timeout
+        self.skip_null = skip_null
+        self.push_timeout = push_timeout
+        self.pop_timeout = pop_timeout
+        self.send_counter = 0
+        self.recv_counter = 0
+        self.retr_counter = 0
+        self.work_id = 0
+        self.lock = _t.Lock()
+        self.alive = True
+
+    def close(self):
+        '''Closes the iterator for further use.'''
+        with self.lock:
+            if not self.alive:
+                return
+
+            self.paralleliser.close()
+            self.alive = False
+
+    def __del__(self):
+        self.close()
+
+    def __next__(self):
+        with self.lock:
+            if not self.alive:
+                raise RuntimeError("The instance has been closed. Please reinstantiate.")
+
+            while True:
+                max_items = max(self.recv_counter + len(self.paralleliser.process_list)*2 - self.send_counter, 0)
+                for i in range(max_items):
+                    if not self.paralleliser.push(self.send_counter, timeout=self.push_timeout):
+                        break # can't push, maybe timeout?
+                    self.send_counter += 1
+
+                if self.send_counter <= self.recv_counter:
+                    raise RuntimeError("Unable to push some work to background processes.")
+
+                work_id, result = self.paralleliser.pop(timeout=self.pop_timeout)
+                self.recv_counter += 1
+
+                if self.skip_null and result is None:
+                    continue
+                
+                self.retr_counter += 1
+                return work_id, result
+                
+
+    def next(self):
+        return self.__next__()
+
+    def __iter__(self):
+        return self
