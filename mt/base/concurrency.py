@@ -287,7 +287,7 @@ class WorkIterator(object):
                     continue
                 
                 self.retr_counter += 1
-                return work_id, result
+                return result
                 
 
     def next(self):
