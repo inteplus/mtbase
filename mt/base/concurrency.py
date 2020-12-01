@@ -85,6 +85,8 @@ def _worker_process(func, queue_in, queue_out, logger=None):
             return
         
         if not isinstance(work_id, int) or work_id < 0:
+            queue_in.cancel_join_thread() # to prevent join_thread() from blocking
+            queue_out.cancel_join_thread() # to prevent join_thread() from blocking
             return # stop the process
 
         try:
