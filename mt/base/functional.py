@@ -1,7 +1,7 @@
 '''Utitilites related to composing funcions.'''
 
 
-__all__ = ['on_list', 'join_funcs']
+__all__ = ['on_list', 'join_funcs', 'iterator_as_generator']
 
 
 def on_list(func):
@@ -47,3 +47,14 @@ def join_funcs(*funcs, left_to_right=True):
             x = f(x)
         return x
     return left_to_right_func if left_to_right else right_to_left_func
+
+
+def iterator_as_generator(iterator):
+    '''Turns a Python iterator into a Python generator that generates items forever. Probably only useful for keras.'''
+
+    def asgenerator(iterator):
+        while True:
+            yield next(iterator)
+
+    return asgenerator(iterator)
+    
