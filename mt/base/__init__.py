@@ -8,6 +8,9 @@ temp_dirpath = _log_init._temp_dirpath
 __all__ = ['logger', 'home_dirpath', 'temp_dirpath', 'deprecated_func', 'cast', 'castable']
 
 
+from .const import *
+
+
 # backdoor to debug the process
 from .debug_process import listen as _listen
 _listen()
