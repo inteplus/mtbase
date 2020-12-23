@@ -160,32 +160,32 @@ class IndentedLoggerAdapter(LoggerAdapter):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b'\n') if isinstance(msg, bytes) else msg.split('\n'):
-            super(IndentedLoggerAdapter, self).critical(m, *args, **kwargs)
+            super(IndentedLoggerAdapter, self).critical(Fore.LIGHTRED_EX + m, *args, **kwargs)
 
     def error(self, msg, *args, **kwargs):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b'\n') if isinstance(msg, bytes) else msg.split('\n'):
-            super(IndentedLoggerAdapter, self).error(m, *args, **kwargs)
+            super(IndentedLoggerAdapter, self).error(Fore.LIGHTMAGENTA_EX + m, *args, **kwargs)
 
     def warning(self, msg, *args, **kwargs):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b'\n') if isinstance(msg, bytes) else msg.split('\n'):
-            super(IndentedLoggerAdapter, self).warning(m, *args, **kwargs)
+            super(IndentedLoggerAdapter, self).warning(Fore.LIGHTYELLOW_EX + m, *args, **kwargs)
     warn = warning
 
     def info(self, msg, *args, **kwargs):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b'\n') if isinstance(msg, bytes) else msg.split('\n'):
-            super(IndentedLoggerAdapter, self).info(m, *args, **kwargs)
+            super(IndentedLoggerAdapter, self).info(Fore.LIGHTWHITE_EX + m, *args, **kwargs)
 
     def debug(self, msg, *args, **kwargs):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b'\n') if isinstance(msg, bytes) else msg.split('\n'):
-            super(IndentedLoggerAdapter, self).debug(m, *args, **kwargs)
+            super(IndentedLoggerAdapter, self).debug(Fore.LIGHTBLUE_EX + m, *args, **kwargs)
 
     # ----- scoped logging -----
 
@@ -319,22 +319,33 @@ def make_logger(logger_name, max_indent=4):
         std_filter = StdFilter(max_indent=max_indent)
         std_handler.addFilter(std_filter)
 
-        # determine some max string lengths
-        column_length = stty_size()[1]-32
-        log_lvl_length = min(max(int(column_length*0.03), 1), 8)
-        s1 = '{}.{}s '.format(log_lvl_length, log_lvl_length)
-        column_length -= log_lvl_length
-        module_length = max(int(column_length*0.05), 1)
-        s2 = '{}.{}s'.format(module_length, module_length)
-        lineno_length = max(int(column_length*0.02), 4)
-        s3 = '{}.{}s'.format(lineno_length, lineno_length)
-        func_name_length = max(int(column_length*0.13), 1)
-        s4 = '-{}.{}s'.format(func_name_length, func_name_length)
-        max_msg_length = column_length - module_length - lineno_length - func_name_length
-        s5 = '-{}.{}s'.format(max_msg_length, max_msg_length)
+        if True:
+            # determine some max string lengths
+            column_length = stty_size()[1]-20
+            log_lvl_length = min(max(int(column_length*0.03), 1), 8)
+            s1 = '{}.{}s '.format(log_lvl_length, log_lvl_length)
+            column_length -= log_lvl_length
+            s5 = '-{}.{}s'.format(column_length, column_length)
 
-        fmt_str = Fore.CYAN+'%(asctime)s '+Fore.LIGHTGREEN_EX+'%(levelname)'+s1+Fore.LIGHTYELLOW_EX+'['+Fore.BLUE+'%(module)'+s2+Fore.YELLOW+':'+Fore.LIGHTBLUE_EX+'%(lineno)'+s3+Fore.YELLOW+'|'+Fore.LIGHTMAGENTA_EX+'%(funcName)'+s4+Fore.LIGHTYELLOW_EX+'] '+Fore.LIGHTWHITE_EX+'%(message)'+s5+Fore.RESET
-        std_handler.setFormatter(Formatter(fmt_str))
+            fmt_str = Fore.CYAN+'%(asctime)s '+Fore.LIGHTGREEN_EX+'%(levelname)'+s1+Fore.LIGHTWHITE_EX+'%(message)'+s5+Fore.RESET
+            std_handler.setFormatter(Formatter(fmt_str))
+        else:
+            # determine some max string lengths
+            column_length = stty_size()[1]-32
+            log_lvl_length = min(max(int(column_length*0.03), 1), 8)
+            s1 = '{}.{}s '.format(log_lvl_length, log_lvl_length)
+            column_length -= log_lvl_length
+            module_length = max(int(column_length*0.05), 1)
+            s2 = '{}.{}s'.format(module_length, module_length)
+            lineno_length = max(int(column_length*0.02), 4)
+            s3 = '{}.{}s'.format(lineno_length, lineno_length)
+            func_name_length = max(int(column_length*0.13), 1)
+            s4 = '-{}.{}s'.format(func_name_length, func_name_length)
+            max_msg_length = column_length - module_length - lineno_length - func_name_length
+            s5 = '-{}.{}s'.format(max_msg_length, max_msg_length)
+
+            fmt_str = Fore.CYAN+'%(asctime)s '+Fore.LIGHTGREEN_EX+'%(levelname)'+s1+Fore.LIGHTYELLOW_EX+'['+Fore.BLUE+'%(module)'+s2+Fore.YELLOW+':'+Fore.LIGHTBLUE_EX+'%(lineno)'+s3+Fore.YELLOW+'|'+Fore.LIGHTMAGENTA_EX+'%(funcName)'+s4+Fore.LIGHTYELLOW_EX+'] '+Fore.LIGHTWHITE_EX+'%(message)'+s5+Fore.RESET
+            std_handler.setFormatter(Formatter(fmt_str))
 
         logger.logger.addHandler(std_handler)
 
