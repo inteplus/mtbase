@@ -227,11 +227,13 @@ class WorkIterator(object):
     ----------
     func : function
         a function representing the work process. The function takes as input a non-negative integer 'work_id' and returns some result.
-    push_timeout : float
+    buffer_size : int, optional
+        maximum number of work resultant items to be buffered ahead of time. If not specified, default to be twice the number of processes.
+    push_timeout : float, optional
         timeout in second for each push to input queue. See :func:`ProcessParalleliser.push`.
-    pop_timeout : float
+    pop_timeout : float, optional
         timeout in second for each pop from output queue. See :func:`ProcessParalleliser.pop`.
-    skip_null : bool
+    skip_null : bool, optional
         whether or not to skip the iteration that contains None as the work result.
     logger : IndentedLoggerAdapter, optional
         for logging messages
@@ -241,7 +243,7 @@ class WorkIterator(object):
     Instances of the class qualify as a thread-safe Python iterator. Each iteration returns a (work_id, result) pair. To avoid a possible deadlock during garbage collection, it is recommended to explicitly invoke :func:`close` to clean up background processes.
     '''
 
-    def __init__(self, func, push_timeout=30, pop_timeout=60*60, skip_null=True, logger=None):
+    def __init__(self, func, buffer_size=None, skip_null=True, push_timeout=30, pop_timeout=60*60, logger=None):
         self.paralleliser = ProcessParalleliser(func, logger=logger)
         self.push_timeout = push_timeout
         self.pop_timeout = pop_timeout
@@ -252,6 +254,7 @@ class WorkIterator(object):
         self.recv_counter = 0
         self.retr_counter = 0
         self.work_id = 0
+        self.buffer_size = len(self.paralleliser.process_list)*2 if buffer_size is None else buffer_size
         self.lock = _t.Lock()
         self.alive = True
 
@@ -273,7 +276,7 @@ class WorkIterator(object):
                 raise RuntimeError("The instance has been closed. Please reinstantiate.")
 
             while True:
-                max_items = max(self.recv_counter + len(self.paralleliser.process_list)*2 - self.send_counter, 0)
+                max_items = max(self.recv_counter + self.buffer_size - self.send_counter, 0)
                 for i in range(max_items):
                     if not self.paralleliser.push(self.send_counter, timeout=self.push_timeout):
                         break # can't push, maybe timeout?
