@@ -14,6 +14,7 @@ except: pass
 import sys, os, traceback, signal, codeop, tempfile
 from io import StringIO
 import _pickle as cPickle
+import threading as _t
 
 
 __all__ = ['listen', 'debug_process']
@@ -142,6 +143,9 @@ def debug_process(pid):
     pipe.close()
 
 def listen():
+    if _t.current_thread().__class__.__name__ != '_MainThread':
+        return
+
     if os.name != 'posix':
         from .logging import logger
         logger.warning("Unable to register a pipe for remote-debugging the current process. The functionality only works in a posix system like Unix, Linux or Mac.")
