@@ -1,7 +1,8 @@
 '''Some utilities to manipulate strings.'''
 
+import re
 
-__all__ = ['straighten']
+__all__ = ['straighten', 'text_filename']
 
 
 def straighten(s, length, align_left=True, delimiter=' '):
@@ -56,3 +57,61 @@ def straighten(s, length, align_left=True, delimiter=' '):
     if align_left:
         return s[:length-1] + '\u2026'
     return '\u2026' + s[in_len-length+1:]
+
+
+def _make_t2f():
+    prefixes = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    t2f = {}
+    for x in prefixes:
+        x2 = x.encode()
+        t2f[x2] = x2
+    t2f[b'_'] = b'__'
+    for i in range(256):
+        x = bytes((i,))
+        if x in t2f:
+            continue
+        y = b'_' + hex(i)[2:].encode() + b'_'
+        t2f[x] = y
+
+    f2t = {v:k for k,v in t2f.items()}
+    t2f = {re.escape(k): v for k,v in t2f.items()}
+    f2t = {re.escape(k): v for k,v in f2t.items()}
+    
+    t2f_pattern = re.compile(b"|".join(t2f.keys()))
+    f2t_pattern = re.compile(b"|".join(f2t.keys()))
+    return t2f, t2f_pattern, f2t, f2t_pattern
+_t2f, _t2f_pattern, _f2t, _f2t_pattern = _make_t2f()
+
+def text_filename(s, forward=True):
+    '''Converts a text to a filename or vice versa, replacing special characters with subtexts.
+
+    Parameters
+    ----------
+    s : str or bytes
+        input text
+    forward : bool
+        whether text to filename (True) or filename to text (False)
+
+    Returns
+    -------
+    str or bytes
+        filename-friendly output text, same type as input
+
+    Raises
+    ------
+    ValueError
+        if the text contains a character that cannot be converted
+    '''
+    if isinstance(s, bytes):
+        s1 = s
+        out_str = False
+    else:
+        s1 = s.encode()
+        out_str = True
+
+    if forward:
+        s2 = _t2f_pattern.sub(lambda m: _t2f[re.escape(m.group(0))], s1)
+    else:
+        s2 = _f2t_pattern.sub(lambda m: _f2t[re.escape(m.group(0))], s1)
+
+    return s2.decode() if out_str else s2
