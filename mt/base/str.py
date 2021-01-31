@@ -60,16 +60,16 @@ def straighten(s, length, align_left=True, delimiter=' '):
 
 
 def _make_t2f():
-    prefixes = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-    t2f = {}
-    for x in prefixes:
-        x2 = x.encode()
-        t2f[x2] = x2
-    t2f[b'_'] = b'__'
+    prefixes = b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_'
+    t2f = {b'_': b'__'}
+    #for x in prefixes:
+        #x2 = x.encode()
+        #t2f[x2] = x2
+    #t2f[b'_'] = b'__'
     for i in range(256):
-        x = bytes((i,))
-        if x in t2f:
+        if i in prefixes:
             continue
+        x = bytes((i,))
         y = b'_' + hex(i)[2:].encode() + b'_'
         t2f[x] = y
 
