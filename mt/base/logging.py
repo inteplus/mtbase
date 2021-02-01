@@ -363,7 +363,7 @@ def prepare_file_handler(prefix='ml', filepath=None):
 
     file_handler.setLevel(DEBUG)
 
-    file_formatter = Formatter('[%(pathname)70.70s:%(lineno)4d] %(asctime)s {pid=%(process)5d tid=%(thread)12x log_level=%(levelno)2d} %(message)s')
+    file_formatter = Formatter('%(asctime)s {pid=%(process)5d tid=%(thread)12x log_level=%(levelno)2d} %(message)s')
     file_handler.setFormatter(file_formatter)
 
     return file_handler
