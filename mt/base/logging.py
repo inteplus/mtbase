@@ -11,26 +11,11 @@ from colorama import Fore, Style
 from colorama import init as _colorama_init
 _colorama_init()
 
+from .with_utils import dummy_scope # for backward compatibility
 from .traceback import format_exc_info as _tb_format_exc_info, format_list as _tb_format_list, extract_stack as _tb_extract_stack, extract_stack_compact as _tb_extract_stack_compact
 
 
-__all__ = ['DummyScopeForWithStatement', 'dummy_scope', 'ScopedLog', 'scoped_critical', 'scoped_debug', 'scoped_error', 'scoped_info', 'scoped_warn', 'scoped_warning', 'IndentedLoggerAdapter', 'stty_size', 'make_logger', 'prepare_file_handler', 'init', 'logger']
-
-
-class DummyScopeForWithStatement(object):
-    '''Dummy scope for the with statement.
-
-    >>> with dummy_scope:
-    ...     a = 1
-
-    '''
-    def __enter__(self):
-        return self
-
-    def __exit__(self, type, value, traceback):
-        pass
-
-dummy_scope = DummyScopeForWithStatement()
+__all__ = ['ScopedLog', 'scoped_critical', 'scoped_debug', 'scoped_error', 'scoped_info', 'scoped_warn', 'scoped_warning', 'IndentedLoggerAdapter', 'stty_size', 'make_logger', 'prepare_file_handler', 'init', 'logger']
 
 
 class ScopedLog(object):

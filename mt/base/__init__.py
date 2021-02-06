@@ -1,4 +1,5 @@
-from .logging import dummy_scope, make_logger, logger, init as _log_init
+from .with_utils import dummy_scope, join_scopes
+from .logging import make_logger, logger, init as _log_init
 from .deprecated import deprecated_func
 from .casting import cast, castable
 
