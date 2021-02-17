@@ -241,6 +241,8 @@ class WorkIterator(object):
     Notes
     -----
     Instances of the class qualify as a thread-safe Python iterator. Each iteration returns a (work_id, result) pair. To avoid a possible deadlock during garbage collection, it is recommended to explicitly invoke :func:`close` to clean up background processes.
+
+    As of 2021/2/17, instances of WorkIterator can be used in a with statement. Upon exiting, :func:`close` is invoked.
     '''
 
     def __init__(self, func, buffer_size=None, skip_null=True, push_timeout=30, pop_timeout=60*60, logger=None):
@@ -258,6 +260,8 @@ class WorkIterator(object):
         self.lock = _t.Lock()
         self.alive = True
 
+    # ----- cleaning up resources -----
+
     def close(self):
         '''Closes the iterator for further use.'''
         with self.lock:
@@ -269,6 +273,16 @@ class WorkIterator(object):
 
     def __del__(self):
         self.close()
+
+    # ----- with-compatibility -----
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, tb):
+        self.close()
+
+    # ----- next ------
 
     def __next__(self):
         with self.lock:
