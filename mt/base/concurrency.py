@@ -233,7 +233,7 @@ class WorkIterator(object):
     Parameters
     ----------
     func : function
-        a function representing the work process. The function takes as input a non-negative integer 'work_id' and returns some result.
+        a function representing the work process. The function takes as input a non-negative integer 'work_id' and returns some result in the form of `(work_id, ...)` if successful else None.
     buffer_size : int, optional
         maximum number of work resultant items to be buffered ahead of time. If not specified, default to be twice the number of processes.
     push_timeout : float, optional
