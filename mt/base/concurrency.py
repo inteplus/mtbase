@@ -75,17 +75,22 @@ class Counter(object):
 
 
 def _worker_process(func, queue_in, queue_out, queue_ctl, logger=None):
-    while True:
-        work_id = None
-        for i in range(24*60*60):
-            if not queue_ctl.empty():
-                queue_in.cancel_join_thread() # to prevent join_thread() from blocking
-                queue_out.cancel_join_thread() # to prevent join_thread() from blocking
-                queue_ctl.cancel_join_thread() # to prevent join_thread() from blocking
-                return # stop the process
+    queues = [queue_in, queue_out, queue_ctl]
+    def cleanup():
+        for q in queues: # to prevent join_thread() from blocking
+            q.cancel_join_thread()
 
+    interval = 1 # 1 second interval
+            
+    while True:
+        # get a work id
+        work_id = None
+        for i in range(24*60*60//interval):
+            if not queue_ctl.empty():
+                cleanup()
+                return # stop the process
             try:
-                work_id = queue_in.get(block=True, timeout=1)
+                work_id = queue_in.get(block=True, timeout=interval)
                 break
             except _q.Empty:
                 continue
@@ -95,23 +100,36 @@ def _worker_process(func, queue_in, queue_out, queue_ctl, logger=None):
                 logger.error("Waited a for a day without receiving a work id.")
                 logger.error("Shutting down the background process.")        
         if not isinstance(work_id, int) or work_id < 0:
-            queue_in.cancel_join_thread() # to prevent join_thread() from blocking
-            queue_out.cancel_join_thread() # to prevent join_thread() from blocking
-            queue_ctl.cancel_join_thread() # to prevent join_thread() from blocking
+            cleanup()
             return # stop the process
 
+        # work
         try:
             res = func(work_id)
         except:
             with logger.scoped_warn("Returning None since background worker has caught an exception", curly=False):
                 logger.warn_last_exception()
             res = None
-        try:
-            queue_out.put((work_id, res), block=True, timeout=30)
-        except _q.Full:
+
+        # put the result
+        ok = False
+        for i in range(30//interval):
+            if not queue_ctl.empty():
+                cleanup()
+                return # stop the process
+
+            try:
+                queue_out.put((work_id, res), block=True, timeout=interval)
+                ok = True
+                break
+            except _q.Full:
+                continue
+            
+        if not ok:
             if logger:
                 logger.error("Unable to send the result of work id {} to the main process.".format(work_id))
                 logger.error("Shutting down the background process.")
+            cleanup()
             return
             
 
