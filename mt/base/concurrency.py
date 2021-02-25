@@ -79,6 +79,7 @@ def _worker_process(func, queue_in, queue_out, queue_ctl, logger=None):
         if not queue_ctl.empty():
             queue_in.cancel_join_thread() # to prevent join_thread() from blocking
             queue_out.cancel_join_thread() # to prevent join_thread() from blocking
+            queue_ctl.cancel_join_thread() # to prevent join_thread() from blocking
             return # stop the process
         
         try:
@@ -92,6 +93,7 @@ def _worker_process(func, queue_in, queue_out, queue_ctl, logger=None):
         if not isinstance(work_id, int) or work_id < 0:
             queue_in.cancel_join_thread() # to prevent join_thread() from blocking
             queue_out.cancel_join_thread() # to prevent join_thread() from blocking
+            queue_ctl.cancel_join_thread() # to prevent join_thread() from blocking
             return # stop the process
 
         try:
