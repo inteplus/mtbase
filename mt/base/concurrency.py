@@ -74,8 +74,13 @@ class Counter(object):
 # ----------------------------------------------------------------------
 
 
-def _worker_process(func, queue_in, queue_out, logger=None):
+def _worker_process(func, queue_in, queue_out, queue_ctl, logger=None):
     while True:
+        if not queue_ctl.empty():
+            queue_in.cancel_join_thread() # to prevent join_thread() from blocking
+            queue_out.cancel_join_thread() # to prevent join_thread() from blocking
+            return # stop the process
+        
         try:
             work_id = queue_in.get(block=True, timeout=24*60*60)
         except _q.Empty:
@@ -120,7 +125,8 @@ class ProcessParalleliser(object):
         self.func = func
         self.queue_in = _mp.Queue()
         self.queue_out = _mp.Queue()
-        self.process_list = [_mp.Process(target=_worker_process, args=(func, self.queue_in, self.queue_out), kwargs={'logger': logger}) for i in range(_mp.cpu_count())]
+        self.queue_ctl = _mp.Queue() # control queue, to terminate things
+        self.process_list = [_mp.Process(target=_worker_process, args=(func, self.queue_in, self.queue_out, self.queue_ctl), kwargs={'logger': logger}) for i in range(_mp.cpu_count())]
 
         # start all background processes
         for p in self.process_list:
@@ -140,6 +146,7 @@ class ProcessParalleliser(object):
             return
 
         is_alive = True
+        self.queue_ctl.put(1) # anything here to make the queue non-empty
         while is_alive:
             # check if any process is alive
             is_alive = False
