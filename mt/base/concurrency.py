@@ -76,20 +76,24 @@ class Counter(object):
 
 def _worker_process(func, queue_in, queue_out, queue_ctl, logger=None):
     while True:
-        if not queue_ctl.empty():
-            queue_in.cancel_join_thread() # to prevent join_thread() from blocking
-            queue_out.cancel_join_thread() # to prevent join_thread() from blocking
-            queue_ctl.cancel_join_thread() # to prevent join_thread() from blocking
-            return # stop the process
-        
-        try:
-            work_id = queue_in.get(block=True, timeout=24*60*60)
-        except _q.Empty:
+        work_id = None
+        for i in range(24*60*60):
+            if not queue_ctl.empty():
+                queue_in.cancel_join_thread() # to prevent join_thread() from blocking
+                queue_out.cancel_join_thread() # to prevent join_thread() from blocking
+                queue_ctl.cancel_join_thread() # to prevent join_thread() from blocking
+                return # stop the process
+
+            try:
+                work_id = queue_in.get(block=True, timeout=1)
+                break
+            except _q.Empty:
+                continue
+
+        if work_id is None:
             if logger:
                 logger.error("Waited a for a day without receiving a work id.")
-                logger.error("Shutting down the background process.")
-            return
-        
+                logger.error("Shutting down the background process.")        
         if not isinstance(work_id, int) or work_id < 0:
             queue_in.cancel_join_thread() # to prevent join_thread() from blocking
             queue_out.cancel_join_thread() # to prevent join_thread() from blocking
