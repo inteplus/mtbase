@@ -3,32 +3,26 @@
 import queue as _q
 import threading as _t
 import multiprocessing as _mp
-from dask.distributed import Client
-from distributed.client import Future
 from . import home_dirpath
 from .path import join, make_dirs
 from .deprecated import deprecated_func
 from time import sleep
 
 
-__all__ = ['get_dd_client', 'reset_dd_client', 'bg_run', 'is_future', 'max_num_threads', 'Counter', 'ProcessParalleliser', 'WorkIterator']
+__all__ = ['max_num_threads', 'Counter', 'ProcessParalleliser', 'WorkIterator']
 
 
+@deprecated_func("1.2.3", suggested_func="mt.base.WorkIterator", removed_version="1.5.0", docstring_prefix="    ")
 def get_dd_client():
     '''Gets the dask.distributed client created internally.'''
-    if get_dd_client.client is None:
-        home_dd_dirpath = join(home_dirpath, 'dask-worker-space')
-        make_dirs(home_dd_dirpath)
-        get_dd_client.client = Client(local_dir=home_dd_dirpath)
-    return get_dd_client.client
-get_dd_client.client = None
+    pass # MT-NOTE: only for backward compatibility
 
+@deprecated_func("1.2.3", suggested_func="mt.base.WorkIterator", removed_version="1.5.0", docstring_prefix="    ")
 def reset_dd_client():
     '''Removes the dask.distributed client explicitly.'''
-    if get_dd_client.client is not None:
-        get_dd_client.client.close()
-        get_dd_client.client = None
+    pass
 
+@deprecated_func("1.2.3", suggested_func="mt.base.WorkIterator", removed_version="1.5.0", docstring_prefix="    ")
 def max_num_threads(client=None, use_dask=True):
     '''Retrieves the maximum number of threads the client can handle concurrently. 
 
@@ -39,20 +33,17 @@ def max_num_threads(client=None, use_dask=True):
     use_dask : bool
         whether or not we use dask distributed to count the number of threads. If not, we use :func:`multiprocessing.cpu_count`.
     '''
-    if not use_dask:
-        return _mp.cpu_count()
+    return _mp.cpu_count()
 
-    if client is None:
-        client = get_dd_client()
-    return sum(client.nthreads().values())
-
+@deprecated_func("1.2.3", suggested_func="mt.base.WorkIterator", removed_version="1.5.0", docstring_prefix="    ")
 def bg_run(func, *args, **kwargs):
     '''Runs a function in dask.distributed client's background and return a future object.'''
-    return get_dd_client().submit(func, *args, **kwargs)
+    raise NotImplementedError("The functionality has been removed.")
 
+@deprecated_func("1.2.3", suggested_func="mt.base.WorkIterator", removed_version="1.5.0", docstring_prefix="    ")
 def is_future(obj):
     '''Checks if an object is a dask Future object.'''
-    return isinstance(obj, Future)
+    raise NotImplementedError("The functionality has been removed.")
 
 
 class Counter(object):
