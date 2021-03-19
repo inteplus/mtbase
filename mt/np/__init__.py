@@ -2,3 +2,9 @@
 
 from numpy import *
 from numpy import __version__
+
+import numpy as _np
+
+for key in _np.__dict__:
+    globals()[key] = _np.__dict__[key]
+

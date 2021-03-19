@@ -8,21 +8,24 @@ __all__ = ['straighten', 'text_filename']
 def straighten(s, length, align_left=True, delimiter=' '):
     '''Straighten a Unicode string to have a fixed length.
 
-    :Parameters:
-        s : str
-            string to be trimmed
-        length : int
-            number of characters of the output string
-        align_left : bool
-            whether to align the string to the left (True) or to the right (False)
-        delimiter : char
-            the whitespace character to fill in if the length input string is shorter than the output length
+    Parameters
+    ----------
+    s : str
+        string to be trimmed
+    length : int
+        number of characters of the output string
+    align_left : bool
+        whether to align the string to the left (True) or to the right (False)
+    delimiter : char
+        the whitespace character to fill in if the length input string is shorter than the output length
 
-    :Returns:
-        retval : str
-            straightened string
+    Returns
+    -------
+    retval : str
+        straightened string
 
-    :Examples:
+    Examples
+    --------
 
     >>> from mt.base.str import straighten
     >>> straighten('Hello world', 7)
