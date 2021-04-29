@@ -6,7 +6,7 @@ import sys as _sys
 import os as _os
 from time import sleep
 
-from .logging import dummy_scope
+from .with_utils import dummy_scope
 from .traceback import format_exception
 
 

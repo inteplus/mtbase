@@ -7,7 +7,7 @@ import ipaddress as _ia
 import requests as _r
 from getmac import get_mac_address
 from time import sleep
-from .logging import dummy_scope
+from .with_utils import dummy_scope
 
 
 __all__ = ['get_default_ifaces', 'is_port_open', 'get_hostname', 'get_username', 'get_all_hosts_from_network', 'get_all_inet4_ipaddresses', 'set_keepalive_linux', 'set_keepalive_osx', 'SSHTunnelWatcher', 'launch_port_forwarder', 'launch_ssh_forwarder', 'get_public_ip_address']
