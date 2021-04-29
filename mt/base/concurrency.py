@@ -13,16 +13,6 @@ __all__ = ['max_num_threads', 'Counter', 'ProcessParalleliser', 'WorkIterator']
 
 
 @deprecated_func("1.2.3", suggested_func="mt.base.WorkIterator", removed_version="1.5.0", docstring_prefix="    ")
-def get_dd_client():
-    '''Gets the dask.distributed client created internally.'''
-    pass # MT-NOTE: only for backward compatibility
-
-@deprecated_func("1.2.3", suggested_func="mt.base.WorkIterator", removed_version="1.5.0", docstring_prefix="    ")
-def reset_dd_client():
-    '''Removes the dask.distributed client explicitly.'''
-    pass
-
-@deprecated_func("1.2.3", suggested_func="mt.base.WorkIterator", removed_version="1.5.0", docstring_prefix="    ")
 def max_num_threads(client=None, use_dask=True):
     '''Retrieves the maximum number of threads the client can handle concurrently. 
 
@@ -34,17 +24,6 @@ def max_num_threads(client=None, use_dask=True):
         whether or not we use dask distributed to count the number of threads. If not, we use :func:`multiprocessing.cpu_count`.
     '''
     return _mp.cpu_count()
-
-@deprecated_func("1.2.3", suggested_func="mt.base.WorkIterator", removed_version="1.5.0", docstring_prefix="    ")
-def bg_run(func, *args, **kwargs):
-    '''Runs a function in dask.distributed client's background and return a future object.'''
-    raise NotImplementedError("The functionality has been removed.")
-
-@deprecated_func("1.2.3", suggested_func="mt.base.WorkIterator", removed_version="1.5.0", docstring_prefix="    ")
-def is_future(obj):
-    '''Checks if an object is a dask Future object.'''
-    raise NotImplementedError("The functionality has been removed.")
-
 
 class Counter(object):
 
@@ -240,6 +219,79 @@ class ProcessParalleliser(object):
         if not self.alive:
             raise RuntimeError("The process paralleliser has been closed. Please reinstantiate.")
         return self.queue_out.get(block=True, timeout=timeout)
+
+
+# ----------------------------------------------------------------------
+
+
+def worker_process_v2(func, queue_in, queue_out, queue_ctl, logger=None):
+
+    '''
+    The worker process.
+
+    The worker process operates in the following way. There are 2 queues to communicate with the
+    worker process, `queue_in` and `queue_out`.
+    
+    '''
+    queues = [queue_in, queue_out, queue_ctl]
+    def cleanup():
+        for q in queues: # to prevent join_thread() from blocking
+            q.cancel_join_thread()
+
+    interval = 1 # 1 second interval
+            
+    while True:
+        # get a work id
+        work_id = None
+        for i in range(24*60*60//interval):
+            if not queue_ctl.empty():
+                cleanup()
+                return # stop the process
+            try:
+                work_id = queue_in.get(block=True, timeout=interval)
+                break
+            except _q.Empty:
+                continue
+
+        if work_id is None:
+            if logger:
+                logger.error("Waited a for a day without receiving a work id.")
+                logger.error("Shutting down the background process.")        
+        if not isinstance(work_id, int) or work_id < 0:
+            cleanup()
+            return # stop the process
+
+        # work
+        try:
+            res = func(work_id)
+        except:
+            with logger.scoped_warn("Returning None since background worker has caught an exception", curly=False):
+                logger.warn_last_exception()
+            res = None
+
+        # put the result
+        ok = False
+        for i in range(30//interval):
+            if not queue_ctl.empty():
+                cleanup()
+                return # stop the process
+
+            try:
+                queue_out.put((work_id, res), block=True, timeout=interval)
+                ok = True
+                break
+            except _q.Full:
+                continue
+            
+        if not ok:
+            if logger:
+                logger.error("Unable to send the result of work id {} to the main process.".format(work_id))
+                logger.error("Shutting down the background process.")
+            cleanup()
+            return
+
+
+# ----------------------------------------------------------------------
 
 
 class WorkIterator(object):

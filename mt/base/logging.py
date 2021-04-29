@@ -2,7 +2,6 @@
 from logging import *
 import logging.handlers as _lh
 import sys as _sys
-import shutil as _sh
 import os as _os
 import os.path as _op
 import tempfile as _tf
@@ -11,14 +10,17 @@ from colorama import Fore, Style
 from colorama import init as _colorama_init
 _colorama_init()
 
-from .with_utils import dummy_scope # for backward compatibility
+from .terminal import stty_size # for backward compatibility
 from .traceback import format_exc_info as _tb_format_exc_info, format_list as _tb_format_list, extract_stack as _tb_extract_stack, extract_stack_compact as _tb_extract_stack_compact
 
 
-__all__ = ['ScopedLog', 'scoped_critical', 'scoped_debug', 'scoped_error', 'scoped_info', 'scoped_warn', 'scoped_warning', 'IndentedLoggerAdapter', 'stty_size', 'make_logger', 'prepare_file_handler', 'init', 'logger']
+__all__ = ['ScopedLog', 'scoped_critical', 'scoped_debug', 'scoped_error', 'scoped_info',
+           'scoped_warn', 'scoped_warning', 'IndentedLoggerAdapter', 'make_logger',
+           'prepare_file_handler', 'init', 'logger']
 
 
-class ScopedLog(object):
+class ScopedLog:
+
     '''Scoped-log a message.
 
     >>> with ScopedLog(logger, logging.DEBUG, 'hello world'):
@@ -248,11 +250,6 @@ _format_str = Fore.CYAN+'%(asctime)s '+Fore.LIGHTGREEN_EX+'%(levelname)8s'+Fore.
 #_format_str = '%(asctime)s %(levelname)8s: [%(name)s] %(message)s'
 
 
-def stty_size():
-    '''Returns the Linux-compatible console's number of rows and number of characters per row. If the information does not exist, returns (72, 128).'''
-    res = _sh.get_terminal_size(fallback=(128, 72))
-    return res[1], res[0]
-
 old_factory = getLogRecordFactory()
 
 def record_factory(*args, **kwargs):
@@ -310,33 +307,16 @@ def make_logger(logger_name, max_indent=4):
         std_filter = StdFilter(max_indent=max_indent)
         std_handler.addFilter(std_filter)
 
-        if True:
-            # determine some max string lengths
-            column_length = stty_size()[1]-20
-            log_lvl_length = min(max(int(column_length*0.03), 1), 8)
-            s1 = '{}.{}s '.format(log_lvl_length, log_lvl_length)
-            column_length -= log_lvl_length
-            s5 = '-{}.{}s'.format(column_length, column_length)
+        # determine some max string lengths
+        column_length = stty_size()[1]-20
+        log_lvl_length = min(max(int(column_length*0.03), 1), 8)
+        s1 = '{}.{}s '.format(log_lvl_length, log_lvl_length)
+        column_length -= log_lvl_length
+        s5 = '-{}.{}s'.format(column_length, column_length)
 
-            fmt_str = Fore.CYAN+'%(asctime)s '+Fore.LIGHTGREEN_EX+'%(levelname)'+s1+Fore.LIGHTWHITE_EX+'%(message)'+s5+Fore.RESET
-            std_handler.setFormatter(Formatter(fmt_str))
-        else:
-            # determine some max string lengths
-            column_length = stty_size()[1]-32
-            log_lvl_length = min(max(int(column_length*0.03), 1), 8)
-            s1 = '{}.{}s '.format(log_lvl_length, log_lvl_length)
-            column_length -= log_lvl_length
-            module_length = max(int(column_length*0.05), 1)
-            s2 = '{}.{}s'.format(module_length, module_length)
-            lineno_length = max(int(column_length*0.02), 4)
-            s3 = '{}.{}s'.format(lineno_length, lineno_length)
-            func_name_length = max(int(column_length*0.13), 1)
-            s4 = '-{}.{}s'.format(func_name_length, func_name_length)
-            max_msg_length = column_length - module_length - lineno_length - func_name_length
-            s5 = '-{}.{}s'.format(max_msg_length, max_msg_length)
-
-            fmt_str = Fore.CYAN+'%(asctime)s '+Fore.LIGHTGREEN_EX+'%(levelname)'+s1+Fore.LIGHTYELLOW_EX+'['+Fore.BLUE+'%(module)'+s2+Fore.YELLOW+':'+Fore.LIGHTBLUE_EX+'%(lineno)'+s3+Fore.YELLOW+'|'+Fore.LIGHTMAGENTA_EX+'%(funcName)'+s4+Fore.LIGHTYELLOW_EX+'] '+Fore.LIGHTWHITE_EX+'%(message)'+s5+Fore.RESET
-            std_handler.setFormatter(Formatter(fmt_str))
+        fmt_str = Fore.CYAN+'%(asctime)s '+Fore.LIGHTGREEN_EX+'%(levelname)'+s1+\
+            Fore.LIGHTWHITE_EX+'%(message)'+s5+Fore.RESET
+        std_handler.setFormatter(Formatter(fmt_str))
 
         logger.logger.addHandler(std_handler)
 
