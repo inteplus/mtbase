@@ -11,7 +11,7 @@ from .path import join, make_dirs
 from .deprecated import deprecated_func
 from .bg_invoke import BgInvoke, BgException
 
-__all__ = ['max_num_threads', 'Counter', 'ProcessParalleliser', 'ProcessParalleliser_v2', 'WorkIterator']
+__all__ = ['max_num_threads', 'Counter', 'ProcessParalleliser', 'WorkIterator']
 
 
 @deprecated_func("1.2.3", suggested_func="mt.base.WorkIterator", removed_version="1.5.0", docstring_prefix="    ")
@@ -46,7 +46,7 @@ class Counter(object):
 # ----------------------------------------------------------------------
 
 
-def _worker_process(func, queue_in, queue_out, queue_ctl, logger=None):
+def worker_process_v1(func, queue_in, queue_out, queue_ctl, logger=None):
     queues = [queue_in, queue_out, queue_ctl]
     def cleanup():
         for q in queues: # to prevent join_thread() from blocking
@@ -105,7 +105,7 @@ def _worker_process(func, queue_in, queue_out, queue_ctl, logger=None):
             return
 
 
-class ProcessParalleliser(object):
+class ProcessParalleliser_v1(object):
     '''Run a function with different inputs in parallel using multiprocessing.
 
     Parameters
@@ -121,7 +121,7 @@ class ProcessParalleliser(object):
         self.queue_in = _mp.Queue()
         self.queue_out = _mp.Queue()
         self.queue_ctl = _mp.Queue() # control queue, to terminate things
-        self.process_list = [_mp.Process(target=_worker_process, args=(func, self.queue_in, self.queue_out, self.queue_ctl), kwargs={'logger': logger}) for i in range(_mp.cpu_count())]
+        self.process_list = [_mp.Process(target=worker_process_v1, args=(func, self.queue_in, self.queue_out, self.queue_ctl), kwargs={'logger': logger}) for i in range(_mp.cpu_count())]
 
         # start all background processes
         for p in self.process_list:
@@ -278,6 +278,7 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
 
         if to_die: # die as soon as we have the opportunity
             if (bg_thread is None) and (len(result_list) == 0):
+                #print("  dying gracefully!", work_id)
                 break
 
         # check the background thread
@@ -293,6 +294,7 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
 
         # attempt to put some result to queue_out
         while result_list:
+            #print("result_list",result_list)
             try:
                 queue_out.put_nowait(result_list[-1])
                 result_list.pop()
@@ -308,6 +310,7 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
                 pass
 
             if work_id >= 0:
+                #print("work_id", work_id)
                 bg_thread = BgInvoke(func, work_id) # do the work in background
 
         # heartbeats
@@ -326,7 +329,12 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
                 to_die = True
 
         # sleep until next time
-        sleep(INTERVAL)
+        try:
+            sleep(INTERVAL)
+        except KeyboardInterrupt:
+            if logger:
+                logger.warn("Death by keyboard interruption of worker process {}.".format(os.getpid()))
+            to_die = True
 
     bg_thread = None
     queue_out.cancel_join_thread()
@@ -334,7 +342,7 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
     heartbeat_pipe.close()
 
 
-class ProcessParalleliser_v2(object):
+class ProcessParalleliser(object):
 
     '''Run a function with different inputs in parallel using multiprocessing.
 
@@ -352,7 +360,7 @@ class ProcessParalleliser_v2(object):
         self.queue_in = _mp.Queue()
         self.queue_out = _mp.Queue()
         self.num_workers = _mp.cpu_count()
-        self.miss_cnt_list = []
+        self.miss_cnt_list = [0]*self.num_workers
         self.pipe_list = []
         self.process_list = []
         for i in range(self.num_workers):
@@ -400,11 +408,13 @@ class ProcessParalleliser_v2(object):
                             pipe.send(False)
                             self.miss_cnt_list[i] = 0
 
+            #print("  -- main process", all_dead)
             if all_dead:
                 break
 
             sleep(INTERVAL)
 
+        #print("  -- main process closing")
         self._close()
 
 
@@ -512,7 +522,7 @@ class WorkIterator(object):
     logger : IndentedLoggerAdapter, optional
         for logging messages
     use_v2 : bool
-        whether use ProcessParalleliser_v2 (True) or ProcessParalleliser (False)
+        whether use ProcessParalleliser (True) or ProcessParalleliser_v1 (False)
 
     Notes
     -----
@@ -523,8 +533,8 @@ class WorkIterator(object):
     As of 2021/4/30, you can switch version of paralleliser.
     '''
 
-    def __init__(self, func, buffer_size=None, skip_null=True, push_timeout=30, pop_timeout=60*60, logger=None, use_v2=False):
-        cls = ProcessParalleliser_v2 if use_v2 else ProcessParalleliser
+    def __init__(self, func, buffer_size=None, skip_null=True, push_timeout=30, pop_timeout=60*60, logger=None, use_v2=True):
+        cls = ProcessParalleliser if use_v2 else ProcessParalleliser_v1
         self.paralleliser = cls(func, logger=logger)
         
         self.push_timeout = push_timeout
