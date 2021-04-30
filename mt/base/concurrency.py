@@ -412,7 +412,14 @@ class ProcessParalleliser(object):
             if all_dead:
                 break
 
-            sleep(INTERVAL)
+            # sleep until next time
+            try:
+                sleep(INTERVAL)
+            except KeyboardInterrupt:
+                if logger:
+                    logger.warn("Parent process interrupted by keyboard {}.".format(os.getpid()))
+                if self.state == 'living':
+                    self.state = 'dying'
 
         #print("  -- main process closing")
         self._close()
