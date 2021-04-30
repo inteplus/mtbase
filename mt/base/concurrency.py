@@ -226,7 +226,7 @@ class ProcessParalleliser_v1(object):
 
 
 INTERVAL = 1 # 1 second interval
-MAX_MISS_CNT = 5 # number of times before we declare that the other process has died
+MAX_MISS_CNT = 60 # number of times before we declare that the other process has died
 
 
 def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
