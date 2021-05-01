@@ -53,7 +53,7 @@ def worker_process_v1(func, queue_in, queue_out, queue_ctl, logger=None):
             q.cancel_join_thread()
 
     interval = 1 # 1 second interval
-            
+
     while True:
         # get a work id
         work_id = None
@@ -70,7 +70,7 @@ def worker_process_v1(func, queue_in, queue_out, queue_ctl, logger=None):
         if work_id is None:
             if logger:
                 logger.error("Waited a for a day without receiving a work id.")
-                logger.error("Shutting down the background process.")        
+                logger.error("Shutting down the background process.")
         if not isinstance(work_id, int) or work_id < 0:
             cleanup()
             return # stop the process
@@ -133,7 +133,7 @@ class ProcessParalleliser_v1(object):
     def __del__(self):
         self.close()
 
-        
+
     def close(self):
         '''Closes the instance properly.'''
 
@@ -393,20 +393,23 @@ class ProcessParalleliser(object):
                     continue
 
                 # heartbeats
-                pipe = self.pipe_list[i]
-                pipe.send(self.state == 'living')
-                if pipe.poll():
-                    all_dead = False
-                    self.miss_cnt_list[i] = 0
-                    while pipe.poll(): # cleanse the pipe
-                        pipe.recv()
-                else:
-                    self.miss_cnt_list[i] += 1
-                    if self.miss_cnt_list[i] >= MAX_MISS_CNT: # mark the worker process as dead
-                        self.state = 'dying'
-                        if p.is_alive():
-                            pipe.send(False)
-                            self.miss_cnt_list[i] = 0
+                try:
+                    pipe = self.pipe_list[i]
+                    pipe.send(self.state == 'living')
+                    if pipe.poll():
+                        all_dead = False
+                        self.miss_cnt_list[i] = 0
+                        while pipe.poll(): # cleanse the pipe
+                            pipe.recv()
+                    else:
+                        self.miss_cnt_list[i] += 1
+                        if self.miss_cnt_list[i] >= MAX_MISS_CNT: # mark the worker process as dead
+                            self.state = 'dying'
+                            if p.is_alive():
+                                pipe.send(False)
+                                self.miss_cnt_list[i] = 0
+                except: # broken pipe or something, assume worker process is dead
+                    self.state = 'dying'
 
             #print("  -- main process", all_dead)
             if all_dead:
