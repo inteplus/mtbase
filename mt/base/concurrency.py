@@ -288,7 +288,7 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
             except BgException: # premature death
                 if logger:
                     logger.warn_last_exception()
-                    logger.warn("Death by exception of worker process {}.".format(os.getpid()))
+                    logger.warn("Uncaught exception killed worker pid {}.".format(os.getpid()))
                 to_die = True
             bg_thread = None
 
@@ -325,7 +325,7 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
             miss_cnt += 1
             if miss_cnt >= MAX_MISS_CNT: # seppuku
                 if logger:
-                    logger.warn("Death by lack of parent of worker process {}.".format(os.getpid()))
+                    logger.warn("Worker pid {} could not feel its parent and died of loneliness.".format(os.getpid()))
                 to_die = True
 
         # sleep until next time
@@ -333,7 +333,7 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
             sleep(INTERVAL)
         except KeyboardInterrupt:
             if logger:
-                logger.warn("Death by keyboard interruption of worker process {}.".format(os.getpid()))
+                logger.warn("Worker pid {} killed by keyboard interruption.".format(os.getpid()))
             to_die = True
 
     bg_thread = None
