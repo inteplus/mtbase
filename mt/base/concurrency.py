@@ -357,6 +357,7 @@ class ProcessParalleliser(object):
 
     def __init__(self, func, logger=None):
         self.func = func
+        self.logger = logger
         self.queue_in = _mp.Queue()
         self.queue_out = _mp.Queue()
         self.num_workers = _mp.cpu_count()
@@ -388,12 +389,12 @@ class ProcessParalleliser(object):
         while True:
             all_dead = True
             for i, p in enumerate(self.process_list):
-                if not p.is_alive():
-                    self.state = 'dying'
-                    continue
-
-                # heartbeats
                 try:
+                    if not p.is_alive():
+                        self.state = 'dying'
+                        continue
+
+                    # heartbeats
                     pipe = self.pipe_list[i]
                     pipe.send(self.state == 'living')
                     if pipe.poll():
@@ -409,6 +410,8 @@ class ProcessParalleliser(object):
                                 pipe.send(False)
                                 self.miss_cnt_list[i] = 0
                 except: # broken pipe or something, assume worker process is dead
+                    if self.logger:
+                        self.logger.warn_last_exception()
                     self.state = 'dying'
 
             #print("  -- main process", all_dead)
@@ -424,7 +427,7 @@ class ProcessParalleliser(object):
                 if self.state == 'living':
                     self.state = 'dying'
 
-        #print("  -- main process closing")
+        print("  -- main process closing")
         self._close()
 
 
