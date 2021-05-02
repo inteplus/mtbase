@@ -225,6 +225,12 @@ class ProcessParalleliser_v1(object):
 # ----------------------------------------------------------------------
 
 
+def has_memory():
+    import psutil
+    mem = psutil.virtual_memory()
+    return mem.available >= mem.total*0.1 # keep a healthy 10% memory
+
+
 INTERVAL = 0.5 # 0.5 seconds interval
 MAX_MISS_CNT = 120 # number of times before we declare that the other process has died
 
@@ -304,7 +310,7 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
                 break
 
         # get a work id
-        if (not to_die) and (not has_work):
+        if (not to_die) and (not has_work): # and has_memory():
             work_id = -1
             try:
                 work_id = queue_in.get_nowait()
@@ -368,17 +374,17 @@ class ProcessParalleliser(object):
         self.pipe_list = []
         self.process_list = []
         for i in range(self.num_workers):
+            if not has_memory():
+                break
             pipe = _mp.Pipe()
             self.pipe_list.append(pipe[0])
-            self.process_list.append(
-                _mp.Process(
+            p = _mp.Process(
                     target=worker_process_v2,
                     args=(func, pipe[1], self.queue_in, self.queue_out),
-                    kwargs={'logger': logger}))
-
-        # start all worker processes
-        for p in self.process_list:
-            p.start()
+                    kwargs={'logger': logger})
+            p.start() # start the process
+            self.process_list.append(p)
+        self.num_workers = len(self.process_list)
 
         # launch a background thread to communicate constantly with the worker processes
         self.state = 'living'
@@ -412,6 +418,8 @@ class ProcessParalleliser(object):
                             if p.is_alive():
                                 pipe.send(False)
                                 self.miss_cnt_list[i] = 0
+                except BrokenPipeError:
+                    self.state = 'dying'
                 except: # broken pipe or something, assume worker process is dead
                     if self.logger:
                         self.logger.warn_last_exception()
