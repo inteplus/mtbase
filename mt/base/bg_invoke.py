@@ -10,7 +10,7 @@ from .with_utils import dummy_scope
 from .traceback import format_exception
 
 
-__all__ = ['BgException', 'BgInvoke', 'parallelise']
+__all__ = ['BgException', 'BgInvoke', 'BgThread', 'parallelise']
 
 
 class BgException(Exception):
@@ -29,6 +29,10 @@ class BgInvoke(object):
     Once invoked, the thread keeps running in background until function `self.is_running()` returns `False`, at which point `self.result` holds the output of the invocation.
     
     If an exception was raised, `self.result` would contain the exception and other useful information.
+
+    Notes
+    -----
+    BgInvoke differs from BgThread in that the function can be invoked only once.
 
     Examples
     --------
@@ -107,6 +111,10 @@ class BgThread(_t.Thread):
         the current result if it has not been consumed. Otherwise blocks until the new result
         becomes available.
 
+    Notes
+    -----
+    BgThread differs from BgInvoke in that the function can be invoked many times.
+
     Examples
     --------
     >>> def slow_count(nbTimes=100000000):
@@ -139,6 +147,7 @@ class BgThread(_t.Thread):
         self.new_input = False
         self.func_args = []
         self.func_kwargs = {}
+        self.is_thread_running = True
 
         self.func_running = False
 
@@ -148,13 +157,20 @@ class BgThread(_t.Thread):
 
         self.daemon = True # daemon thread
         self.start()
-        self.is_thread_running = True
+
 
     def close(self):
         '''Waits for the current task to be done and closes the thread.'''
+        #print("Bg thread {} closing.".format(self.ident))
         with self.input_cv:
             self.is_thread_running = False
             self.input_cv.notify()
+        while self.is_running():
+            sleep(1)
+        self.join(30)
+        if self.is_alive():
+            raise TimeoutError("Background thread {} takes too long to close.".format(self.ident))
+
 
     def __del__(self):
         self.close()
@@ -179,7 +195,7 @@ class BgThread(_t.Thread):
             self.func_running = True
             try:
                 result = True, self.func(*args, **kwargs)
-            except Exception as e:
+            except:
                 result = False, _sys.exc_info()
             self.func_running = False
 

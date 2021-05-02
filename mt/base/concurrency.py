@@ -9,7 +9,7 @@ from time import sleep
 from . import home_dirpath
 from .path import join, make_dirs
 from .deprecated import deprecated_func
-from .bg_invoke import BgInvoke, BgException
+from .bg_invoke import BgInvoke, BgThread, BgException
 
 __all__ = ['max_num_threads', 'Counter', 'ProcessParalleliser', 'WorkIterator']
 
@@ -268,21 +268,23 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
         logger for debugging purposes
     '''.format(INTERVAL, MAX_MISS_CNT*INTERVAL)
 
+    to_die = False
     miss_cnt = 0
-    bg_thread = None
+
+    bg_thread = BgThread(func)
+    has_work = False
     work_id = -1
     result_list = []
-    to_die = False
 
     while True:
 
         if to_die: # die as soon as we have the opportunity
-            if (bg_thread is None) and (len(result_list) == 0):
+            if (not has_work) and (len(result_list) == 0):
                 #print("  dying gracefully!", work_id)
                 break
 
         # check the background thread
-        if (bg_thread is not None) and (not bg_thread.is_running()):
+        if has_work and (not bg_thread.is_running()):
             try:
                 result_list.append((work_id, bg_thread.result))
             except BgException: # premature death
@@ -290,7 +292,7 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
                     logger.warn_last_exception()
                     logger.warn("Uncaught exception killed worker pid {}.".format(os.getpid()))
                 to_die = True
-            bg_thread = None
+            has_work = False
 
         # attempt to put some result to queue_out
         while result_list:
@@ -302,7 +304,7 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
                 break
 
         # get a work id
-        if (not to_die) and (bg_thread is None):
+        if (not to_die) and (not has_work):
             work_id = -1
             try:
                 work_id = queue_in.get_nowait()
@@ -311,7 +313,8 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
 
             if work_id >= 0:
                 #print("work_id", work_id)
-                bg_thread = BgInvoke(func, work_id) # do the work in background
+                has_work = True
+                bg_thread.invoke(work_id) # do the work in background
 
         # heartbeats
         heartbeat_pipe.send(True)
@@ -336,7 +339,7 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
                 logger.warn("Worker pid {} killed by keyboard interruption.".format(os.getpid()))
             to_die = True
 
-    bg_thread = None
+    bg_thread.close()
     queue_out.cancel_join_thread()
     queue_in.cancel_join_thread()
     heartbeat_pipe.close()
@@ -427,7 +430,7 @@ class ProcessParalleliser(object):
                 if self.state == 'living':
                     self.state = 'dying'
 
-        print("  -- main process closing")
+        #print("  -- main process closing")
         self._close()
 
 
@@ -442,7 +445,7 @@ class ProcessParalleliser(object):
             return
 
         for p in self.process_list:
-            p.terminate()
+            p.join()
             
         self.state = 'dead'
 
