@@ -360,16 +360,21 @@ class ProcessParalleliser(object):
     func : function
         a function to be run in parallel. The function takes as input a non-negative integer
         'work_id' and returns some result.
+    max_num_workers : int, optional
+        maximum number of concurrent workers or equivalently processes to be allocated
     logger : IndentedLoggerAdapter, optional
         for logging messages
     '''
 
-    def __init__(self, func, logger=None):
+    def __init__(self, func, max_num_workers=None, logger=None):
+        if max_num_workers is None:
+            max_num_workers = _mp.cpu_count()
+
         self.func = func
         self.logger = logger
         self.queue_in = _mp.Queue()
         self.queue_out = _mp.Queue()
-        self.num_workers = _mp.cpu_count()
+        self.num_workers = max_num_workers
         self.miss_cnt_list = [0]*self.num_workers
         self.pipe_list = []
         self.process_list = []
@@ -545,6 +550,8 @@ class WorkIterator(object):
         whether or not to skip the iteration that contains None as the work result.
     logger : IndentedLoggerAdapter, optional
         for logging messages
+    max_num_workers : int, optional
+        maximum number of concurrent workers or equivalently processes to be allocated
     use_v2 : bool
         whether use ProcessParalleliser (True) or ProcessParalleliser_v1 (False)
 
@@ -557,9 +564,11 @@ class WorkIterator(object):
     As of 2021/4/30, you can switch version of paralleliser.
     '''
 
-    def __init__(self, func, buffer_size=None, skip_null=True, push_timeout=30, pop_timeout=60*60, logger=None, use_v2=True):
-        cls = ProcessParalleliser if use_v2 else ProcessParalleliser_v1
-        self.paralleliser = cls(func, logger=logger)
+    def __init__(self, func, buffer_size=None, skip_null=True, push_timeout=30, pop_timeout=60*60, use_v2=True, max_num_workers=None, logger=None):
+        if use_v2:
+            self.paralleliser = ProcessParalleliser(func, max_num_workers=max_num_workers, logger=logger)
+        else:
+            self.paralleliser = ProcessParalleliser_v1(func, logger=logger)
         
         self.push_timeout = push_timeout
         self.pop_timeout = pop_timeout
