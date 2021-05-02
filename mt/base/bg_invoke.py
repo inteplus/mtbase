@@ -84,6 +84,161 @@ class BgInvoke(object):
         '''Returns whether the invocation is still running.'''
         return self.thread.is_alive()
 
+
+class BgThread(_t.Thread):
+    '''Thin wrapper around threading.Thread to run `func(*args, **kwargs)` in background.
+
+    Once invoked via :func:`invoke`, the thread waits until the last function call has finished,
+    then invokes the function with new arguments in background. The user can do other things.
+    They should invoke :func:`is_running` to determine when the function invocation is completed.
+    They can also use attribute :attr:`result` to wait and get the result.
+
+    If an exception was raised, `self.result` would contain the exception and other useful
+    information.
+
+    Parameters
+    ----------
+    func : function
+        a function to be wrapped
+
+    Attributes
+    ----------
+    result : object
+        the current result if it has not been consumed. Otherwise blocks until the new result
+        becomes available.
+
+    Examples
+    --------
+    >>> def slow_count(nbTimes=100000000):
+    ...     cnt = 0
+    ...     for i in range(nbTimes):
+    ...         cnt = cnt+1
+    ...     return cnt
+    ...
+    >>> from mt.base.bg_invoke import BgThread
+    >>> from time import sleep
+    >>> a = BgThread(slow_count)
+    >>> a.invoke(nbTimes=100000000)
+    >>> while a.is_running():
+    ...     sleep(0.5)
+    ...
+    >>> print(a.result)
+    100000000
+    >>> a.invoke(nbTimes=100000)
+    >>> print(a.result)
+    100000
+    '''
+
+    def __init__(self, func):
+
+        super(BgThread, self).__init__()
+
+        self.func = func
+
+        self.input_cv = _t.Condition()
+        self.new_input = False
+        self.func_args = []
+        self.func_kwargs = {}
+
+        self.func_running = False
+
+        self.output_cv = _t.Condition()
+        self.new_output = False
+        self.func_result = None
+
+        self.daemon = True # daemon thread
+        self.start()
+        self.is_thread_running = True
+
+    def close(self):
+        '''Waits for the current task to be done and closes the thread.'''
+        with self.input_cv:
+            self.is_thread_running = False
+            self.input_cv.notify()
+
+    def __del__(self):
+        self.close()
+
+
+    def run(self):
+        '''The wrapping code to be run in the background thread. Do not call.'''
+
+        while True:
+            # get input
+            with self.input_cv:
+                while self.is_thread_running and not self.new_input:
+                    self.input_cv.wait()
+                if not self.is_thread_running:
+                    return # die happily
+                args = self.func_args
+                kwargs = self.func_kwargs
+                self.new_input = False # consume the new input
+                self.input_cv.notify()
+
+            # execute
+            self.func_running = True
+            try:
+                result = True, self.func(*args, **kwargs)
+            except Exception as e:
+                result = False, _sys.exc_info()
+            self.func_running = False
+
+            # put output
+            with self.output_cv:
+                self.func_result = result
+                self.new_output = True
+                self.output_cv.notify()
+
+
+    def is_running(self):
+        '''Returns whether or not the function is running.'''
+        return self.func_running
+
+
+    def invoke(self, *args, **kwargs):
+        '''Invokes the function in a graceful way.
+
+        This function blocks until the last function arguments have been consumed and then signals
+        the function to be invoked again. It returns immediately.
+
+        Parameters
+        ----------
+        args : list
+            positional arguments of the function
+        kwargs : dict
+            keyword arguments of the function
+        '''
+
+        with self.input_cv:
+            while self.is_thread_running and self.new_input: # current input not yet consumed
+                self.input_cv.wait()
+            if not self.is_thread_running:
+                raise RuntimeError("Cannot invoke the function when the thread is dead.")
+            self.func_args = args
+            self.func_kwargs = kwargs
+            self.new_input = True
+            self.input_cv.notify()
+
+
+    @property
+    def result(self):
+        '''The result after waiting for the function call to finish.'''
+        with self.output_cv:
+            while self.is_thread_running and not self.new_output: # no output produced yet
+                self.output_cv.wait()
+            if not self.is_thread_running:
+                raise RuntimeError("Cannot get the function result when the thread is dead.")
+            func_result = self.func_result
+            self.new_output = False # consume the result
+            self.output_cv.notify()
+
+        if func_result[0]: # succeeded
+            return func_result[1] # returning object
+        else: # thread generated an exception
+            raise BgException("Exception raised in background thread {}".format(self.ident),
+                              func_result[1])
+
+
 def parallelise(func, num_jobs, *fn_args, num_threads=None, bg_exception='raise', logger=None, pass_logger=False, **fn_kwargs):
     '''Embarrasingly parallelises to excecute many jobs with a limited number of threads.
 
