@@ -68,10 +68,11 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
     detecting this fateful event, the parent process can abruptly kill the worker process, but in
     contrast, the worker can only finish its own fate.
 
-    A heart beat from the parent process can have value either True or False. If the heartbeat is
-    False, the worker process must do a seppuku. A heart beat from the worker process can also have
-    value either True or False. If the heartbeat is False, the worker signals that it has received
-    keyboard interruption and is about to die in peace.
+    A heart beat from the parent process is a byte. If the heartbeat is 0, the parent is alive. If
+    it is 1, the worker process must do a seppuku.
+
+    A heart beat from the worker process is also a byte. If it is 0, the worker is alive. If it is
+    1, the worker signals that it has received keyboard interruption and is about to die in peace.
 
     There is global pair of queues, `queue_in` and `queue_out`, to distribute workloads. Workloads
     are divided into smaller pieces identified by zero-based work ids. The parent process sends work
@@ -146,12 +147,12 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
                 bg_thread.invoke(work_id) # do the work in background
 
         # heartbeats
-        heartbeat_pipe.send(True)
+        heartbeat_pipe.send_bytes(bytes((0,)))
         if heartbeat_pipe.poll():
             miss_cnt = 0
-            while heartbeat_pipe.poll(): # cleanse the pipe
-                cmd = heartbeat_pipe.recv()
-                if cmd is False: # request from parent to die
+            buf = heartbeat_pipe.recv_bytes(16384)
+            for x in buf:
+                if x == 1: # request from parent to die
                     to_die = True
         elif not to_die:
             miss_cnt += 1
@@ -164,7 +165,7 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
         try:
             sleep(INTERVAL)
         except KeyboardInterrupt:
-            heartbeat_pipe.send(False)
+            heartbeat_pipe.send_bytes(bytes((1,)))
             sleep(INTERVAL)
             to_die = True
 
@@ -235,12 +236,15 @@ class ProcessParalleliser(object):
 
                         # heartbeats
                         pipe = self.pipe_list[i]
-                        pipe.send(self.state == 'living')
+                        val = int(self.state != 'living')
+                        pipe.send_bytes(bytes((val,)))
                         if pipe.poll():
                             all_dead = False
                             self.miss_cnt_list[i] = 0
-                            while pipe.poll(): # cleanse the pipe
-                                if not pipe.recv():
+                            buf = pipe.recv_bytes(16384) # cleanse the pipe
+                            self.logger.debug("Pipe from {}: {}".format(p.pid, buf))
+                            for x in buf:
+                                if x == 1:
                                     if death_code == 'normal':
                                         death_code = 'keyboard_interrupted'
                                     self.state = 'dying'
@@ -251,7 +255,7 @@ class ProcessParalleliser(object):
                                     death_code = 'worker_died_prematurely'
                                 self.state = 'dying'
                                 if p.is_alive():
-                                    pipe.send(False)
+                                    pipe.send_bytes(bytes((1,)))
                                 self.miss_cnt_list[i] = 0
                     except (EOFError, BrokenPipeError):
                         if death_code == 'normal':
