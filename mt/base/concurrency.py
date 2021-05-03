@@ -53,6 +53,7 @@ def has_memory():
 
 
 INTERVAL = 0.5 # 0.5 seconds interval
+HEARTBEAT_PERIOD = 5 # send a heart beat every 5 intervals
 MAX_MISS_CNT = 240 # number of times before we declare that the other process has died
 
 
@@ -100,6 +101,7 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
 
     to_die = False
     miss_cnt = 0
+    hb_cnt = 0
 
     bg_thread = BgThread(func)
     has_work = False
@@ -147,7 +149,10 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
                 bg_thread.invoke(work_id) # do the work in background
 
         # heartbeats
-        heartbeat_pipe.send_bytes(bytes((0,)))
+        hb_cnt += 1
+        if hb_cnt >= HEARTBEAT_PERIOD:
+            hb_cnt = 0
+            heartbeat_pipe.send_bytes(bytes((0,)))
         if heartbeat_pipe.poll():
             miss_cnt = 0
             buf = heartbeat_pipe.recv_bytes(16384)
@@ -225,7 +230,12 @@ class ProcessParalleliser(object):
         '''A background process to communicate with the worker processes.'''
 
         death_code = 'normal'
+        hb_cnt = 0
         while True:
+            hb_cnt + =1
+            if hb_cnt >= HEARTBEAT_PERIOD:
+                hb_cnt = 0
+
             try:
                 all_dead = True
                 for i, p in enumerate(self.process_list):
@@ -237,7 +247,8 @@ class ProcessParalleliser(object):
                         # heartbeats
                         pipe = self.pipe_list[i]
                         val = int(self.state != 'living')
-                        pipe.send_bytes(bytes((val,)))
+                        if hb_cnt == 0:
+                            pipe.send_bytes(bytes((val,)))
                         if pipe.poll():
                             all_dead = False
                             self.miss_cnt_list[i] = 0
