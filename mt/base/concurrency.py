@@ -327,8 +327,8 @@ class ProcessParalleliser(object):
         '''Closes the instance properly.'''
         if self.state == 'living':
             self.state = 'dying'
-        while self.state != 'dead':
-            sleep(INTERVAL)
+        #while self.state != 'dead':
+            #sleep(INTERVAL)
 
 
     def push(self, work_id, timeout=30):
