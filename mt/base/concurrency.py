@@ -232,7 +232,7 @@ class ProcessParalleliser(object):
         death_code = 'normal'
         hb_cnt = 0
         while True:
-            hb_cnt + =1
+            hb_cnt += 1
             if hb_cnt >= HEARTBEAT_PERIOD:
                 hb_cnt = 0
 
