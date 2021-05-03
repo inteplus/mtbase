@@ -223,52 +223,69 @@ class ProcessParalleliser(object):
 
         '''A background process to communicate with the worker processes.'''
 
-        keyboard_interrupted = False
+        death_code = 'normal'
         while True:
-            all_dead = True
-            for i, p in enumerate(self.process_list):
-                try:
-                    if not p.is_alive():
-                        self.state = 'dying'
-                        continue
-
-                    # heartbeats
-                    pipe = self.pipe_list[i]
-                    pipe.send(self.state == 'living')
-                    if pipe.poll():
-                        all_dead = False
-                        self.miss_cnt_list[i] = 0
-                        while pipe.poll(): # cleanse the pipe
-                            if not pipe.recv():
-                                keyboard_interrupted = True
-                    else:
-                        self.miss_cnt_list[i] += 1
-                        if self.miss_cnt_list[i] >= MAX_MISS_CNT: # mark the worker process as dead
+            try:
+                all_dead = True
+                for i, p in enumerate(self.process_list):
+                    try:
+                        if not p.is_alive():
                             self.state = 'dying'
-                            if p.is_alive():
-                                pipe.send(False)
-                                self.miss_cnt_list[i] = 0
-                except (EOFError, BrokenPipeError):
-                    self.state = 'dying'
-                except: # broken pipe or something, assume worker process is dead
-                    if self.logger:
-                        self.logger.warn_last_exception()
-                    self.state = 'dying'
+                            continue
 
-            #print("  -- main process", all_dead)
-            if all_dead:
+                        # heartbeats
+                        pipe = self.pipe_list[i]
+                        pipe.send(self.state == 'living')
+                        if pipe.poll():
+                            all_dead = False
+                            self.miss_cnt_list[i] = 0
+                            while pipe.poll(): # cleanse the pipe
+                                if not pipe.recv():
+                                    if death_code == 'normal':
+                                        death_code = 'keyboard_interrupted'
+                                    self.state = 'dying'
+                        else:
+                            self.miss_cnt_list[i] += 1
+                            if self.miss_cnt_list[i] >= MAX_MISS_CNT: # no heartbeat for too long
+                                if death_code == 'normal':
+                                    death_code = 'worker_died_prematurely'
+                                self.state = 'dying'
+                                if p.is_alive():
+                                    pipe.send(False)
+                                self.miss_cnt_list[i] = 0
+                    except (EOFError, BrokenPipeError):
+                        if death_code == 'normal':
+                            death_code = 'broken_pipe_or_something'
+                        self.state = 'dying'
+                    except: # broken pipe or something, assume worker process is dead
+                        if self.logger:
+                            self.logger.warn_last_exception()
+                        if death_code == 'normal':
+                            death_code = 'uncaught_exception'
+                        self.state = 'dying'
+
+                #print("  -- main process", all_dead)
+                if all_dead:
+                    break
+
+                # sleep until next time
+                try:
+                    sleep(INTERVAL)
+                except KeyboardInterrupt:
+                    if logger:
+                        logger.warn("Process {} interrupted by keyboard.".format(os.getpid()))
+                    if death_code == 'normal':
+                        death_code = 'keyboard_interrupted'
+                    self.state = 'dying'
+            except:
+                if logger:
+                    logger.warn_last_exception()
+                    logger.warn("Uncaught exception above killed process.".format(os.getpid()))
                 break
 
-            # sleep until next time
-            try:
-                if keyboard_interrupted:
-                    raise KeyboardInterrupt
-                sleep(INTERVAL)
-            except KeyboardInterrupt:
-                if logger:
-                    logger.warn("Process {} interrupted by keyboard.".format(os.getpid()))
-                if self.state == 'living':
-                    self.state = 'dying'
+        if death_code != 'normal':
+            if logger:
+                logger.warn("Process {} died with reason: {}.".format(os.getpid(), death_code))
 
         #print("  -- main process closing")
         self._close()
