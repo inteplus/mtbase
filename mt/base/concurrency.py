@@ -232,10 +232,6 @@ class ProcessParalleliser(object):
         death_code = 'normal'
         hb_cnt = 0
         while True:
-            hb_cnt += 1
-            if hb_cnt >= HEARTBEAT_PERIOD:
-                hb_cnt = 0
-
             try:
                 all_dead = True
                 for i, p in enumerate(self.process_list):
@@ -279,9 +275,13 @@ class ProcessParalleliser(object):
                             death_code = 'uncaught_exception'
                         self.state = 'dying'
 
-                #print("  -- main process", all_dead)
+                #self.logger.debug("  -- main process", all_dead)
                 if all_dead:
                     break
+
+                hb_cnt += 1
+                if hb_cnt >= HEARTBEAT_PERIOD:
+                    hb_cnt = 0
 
                 # sleep until next time
                 try:
@@ -302,7 +302,7 @@ class ProcessParalleliser(object):
             if logger:
                 logger.warn("Process {} died with reason: {}.".format(os.getpid(), death_code))
 
-        #print("  -- main process closing")
+        #self.logger.debug("  -- main process closing")
         self._close()
 
 
