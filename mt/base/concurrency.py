@@ -43,199 +43,20 @@ class Counter(object):
         return self.val.value
 
 
-# ----------------------------------------------------------------------
-
-
-def worker_process_v1(func, queue_in, queue_out, queue_ctl, logger=None):
-    queues = [queue_in, queue_out, queue_ctl]
-    def cleanup():
-        for q in queues: # to prevent join_thread() from blocking
-            q.cancel_join_thread()
-
-    interval = 1 # 1 second interval
-
-    while True:
-        # get a work id
-        work_id = None
-        for i in range(24*60*60//interval):
-            if not queue_ctl.empty():
-                cleanup()
-                return # stop the process
-            try:
-                work_id = queue_in.get(block=True, timeout=interval)
-                break
-            except _q.Empty:
-                continue
-
-        if work_id is None:
-            if logger:
-                logger.error("Waited a for a day without receiving a work id.")
-                logger.error("Shutting down the background process.")
-        if not isinstance(work_id, int) or work_id < 0:
-            cleanup()
-            return # stop the process
-
-        # work
-        try:
-            res = func(work_id)
-        except:
-            with logger.scoped_warn("Returning None since background worker has caught an exception", curly=False):
-                logger.warn_last_exception()
-            res = None
-
-        # put the result
-        ok = False
-        for i in range(30//interval):
-            if not queue_ctl.empty():
-                cleanup()
-                return # stop the process
-
-            try:
-                queue_out.put((work_id, res), block=True, timeout=interval)
-                ok = True
-                break
-            except _q.Full:
-                continue
-            
-        if not ok:
-            if logger:
-                logger.error("Unable to send the result of work id {} to the main process.".format(work_id))
-                logger.error("Shutting down the background process.")
-            cleanup()
-            return
-
-
-class ProcessParalleliser_v1(object):
-    '''Run a function with different inputs in parallel using multiprocessing.
-
-    Parameters
-    ----------
-    func : function
-        a function to be run in parallel. The function takes as input a non-negative integer 'work_id' and returns some result.
-    logger : IndentedLoggerAdapter, optional
-        for logging messages
-    '''
-
-    def __init__(self, func, logger=None):
-        self.func = func
-        self.queue_in = _mp.Queue()
-        self.queue_out = _mp.Queue()
-        self.queue_ctl = _mp.Queue() # control queue, to terminate things
-        self.process_list = [_mp.Process(target=worker_process_v1, args=(func, self.queue_in, self.queue_out, self.queue_ctl), kwargs={'logger': logger}) for i in range(_mp.cpu_count())]
-
-        # start all background processes
-        for p in self.process_list:
-            p.start()
-
-        self.alive = True
-
-
-    def __del__(self):
-        self.close()
-
-
-    def close(self):
-        '''Closes the instance properly.'''
-
-        if not self.alive:
-            return
-
-        is_alive = True
-        self.queue_ctl.put(1) # anything here to make the queue non-empty
-        while is_alive:
-            # check if any process is alive
-            is_alive = False
-            for p in self.process_list:
-                if p.is_alive():
-                    is_alive = True
-                    break
-
-            if is_alive and self.queue_in.empty():
-                # send a command to terminate one process
-                self.queue_in.put(-1)
-
-            sleep(0.01) # sleep a bit to give other threads/processes some time to work
-
-        # wait for them to be terminated and joined back
-        for p in self.process_list:
-            p.join()
-        self.alive = False
-
-
-    def push(self, work_id, timeout=30):
-        '''Pushes a work id to the background to run the provided function in parallel.
-
-        Parameters
-        ----------
-        work_id : int
-            non-negative integer to be provided to the function
-        timeout : float
-            number of seconds to wait to push the id to the queue before bailing out
-
-        Returns
-        -------
-        bool
-            whether or not the work id has been pushed
-
-        Notes
-        -----
-        You should use :func:`pop` or :func:`empty` to check for the output of each work.
-        '''
-        if not self.alive:
-            raise RuntimeError("The process paralleliser has been closed. Please reinstantiate.")
-        if not isinstance(work_id, int):
-            raise ValueError("Work id is not an integer. Got {}.".format(work_id))
-        if work_id < 0:
-            raise ValueError("Work id is negative. Got {}.".format(work_id))
-        try:
-            self.queue_in.put(work_id, block=True, timeout=timeout)
-            return True
-        except _q.Full:
-            return False
-
-    def empty(self):
-        '''Returns whether the output queue is empty.'''
-        return self.queue_out.empty()
-
-    def pop(self, timeout=60*60):
-        '''Returns a pair (work_id, result) when at least one such pair is available.
-
-        Parameters
-        ----------
-        timeout : float
-            number of seconds to wait to pop a work result from the queue before bailing output
-        
-        Returns
-        -------
-        int
-            non-negative integer representing the work id
-        object
-            work result
-
-        Raises
-        ------
-        queue.Empty
-            if there is no work result after the timeout
-        '''
-        if not self.alive:
-            raise RuntimeError("The process paralleliser has been closed. Please reinstantiate.")
-        return self.queue_out.get(block=True, timeout=timeout)
-
-
-# ----------------------------------------------------------------------
-
-
 def has_memory():
     import psutil
     mem = psutil.virtual_memory()
     return mem.available >= mem.total*0.1 # keep a healthy 10% memory
 
 
+# ----------------------------------------------------------------------
+
+
 INTERVAL = 0.5 # 0.5 seconds interval
-MAX_MISS_CNT = 120 # number of times before we declare that the other process has died
+MAX_MISS_CNT = 240 # number of times before we declare that the other process has died
 
 
-def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
+def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
 
     '''
     The worker process.
@@ -248,7 +69,9 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
     contrast, the worker can only finish its own fate.
 
     A heart beat from the parent process can have value either True or False. If the heartbeat is
-    False, the worker process must do a seppuku.
+    False, the worker process must do a seppuku. A heart beat from the worker process can also have
+    value either True or False. If the heartbeat is False, the worker signals that it has received
+    keyboard interruption and is about to die in peace.
 
     There is global pair of queues, `queue_in` and `queue_out`, to distribute workloads. Workloads
     are divided into smaller pieces identified by zero-based work ids. The parent process sends work
@@ -341,8 +164,8 @@ def worker_process_v2(func, heartbeat_pipe, queue_in, queue_out, logger=None):
         try:
             sleep(INTERVAL)
         except KeyboardInterrupt:
-            if logger:
-                logger.warn("Worker pid {} killed by keyboard interruption.".format(os.getpid()))
+            heartbeat_pipe.send(False)
+            sleep(INTERVAL)
             to_die = True
 
     bg_thread.close()
@@ -384,7 +207,7 @@ class ProcessParalleliser(object):
             pipe = _mp.Pipe()
             self.pipe_list.append(pipe[0])
             p = _mp.Process(
-                    target=worker_process_v2,
+                    target=worker_process,
                     args=(func, pipe[1], self.queue_in, self.queue_out),
                     kwargs={'logger': logger})
             p.start() # start the process
@@ -400,6 +223,7 @@ class ProcessParalleliser(object):
 
         '''A background process to communicate with the worker processes.'''
 
+        keyboard_interrupted = False
         while True:
             all_dead = True
             for i, p in enumerate(self.process_list):
@@ -415,7 +239,8 @@ class ProcessParalleliser(object):
                         all_dead = False
                         self.miss_cnt_list[i] = 0
                         while pipe.poll(): # cleanse the pipe
-                            pipe.recv()
+                            if not pipe.recv():
+                                keyboard_interrupted = True
                     else:
                         self.miss_cnt_list[i] += 1
                         if self.miss_cnt_list[i] >= MAX_MISS_CNT: # mark the worker process as dead
@@ -423,7 +248,7 @@ class ProcessParalleliser(object):
                             if p.is_alive():
                                 pipe.send(False)
                                 self.miss_cnt_list[i] = 0
-                except BrokenPipeError:
+                except (EOFError, BrokenPipeError):
                     self.state = 'dying'
                 except: # broken pipe or something, assume worker process is dead
                     if self.logger:
@@ -436,10 +261,12 @@ class ProcessParalleliser(object):
 
             # sleep until next time
             try:
+                if keyboard_interrupted:
+                    raise KeyboardInterrupt
                 sleep(INTERVAL)
             except KeyboardInterrupt:
                 if logger:
-                    logger.warn("Parent process interrupted by keyboard {}.".format(os.getpid()))
+                    logger.warn("Process {} interrupted by keyboard.".format(os.getpid()))
                 if self.state == 'living':
                     self.state = 'dying'
 
@@ -552,8 +379,6 @@ class WorkIterator(object):
         for logging messages
     max_num_workers : int, optional
         maximum number of concurrent workers or equivalently processes to be allocated
-    use_v2 : bool
-        whether use ProcessParalleliser (True) or ProcessParalleliser_v1 (False)
 
     Notes
     -----
@@ -564,12 +389,8 @@ class WorkIterator(object):
     As of 2021/4/30, you can switch version of paralleliser.
     '''
 
-    def __init__(self, func, buffer_size=None, skip_null=True, push_timeout=30, pop_timeout=60*60, use_v2=True, max_num_workers=None, logger=None):
-        if use_v2:
-            self.paralleliser = ProcessParalleliser(func, max_num_workers=max_num_workers, logger=logger)
-        else:
-            self.paralleliser = ProcessParalleliser_v1(func, logger=logger)
-        
+    def __init__(self, func, buffer_size=None, skip_null=True, push_timeout=30, pop_timeout=60*60, max_num_workers=None, logger=None):
+        self.paralleliser = ProcessParalleliser(func, max_num_workers=max_num_workers, logger=logger)        
         self.push_timeout = push_timeout
         self.pop_timeout = pop_timeout
         self.skip_null = skip_null
