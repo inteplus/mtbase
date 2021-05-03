@@ -242,7 +242,7 @@ class ProcessParalleliser(object):
                             all_dead = False
                             self.miss_cnt_list[i] = 0
                             buf = pipe.recv_bytes(16384) # cleanse the pipe
-                            self.logger.debug("Pipe from {}: {}".format(p.pid, buf))
+                            #self.logger.debug("Pipe from {}: {}".format(p.pid, buf))
                             for x in buf:
                                 if x == 1:
                                     if death_code == 'normal':
