@@ -11,21 +11,9 @@ from .path import join, make_dirs
 from .deprecated import deprecated_func
 from .bg_invoke import BgInvoke, BgThread, BgException
 
-__all__ = ['max_num_threads', 'Counter', 'ProcessParalleliser', 'WorkIterator']
 
+__all__ = ['Counter', 'ProcessParalleliser', 'WorkIterator']
 
-@deprecated_func("1.2.3", suggested_func="mt.base.WorkIterator", removed_version="1.5.0", docstring_prefix="    ")
-def max_num_threads(client=None, use_dask=True):
-    '''Retrieves the maximum number of threads the client can handle concurrently.
-
-    Parameters
-    ----------
-    client : dask.distributed.Client, optional
-        If 'use_dask' is True, this argument specifies the dask distributed client. It uses the default dask.distributed client if None is given.
-    use_dask : bool
-        whether or not we use dask distributed to count the number of threads. If not, we use :func:`multiprocessing.cpu_count`.
-    '''
-    return _mp.cpu_count()
 
 class Counter(object):
 
