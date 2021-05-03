@@ -163,13 +163,14 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
             miss_cnt += 1
             if miss_cnt >= MAX_MISS_CNT: # seppuku
                 if logger:
-                    logger.warn("Worker pid {} could not feel its parent and died of loneliness.".format(os.getpid()))
+                    logger.warn("Lack of parent's heartbeat killed worker pid {}.".format(os.getpid()))
                 to_die = True
 
         # sleep until next time
         try:
             sleep(INTERVAL)
         except KeyboardInterrupt:
+            # the parent process may have died by now, but we want to notify anyway
             heartbeat_pipe.send_bytes(bytes((1,)))
             sleep(INTERVAL)
             to_die = True
@@ -252,6 +253,8 @@ class ProcessParalleliser(object):
                             #self.logger.debug("Pipe from {}: {}".format(p.pid, buf))
                             for x in buf:
                                 if x == 1:
+                                    if self.logger:
+                                        self.logger.debug("Worker {} wanted parent to die.".format(p.pid))
                                     if death_code == 'normal':
                                         death_code = 'keyboard_interrupted'
                                     self.state = 'dying'
