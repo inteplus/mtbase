@@ -264,6 +264,8 @@ class ProcessParalleliser(object):
                                 if p.is_alive():
                                     pipe.send_bytes(bytes((1,)))
                                 self.miss_cnt_list[i] = 0
+                            else: # assume the current worker still lives
+                                all_dead = False
                     except (EOFError, BrokenPipeError):
                         if death_code == 'normal':
                             death_code = 'broken_pipe_or_something'
