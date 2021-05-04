@@ -6,9 +6,6 @@ import threading as _t
 import multiprocessing as _mp
 from time import sleep
 
-from . import home_dirpath
-from .path import join, make_dirs
-from .deprecated import deprecated_func
 from .bg_invoke import BgInvoke, BgThread, BgException
 
 
