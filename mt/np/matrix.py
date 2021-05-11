@@ -6,8 +6,11 @@
 import numpy as np
 
 
+__all__ = ['psd_approx', 'sqrtm']
+
+
 def psd_approx(A):
-    '''Approximates a symmetric matrix with a positive semi-definite.
+    '''Approximates a real symmetric matrix with a positive semi-definite.
 
     The approximated matrix is the one closest to the input matrix in Frobenius norm.
 
@@ -28,3 +31,21 @@ def psd_approx(A):
     A = V @ np.diag(W) @ V.T
 
     return A
+
+
+def sqrtm(A):
+    '''Computes the matrix square root of a real positive semi-definite matrix.
+
+    Parameters
+    ----------
+    A : numpy.ndarray
+        2D array representing the input matrix
+
+    Returns
+    -------
+    numpy.ndarray
+        output square matrix such that its square equals the input matrix
+    '''
+    W, V = np.linalg.eig(A) # A = V diag(W) V^{-1}
+    W = np.array([np.sqrt(x) if x >= 0 else 0 for x in W])
+    return V @ np.diag(W) @ V.T
