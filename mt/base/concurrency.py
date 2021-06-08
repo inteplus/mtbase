@@ -254,7 +254,7 @@ class ProcessParalleliser(object):
                                 self.miss_cnt_list[i] = 0
                             else: # assume the current worker still lives
                                 all_dead = False
-                    except (EOFError, BrokenPipeError):
+                    except (EOFError, BrokenPipeError, ConnectionResetError):
                         if death_code == 'normal':
                             death_code = 'broken_pipe_or_something'
                         self.state = 'dying'
