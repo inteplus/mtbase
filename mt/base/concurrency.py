@@ -243,6 +243,7 @@ class ProcessParalleliser(object):
                                     if death_code == 'normal':
                                         death_code = 'keyboard_interrupted'
                                     self.state = 'dying'
+                                    break
                         else:
                             self.miss_cnt_list[i] += 1
                             if self.miss_cnt_list[i] >= MAX_MISS_CNT: # no heartbeat for too long
