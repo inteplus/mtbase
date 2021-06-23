@@ -453,10 +453,10 @@ class WorkIterator(object):
 
     def __next__(self):
         with self.lock:
-            if not self.alive:
-                raise RuntimeError("The instance has been closed. Please reinstantiate.")
-
             while True:
+                if not self.alive:
+                    raise RuntimeError("The instance has been closed. Please reinstantiate.")
+
                 max_items = max(self.recv_counter + self.buffer_size - self.send_counter, 0)
                 for i in range(max_items):
                     if not self.paralleliser.push(self.send_counter, timeout=self.push_timeout):
