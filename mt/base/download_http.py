@@ -3,13 +3,15 @@
 '''Downloads from http with multiple connections'''
 
 import sys
+from time import sleep
+
 from functools import partial
 from itertools import count
 from multiprocessing.dummy import Pool # use threads
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 from threading import Lock, Semaphore
-from .concurrency import bg_run, is_future
+from .bg_invoke import BgInvoke
 
 
 __all__ = ['download_http', 'download_http_single', 'download_http_with_file_size', 'download_http_without_file_size', 'request_file_size']
@@ -89,11 +91,13 @@ def download_http_with_file_size(url, local_filepath, file_size, max_num_conns=4
     for id in range(num_conns):
         start = chunk_size*id
         end = min(start+chunk_size, file_size)-1
-        futures[id] = bg_run(_download_chunk, url, (start, end))
+        futures[id] = BgInvoke(_download_chunk, url, (start, end))
 
     with open(local_filepath, 'wb') as f:
         for obj in futures:
-            data = obj.result()
+            while obj.is_running():
+                sleep(0.5)
+            data = obj.result
             if not data: # error
                 raise OSError("Error downloading from {} to {}".format(url, local_filepath))
             f.write(data)
