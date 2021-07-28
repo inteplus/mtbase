@@ -364,7 +364,6 @@ class BgProcManager:
         self.is_alive = True
 
         self.lock = _t.Lock()
-        self.new_proc = None
         self.running_threads = []
         self.deque = deque()
         self.max_num_threads = _mp.cpu_count()
@@ -384,24 +383,15 @@ class BgProcManager:
                 self.logger.warn("Cannot append a new procedure when the manager is being closed.")
             return
 
-        while True:
-            with self.lock:
-                if self.new_proc is not None:
-                    sleep(0.01)
-                    continue
-                self.new_proc = proc
-            break
+        with self.lock:
+            self.deque.append(proc)
 
     def _run(self):
         '''Manager thread. Do not invoke the function externally.'''
 
         while True:
+            # clean up finished threads
             with self.lock:
-                if self.new_proc is not None:
-                    self.deque.append(self.new_proc)
-                    self.new_proc = None
-
-                # clean up finished threads
                 new_running_threads = []
                 for bg_thread in self.running_threads:
                     if bg_thread.is_running():
@@ -414,13 +404,15 @@ class BgProcManager:
                                 self.logger.warn_last_exception()
                 self.running_threads = new_running_threads
 
-                # see if we can invoke a new thread
+            # see if we can invoke a new thread
+            with self.lock:
                 if bool(self.deque) and (len(self.running_threads) < self.max_num_threads):
                     proc = self.deque.popleft()
                     bg_thread = BgInvoke(proc)
                     self.running_threads.append(bg_thread)
 
-                # see if we can quit
+            # see if we can quit
+            with self.lock:
                 if not self.is_alive and not self.deque and not self.running_threads:
                     break
 
