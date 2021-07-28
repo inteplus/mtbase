@@ -403,7 +403,7 @@ class BgProcManager:
             self.running_threads = new_running_threads
 
             # see if we can invoke a new thread
-            new_thread_cnt = max(0, min(len(self.deque), self.max_num_threads-len(self.running_threads))
+            new_thread_cnt = max(0, min(len(self.deque), self.max_num_threads-len(self.running_threads)))
             for i in range(new_thread_cnt):
                 proc = self.deque.popleft()
                 bg_thread = BgInvoke(proc)
