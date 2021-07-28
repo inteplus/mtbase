@@ -1,6 +1,8 @@
 '''Wrapper around threading for running things in background.'''
 
 
+from collections import deque
+import multiprocessing as _mp
 import threading as _t
 import sys as _sys
 import os as _os
@@ -8,9 +10,11 @@ from time import sleep
 
 from .with_utils import dummy_scope
 from .traceback import format_exception
+from .time import sleep_until
+from .logging import logger
 
 
-__all__ = ['BgException', 'BgInvoke', 'BgThread', 'parallelise']
+__all__ = ['BgException', 'BgInvoke', 'BgThread', 'parallelise', 'bg_run_proc']
 
 
 class BgException(Exception):
@@ -23,7 +27,7 @@ class BgException(Exception):
         super().__init__(message)
 
 
-class BgInvoke(object):
+class BgInvoke:
     '''Thin wrapper around threading.Thread to run `target(*args, **kwargs)` in background.
 
     Once invoked, the thread keeps running in background until function `self.is_running()` returns `False`, at which point `self.result` holds the output of the invocation.
@@ -340,3 +344,106 @@ def parallelise(func, num_jobs, *fn_args, num_threads=None, bg_exception='raise'
                 threads.pop(i2)
 
     return thread_outputs
+
+
+class BgProcManager:
+    '''A manager to run procedures in background threads.
+
+    A procedure is a function that returns None. If it an error is raised while executing the
+    procedure, it will be reported as a warning in the logger (optional).
+
+    Parameters
+    ----------
+    logger : logging.Logger or equivalent
+        logger for catching the exceptions as warnings
+    '''
+
+    def __init__(self, logger=None):
+        self.running_threads = []
+        self.deque = deque()
+        self.max_num_threads = _mp.cpu_count()
+        self.logger = logger
+
+        self.is_alive = True
+
+        self.lock = _t.Lock()
+        self.new_proc = None
+
+        self.manager_thread = BgInvoke(self._run)
+
+    def append_new_proc(self, proc):
+        '''Appends a new procedure to the queue.
+
+        Parameters
+        ----------
+        proc : funcion
+            a procedure taking no input. If it an error is raised, it will be reported as a warning in the logger.
+        '''
+        if not self.is_alive:
+            if self.logger:
+                self.logger.warn("Cannot append a new procedure when the manager is being closed.")
+            return
+
+        while True:
+            with self.lock:
+                if self.new_proc is not None:
+                    sleep(0.01)
+                    continue
+                self.new_proc = proc
+            break
+
+    def _run(self):
+        '''Manager thread. Do not invoke the function externally.'''
+
+        while True:
+            with self.lock:
+                if self.new_proc is not None:
+                    self.deque.append(self.new_proc)
+                    self.new_proc = None
+
+            # clean up finished threads
+            new_running_threads = []
+            for bg_thread in self.running_threads:
+                if bg_thread.is_running():
+                    new_running_threads.append(bg_thread)
+                else:
+                    try:
+                        _ = bg_thread.result
+                    except BgException:
+                        if self.logger:
+                            self.logger.warn_last_exception()
+            self.running_threads = new_running_threads
+
+            # see if we can invoke a new thread
+            if bool(self.deque) and (len(self.running_threads) < self.max_num_threads):
+                proc = self.deque.popleft()
+                bg_thread = BgInvoke(proc)
+                self.running_threads.append(bg_thread)
+
+            # see if we can quit
+            if not self.is_alive and not self.deque and not self.running_threads:
+                break
+                
+            sleep(0.01)
+
+    def __del__(self):
+        self.is_alive = False
+        sleep_until(lambda: not self.deque, logger=self.logger)
+        sleep_until(lambda: not self.running_threads, logger=self.logger)
+
+bg_proc_manager = BgProcManager(logger=logger)
+
+def bg_run_proc(proc, *args, **kwargs):
+    '''Runs a procedure in a background thread.
+
+    Parameters
+    ----------
+    proc : function
+        procedure (a function returning None) to be executed in a background thread. Any Exception
+        raised during the execution will be logged as a warning
+    args : list
+        positional arguments to be passed as-is to the procedure
+    kwargs : dict
+        keyword arguments to be passed as-is to the procedure
+    '''
+    bg_proc_manager.append_new_proc(lambda: proc(*args, **kwargs))
