@@ -14,7 +14,7 @@ from .time import sleep_until
 from .logging import logger
 
 
-__all__ = ['BgException', 'BgInvoke', 'BgThread', 'parallelise', 'bg_run_proc']
+__all__ = ['BgException', 'BgInvoke', 'BgThread', 'parallelise', 'bg_run_proc', 'bg_proc_manager']
 
 
 class BgException(Exception):
@@ -359,15 +359,15 @@ class BgProcManager:
     '''
 
     def __init__(self, logger=None):
-        self.running_threads = []
-        self.deque = deque()
-        self.max_num_threads = _mp.cpu_count()
         self.logger = logger
 
         self.is_alive = True
 
         self.lock = _t.Lock()
         self.new_proc = None
+        self.running_threads = []
+        self.deque = deque()
+        self.max_num_threads = _mp.cpu_count()
 
         self.manager_thread = BgInvoke(self._run)
 
@@ -401,35 +401,46 @@ class BgProcManager:
                     self.deque.append(self.new_proc)
                     self.new_proc = None
 
-            # clean up finished threads
-            new_running_threads = []
-            for bg_thread in self.running_threads:
-                if bg_thread.is_running():
-                    new_running_threads.append(bg_thread)
-                else:
-                    try:
-                        _ = bg_thread.result
-                    except BgException:
-                        if self.logger:
-                            self.logger.warn_last_exception()
-            self.running_threads = new_running_threads
+                # clean up finished threads
+                new_running_threads = []
+                for bg_thread in self.running_threads:
+                    if bg_thread.is_running():
+                        new_running_threads.append(bg_thread)
+                    else:
+                        try:
+                            _ = bg_thread.result
+                        except BgException:
+                            if self.logger:
+                                self.logger.warn_last_exception()
+                self.running_threads = new_running_threads
 
-            # see if we can invoke a new thread
-            if bool(self.deque) and (len(self.running_threads) < self.max_num_threads):
-                proc = self.deque.popleft()
-                bg_thread = BgInvoke(proc)
-                self.running_threads.append(bg_thread)
+                # see if we can invoke a new thread
+                if bool(self.deque) and (len(self.running_threads) < self.max_num_threads):
+                    proc = self.deque.popleft()
+                    bg_thread = BgInvoke(proc)
+                    self.running_threads.append(bg_thread)
 
-            # see if we can quit
-            if not self.is_alive and not self.deque and not self.running_threads:
-                break
-                
+                # see if we can quit
+                if not self.is_alive and not self.deque and not self.running_threads:
+                    break
+
             sleep(0.01)
+
+    def is_deque_empty(self):
+        with self.lock:
+            return not self.deque
+
+    def is_no_running_threads(self):
+        with self.lock:
+            return not self.running_threads
+
+    def wait_until_empty(self):
+        sleep_until(self.is_deque_empty, logger=self.logger)
+        sleep_until(self.is_no_running_threads, logger=self.logger)
 
     def __del__(self):
         self.is_alive = False
-        sleep_until(lambda: not self.deque, logger=self.logger)
-        sleep_until(lambda: not self.running_threads, logger=self.logger)
+        self.wait_until_empty()
 
 bg_proc_manager = BgProcManager(logger=logger)
 
