@@ -383,48 +383,42 @@ class BgProcManager:
                 self.logger.warn("Cannot append a new procedure when the manager is being closed.")
             return
 
-        with self.lock:
-            self.deque.append(proc)
+        self.deque.append(proc)
 
     def _run(self):
         '''Manager thread. Do not invoke the function externally.'''
 
         while True:
             # clean up finished threads
-            with self.lock:
-                new_running_threads = []
-                for bg_thread in self.running_threads:
-                    if bg_thread.is_running():
-                        new_running_threads.append(bg_thread)
-                    else:
-                        try:
-                            _ = bg_thread.result
-                        except BgException:
-                            if self.logger:
-                                self.logger.warn_last_exception()
-                self.running_threads = new_running_threads
+            new_running_threads = []
+            for bg_thread in self.running_threads:
+                if bg_thread.is_running():
+                    new_running_threads.append(bg_thread)
+                else:
+                    try:
+                        _ = bg_thread.result
+                    except BgException:
+                        if self.logger:
+                            self.logger.warn_last_exception()
+            self.running_threads = new_running_threads
 
             # see if we can invoke a new thread
-            with self.lock:
-                if bool(self.deque) and (len(self.running_threads) < self.max_num_threads):
-                    proc = self.deque.popleft()
-                    bg_thread = BgInvoke(proc)
-                    self.running_threads.append(bg_thread)
+            if bool(self.deque) and (len(self.running_threads) < self.max_num_threads):
+                proc = self.deque.popleft()
+                bg_thread = BgInvoke(proc)
+                self.running_threads.append(bg_thread)
 
             # see if we can quit
-            with self.lock:
-                if not self.is_alive and not self.deque and not self.running_threads:
-                    break
+            if not self.is_alive and not self.deque and not self.running_threads:
+                break
 
             sleep(0.01)
 
     def is_deque_empty(self):
-        with self.lock:
-            return not self.deque
+        return not self.deque
 
     def is_no_running_threads(self):
-        with self.lock:
-            return not self.running_threads
+        return not self.running_threads
 
     def wait_until_empty(self):
         sleep_until(self.is_deque_empty, logger=self.logger)
