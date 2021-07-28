@@ -403,7 +403,8 @@ class BgProcManager:
             self.running_threads = new_running_threads
 
             # see if we can invoke a new thread
-            if bool(self.deque) and (len(self.running_threads) < self.max_num_threads):
+            new_thread_cnt = max(0, min(len(self.deque), self.max_num_threads-len(self.running_threads))
+            for i in range(new_thread_cnt):
                 proc = self.deque.popleft()
                 bg_thread = BgInvoke(proc)
                 self.running_threads.append(bg_thread)
@@ -412,7 +413,7 @@ class BgProcManager:
             if not self.is_alive and not self.deque and not self.running_threads:
                 break
 
-            sleep(0.01)
+            sleep(0.1)
 
     def is_deque_empty(self):
         return not self.deque
