@@ -9,7 +9,7 @@ from time import sleep
 from .bg_invoke import BgInvoke, BgThread, BgException
 
 
-__all__ = ['Counter', 'ProcessParalleliser', 'WorkIterator']
+__all__ = ['Counter', 'ProcessParalleliser', 'WorkIterator', 'serial_work_generator']
 
 
 class Counter(object):
@@ -484,3 +484,23 @@ class WorkIterator(object):
 
     def __iter__(self):
         return self
+
+def serial_work_generator(func, num_work_ids):
+    '''A generator that serially iterates from 0 to num_work_ids-1, returning the work result in each iteration.
+
+    This function complements the WorkIterator class to deal with cases when the number of works is small.
+
+    Parameters
+    ----------
+    func : function
+        a function representing the work process. The function takes as input a non-negative integer 'work_id' and returns some result in the form of `(work_id, ...)` if successful else None.
+    num_work_ids : int
+        number of works to iterate over without using multiprocessing or multithreading.
+
+    Returns
+    -------
+    object
+        a Python generator
+    '''
+    for work_id in range(num_work_ids):
+        yield func(work_id)
