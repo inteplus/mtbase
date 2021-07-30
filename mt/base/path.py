@@ -58,7 +58,10 @@ def make_dirs(path, shared=True):
             while stack:
                 tail = stack.pop()
                 path = join(path, tail)
-                _os.mkdir(path, 0o775)
+                try:
+                    _os.mkdir(path, 0o775)
+                except FileExistsError:
+                    pass
                 _os.chmod(path, mode=0o775)
         else:
             _os.makedirs(path, mode=0o775, exist_ok=True)
