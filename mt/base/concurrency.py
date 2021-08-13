@@ -384,14 +384,20 @@ class ProcessParalleliser(object):
 
 
 class WorkIterator(object):
-    '''Iterates work from id 0 to infinity, returning the work result in each iteration, but using ProcessParalleliser to do a few works ahead of time.
+    '''Iterates work from id 0 to infinity, returning the work result in each iteration.
+
+    By default, the class invokes ProcessParalleliser to do a few works ahead of time. It switches
+    to serial mode if requested.
 
     Parameters
     ----------
     func : function
-        a function representing the work process. The function takes as input a non-negative integer 'work_id' and returns some result in the form of `(work_id, ...)` if successful else None.
+        a function representing the work process. The function takes as input a non-negative
+        integer 'work_id' and returns some result in the form of `(work_id, ...)` if successful
+        else None.
     buffer_size : int, optional
-        maximum number of work resultant items to be buffered ahead of time. If not specified, default to be twice the number of processes.
+        maximum number of work resultant items to be buffered ahead of time. If not specified,
+        default to be twice the number of processes.
     push_timeout : float, optional
         timeout in second for each push to input queue. See :func:`ProcessParalleliser.push`.
     pop_timeout : float, optional
@@ -402,35 +408,51 @@ class WorkIterator(object):
         for logging messages
     max_num_workers : int, optional
         maximum number of concurrent workers or equivalently processes to be allocated
+    serial_mode : bool
+        whether or not to activate the serial mode. Useful when the number of works is small.
+    logger : logging.Logger, optional
+        logger for debugging purposes
 
     Notes
     -----
-    Instances of the class qualify as a thread-safe Python iterator. Each iteration returns a (work_id, result) pair. To avoid a possible deadlock during garbage collection, it is recommended to explicitly invoke :func:`close` to clean up background processes.
+    Instances of the class qualify as a thread-safe Python iterator. Each iteration returns a
+    (work_id, result) pair. To avoid a possible deadlock during garbage collection, it is
+    recommended to explicitly invoke :func:`close` to clean up background processes.
 
-    As of 2021/2/17, instances of WorkIterator can be used in a with statement. Upon exiting, :func:`close` is invoked.
+    As of 2021/2/17, instances of WorkIterator can be used in a with statement. Upon exiting,
+    :func:`close` is invoked.
 
     As of 2021/4/30, you can switch version of paralleliser.
+
+    As of 2021/08/13, the class has been extended to do work in serial if the number of works is
+    provided and is less than or equal a provided threshold.
     '''
 
-    def __init__(self, func, buffer_size=None, skip_null=True, push_timeout=30, pop_timeout=60*60, max_num_workers=None, logger=None):
-        self.paralleliser = ProcessParalleliser(func, max_num_workers=max_num_workers, logger=logger)        
-        self.push_timeout = push_timeout
-        self.pop_timeout = pop_timeout
+    def __init__(self, func, buffer_size=None, skip_null=True, push_timeout=30, pop_timeout=60*60, max_num_workers=None, serial_mode=False, logger=None):
         self.skip_null = skip_null
-        self.push_timeout = push_timeout
-        self.pop_timeout = pop_timeout
         self.send_counter = 0
         self.recv_counter = 0
         self.retr_counter = 0
-        self.work_id = 0
-        self.buffer_size = len(self.paralleliser.process_list)*2 if buffer_size is None else buffer_size
-        self.lock = _t.Lock()
-        self.alive = True
+        if serial_mode:
+            self.serial_mode = True
+            self.func = func
+        else:
+            self.serial_mode = False
+            self.paralleliser = ProcessParalleliser(func, max_num_workers=max_num_workers, logger=logger)        
+            self.push_timeout = push_timeout
+            self.pop_timeout = pop_timeout
+            self.push_timeout = push_timeout
+            self.pop_timeout = pop_timeout
+            self.buffer_size = len(self.paralleliser.process_list)*2 if buffer_size is None else buffer_size
+            self.lock = _t.Lock()
+            self.alive = True
 
     # ----- cleaning up resources -----
 
     def close(self):
         '''Closes the iterator for further use.'''
+        if self.serial_mode:
+            return
         with self.lock:
             if not self.alive:
                 return
@@ -452,6 +474,16 @@ class WorkIterator(object):
     # ----- next ------
 
     def __next__(self):
+        if self.serial_mode:
+            while True:
+                result = self.func(self.send_counter)
+                self.send_counter += 1
+                self.recv_counter += 1
+                if self.skip_null and result is None:
+                    continue
+                self.retr_counter += 1
+                return result
+
         with self.lock:
             if not self.alive:
                 raise RuntimeError("The instance has been closed. Please reinstantiate.")
