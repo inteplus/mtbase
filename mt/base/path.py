@@ -10,7 +10,7 @@ import atexit as _ex
 import time as _t
 import platform as _pl
 
-from os import rename, utime, walk, stat, chmod
+from os import rename, utime, walk, stat, chmod, listdir
 from os.path import *
 from glob import glob
 
@@ -18,7 +18,7 @@ from . import logger
 from .threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
 
 
-__all__ = ['remove', 'make_dirs', 'lock', 'rename', 'utime', 'walk', 'stat', 'chmod', 'glob']
+__all__ = ['remove', 'make_dirs', 'lock', 'rename', 'utime', 'walk', 'stat', 'chmod', 'listdir', 'glob']
 
 
 _path_lock = Lock()
