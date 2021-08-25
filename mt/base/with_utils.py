@@ -40,9 +40,13 @@ class join_scopes(object):
     ```
 
     All positional arguments passed to the function are treated as a separate object to be used with the 'with' statement. The return value of the `__enter__`  method of the function is the list of return values of each argument's `__enter__` method.
+
+    Notes
+    -----
+    As of 2021/08/01, MT has realised that the with statement in Python 3 has long supported compound withs. So you can do `with a, b, c:` without any issue. This class has become redundant. Duh!
     '''
 
-    def __init__(self, *with_objs): 
+    def __init__(self, *with_objs):
         self.with_objs = with_objs
 
     def __enter__(self):
