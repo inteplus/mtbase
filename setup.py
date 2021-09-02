@@ -15,6 +15,7 @@ setup(name='mtbase',
           'colorama',  # for colored text
           'Cython',  # for fast speed on tiny objects
           'numpy', # common ndarray
+          'aiofiles', # for loading/saving files asynchronously
           #'matplotlib', # for drawing stuff, optional
       ],
       url='https://github.com/inteplus/mtbase',
