@@ -16,6 +16,7 @@ setup(name='mtbase',
           'Cython',  # for fast speed on tiny objects
           'numpy', # common ndarray
           'aiofiles', # for loading/saving files asynchronously
+          'filetype', # to determine the type of a file
           #'matplotlib', # for drawing stuff, optional
       ],
       url='https://github.com/inteplus/mtbase',
