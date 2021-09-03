@@ -6,7 +6,7 @@ import aiofiles
 from filetype import *
 
 
-__all__ = ['read_file_header', 'is_image_aio']
+__all__ = ['read_file_header', 'is_image_aio', 'image_match_aio']
 
 
 async def read_file_header(filepath):
@@ -51,3 +51,24 @@ async def is_image_aio(filepath):
 
     buf = await read_file_header(filepath)
     return is_image(buf)
+
+
+async def image_match_aio(filepath):
+    '''Obtains the image file type, asyncrhonously.
+
+    Parameters
+    ----------
+    filepath : str
+        path to the file that can be an image file
+
+    Returns
+    -------
+    retval : filetype.Type
+        the file type, with mime and extension attributes
+    '''
+
+    if not isinstance(filepath, str):
+        return image_match(filepath)
+
+    buf = await read_file_header(filepath)
+    return image_match(buf)
