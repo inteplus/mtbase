@@ -12,7 +12,7 @@ synchronicity means that the function can be invoked without an event loop, via 
 import aiofiles
 
 
-__all__ = ['srun', 'read_binary']
+__all__ = ['srun', 'read_binary', 'write_binary']
 
 
 def srun(asyn_func, *args, **kwargs):
@@ -66,3 +66,29 @@ async def read_binary(filepath, size: int = None, asyn: bool = True):
     else:
         with open(filepath, mode='rb') as f:
             return f.read(size)
+
+
+async def write_binary(filepath, buf: bytes, asyn: bool = True):
+    '''An asyn function that creates a binary file and writes the content.
+
+    Parameters
+    ----------
+    filepath : str
+        path to the file
+    buf : bytes
+        data (in bytes) to be written to the file
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+
+    Returns
+    -------
+    bytes
+        the content read from file
+    '''
+
+    if asyn:
+        async with aiofiles.open(filepath, mode='wb') as f:
+            return await f.write(buf)
+    else:
+        with open(filepath, mode='wb') as f:
+            return f.write(buf)
