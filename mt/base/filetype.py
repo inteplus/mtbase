@@ -5,11 +5,13 @@ import aiofiles
 import filetype
 from filetype import *
 
+from .file import read_binary_async
 
-__all__ = ['read_file_header', 'is_image', 'image_match']
+
+__all__ = ['read_file_header_async', 'is_image', 'image_match']
 
 
-async def read_file_header(filepath):
+async def read_file_header_async(filepath):
     '''Asynchronously reads the file header so :module:`filetype` can work on.
 
     Parameters
@@ -23,9 +25,7 @@ async def read_file_header(filepath):
         first 261 bytes of the file content or a ValueError is raised if the file is shorter
     '''
 
-    async with aiofiles.open(filepath, mode='rb') as f:
-        buf = await f.read(261)
-
+    buf = await read_binary_async(filepath, 261)
     if len(buf) < 261:
         raise ValueError("Corrupted file '{}' with only {} bytes.".format(filepath, len(buf)))
 
@@ -40,8 +40,8 @@ def is_image(filepath, asynchronous: bool = False):
     filepath : str
         path to the file that can be an image file
     asynchronous : bool
-        whether or not the file reading is done asynchronously. If True, you must use 'await'
-        keyword to process the returned value
+        whether or not the file I/O is done asynchronously. If True, you must use keyword 'await'
+        to invoke the function
 
     Returns
     -------
@@ -58,7 +58,7 @@ def is_image(filepath, asynchronous: bool = False):
         if not isinstance(filepath, str):
             return filetype.is_image(filepath)
 
-        buf = await read_file_header(filepath)
+        buf = await read_file_header_async(filepath)
         return is_image(buf)
 
     return async_func(filepath) if asynchronous else filetype.is_image(filepath)
@@ -72,12 +72,12 @@ def image_match(filepath, asynchronous: bool = False):
     filepath : str
         path to the file that can be an image file
     asynchronous : bool
-        whether or not the file reading is done asynchronously. If True, you must use 'await'
-        keyword to process the returned value
+        whether or not the file I/O is done asynchronously. If True, you must use keyword 'await'
+        to invoke the function
 
     Returns
     -------
-    retval : filetype.Type
+    filetype.Type
         the file type, with mime and extension attributes
     '''
 
@@ -85,7 +85,7 @@ def image_match(filepath, asynchronous: bool = False):
         if not isinstance(filepath, str):
             return filetype.image_match(filepath)
 
-        buf = await read_file_header(filepath)
+        buf = await read_file_header_async(filepath)
         return filetype.image_match(buf)
 
     return async_func(filepath) if asynchronous else filetype.image_match(filepath)
