@@ -25,7 +25,8 @@ async def read_binary_async(filepath, size: int = None):
     '''
 
     async with aiofiles.open(filepath, mode='rb') as f:
-        return await f.read(size)
+        content = await f.read(size)
+    return content
 
 
 def read_binary(filepath, size: int = None):
