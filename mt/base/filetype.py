@@ -1,12 +1,12 @@
 '''Extra subroutines using package 'filetype' asynchronously.'''
 
 
-import asyncio
 import aiofiles
+import filetype
 from filetype import *
 
 
-__all__ = ['read_file_header', 'is_image_aio', 'image_match_aio']
+__all__ = ['read_file_header', 'is_image', 'image_match']
 
 
 async def read_file_header(filepath):
@@ -32,34 +32,48 @@ async def read_file_header(filepath):
     return buf
 
 
-async def is_image_aio(filepath):
-    '''Checks if a file is an image, asyncrhonously.
+def is_image(filepath, asynchronous: bool = False):
+    '''Checks if a file is an image.
 
     Parameters
     ----------
     filepath : str
         path to the file that can be an image file
+    asynchronous : bool
+        whether or not the file reading is done asynchronously. If True, you must use 'await'
+        keyword to process the returned value
 
     Returns
     -------
     bool
         whether or not the file is an image file
+
+    See Also
+    --------
+    :func:`filetype.is_image`
+        the wrapped function
     '''
 
-    if not isinstance(filepath, str):
-        return is_image(filepath)
+    async def async_func(filepath):
+        if not isinstance(filepath, str):
+            return filetype.is_image(filepath)
 
-    buf = await read_file_header(filepath)
-    return is_image(buf)
+        buf = await read_file_header(filepath)
+        return is_image(buf)
+
+    return async_func(filepath) if asynchronous else filetype.is_image(filepath)
 
 
-async def image_match_aio(filepath):
-    '''Obtains the image file type, asyncrhonously.
+def image_match(filepath, asynchronous: bool = False):
+    '''Obtains the image file type.
 
     Parameters
     ----------
     filepath : str
         path to the file that can be an image file
+    asynchronous : bool
+        whether or not the file reading is done asynchronously. If True, you must use 'await'
+        keyword to process the returned value
 
     Returns
     -------
@@ -67,8 +81,11 @@ async def image_match_aio(filepath):
         the file type, with mime and extension attributes
     '''
 
-    if not isinstance(filepath, str):
-        return image_match(filepath)
+    async def async_func(filepath):
+        if not isinstance(filepath, str):
+            return filetype.image_match(filepath)
 
-    buf = await read_file_header(filepath)
-    return image_match(buf)
+        buf = await read_file_header(filepath)
+        return filetype.image_match(buf)
+
+    return async_func(filepath) if asynchronous else filetype.image_match(filepath)
