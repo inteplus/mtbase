@@ -4,7 +4,7 @@
 import aiofiles
 
 
-__all__ = ['read_binary_async']
+__all__ = ['read_binary_async', 'read_binary']
 
 
 async def read_binary_async(filepath, size: int = None):
@@ -26,3 +26,23 @@ async def read_binary_async(filepath, size: int = None):
 
     async with aiofiles.open(filepath, mode='rb') as f:
         return await f.read(size)
+
+
+def read_binary(filepath, size: int = None):
+    '''Opens a binary file and reads the content in the usual IO-blocking way.
+
+    Parameters
+    ----------
+    filepath : str
+        path to the file
+    size : int
+        size to read from the beginning of the file, in bytes. If None is given, read the whole
+        file.
+
+    Returns
+    -------
+    bytes
+        the content read from file
+    '''
+    with open(filepath, mode='rb') as f:
+        return f.read(size)
