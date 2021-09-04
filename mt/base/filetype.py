@@ -5,19 +5,21 @@ import aiofiles
 import filetype
 from filetype import *
 
-from .file import read_binary_async
+from .asyn import srun, read_binary
 
 
-__all__ = ['read_file_header_async', 'is_image', 'image_match']
+__all__ = ['read_file_header', 'is_image', 'image_match']
 
 
-async def read_file_header_async(filepath):
-    '''Asynchronously reads the file header so :module:`filetype` can work on.
+async def read_file_header(filepath, asyn: bool = True):
+    '''An asyn function that reads the file header so :module:`filetype` can work on.
 
     Parameters
     ----------
     filepath : str
         path to the file whose first 261 bytes would be read
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
 
     Returns
     -------
@@ -25,7 +27,7 @@ async def read_file_header_async(filepath):
         first 261 bytes of the file content or a ValueError is raised if the file is shorter
     '''
 
-    buf = await read_binary_async(filepath, 261)
+    buf = await read_binary(filepath, 261, asyn=asyn)
     if len(buf) < 261:
         raise ValueError("Corrupted file '{}' with only {} bytes.".format(filepath, len(buf)))
 
