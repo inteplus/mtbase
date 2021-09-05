@@ -2,8 +2,8 @@
 
 
 import aiofiles
-import filetype
 from filetype import *
+import filetype
 
 from .asyn import srun, read_binary
 
@@ -60,7 +60,7 @@ def is_image(filepath, asynchronous: bool = False):
         if not isinstance(filepath, str):
             return filetype.is_image(filepath)
 
-        buf = await read_file_header_async(filepath)
+        buf = await read_file_header(filepath)
         return is_image(buf)
 
     return async_func(filepath) if asynchronous else filetype.is_image(filepath)
@@ -87,7 +87,7 @@ def image_match(filepath, asynchronous: bool = False):
         if not isinstance(filepath, str):
             return filetype.image_match(filepath)
 
-        buf = await read_file_header_async(filepath)
+        buf = await read_file_header(filepath)
         return filetype.image_match(buf)
 
     return async_func(filepath) if asynchronous else filetype.image_match(filepath)
