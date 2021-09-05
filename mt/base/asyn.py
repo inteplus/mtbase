@@ -9,10 +9,12 @@ synchronicity means that the function can be invoked without an event loop, via 
 '''
 
 
+import time
+import asyncio
 import aiofiles
 
 
-__all__ = ['srun', 'read_binary', 'write_binary']
+__all__ = ['srun', 'sleep', 'read_binary', 'write_binary']
 
 
 def srun(asyn_func, *args, **kwargs):
@@ -39,6 +41,26 @@ def srun(asyn_func, *args, **kwargs):
         coro.close()
     except StopIteration as e:
         return e.value
+
+
+async def sleep(secs: float, asyn: bool = True):
+    '''An asyn function that sleeps for a number of seconds.
+
+    In asynchronous mode, it invokes :func:`asyncio.sleep`. In synchronous mode, it invokes
+    :func:`time.sleep`.
+
+    Parameters
+    ----------
+    secs : float
+        number of seconds to sleep
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+    '''
+
+    if asyn:
+        await asyncio.sleep(secs)
+    else:
+        time.sleep(secs)
 
 
 async def read_binary(filepath, size: int = None, asyn: bool = True):
