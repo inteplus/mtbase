@@ -34,14 +34,14 @@ async def read_file_header(filepath, asyn: bool = True):
     return buf
 
 
-def is_image(filepath, asynchronous: bool = False):
-    '''Checks if a file is an image.
+def is_image(filepath, asynch: bool = False):
+    '''An asynch function that checks if a file is an image.
 
     Parameters
     ----------
     filepath : str
         path to the file that can be an image file
-    asynchronous : bool
+    asynch : bool
         whether or not the file I/O is done asynchronously. If True, you must use keyword 'await'
         to invoke the function
 
@@ -63,17 +63,17 @@ def is_image(filepath, asynchronous: bool = False):
         buf = await read_file_header(filepath)
         return is_image(buf)
 
-    return async_func(filepath) if asynchronous else filetype.is_image(filepath)
+    return async_func(filepath) if asynch else filetype.is_image(filepath)
 
 
-def image_match(filepath, asynchronous: bool = False):
-    '''Obtains the image file type.
+def image_match(filepath, asynch: bool = False):
+    '''An asynch function that obtains the image file type.
 
     Parameters
     ----------
     filepath : str
         path to the file that can be an image file
-    asynchronous : bool
+    asynch : bool
         whether or not the file I/O is done asynchronously. If True, you must use keyword 'await'
         to invoke the function
 
@@ -90,4 +90,4 @@ def image_match(filepath, asynchronous: bool = False):
         buf = await read_file_header(filepath)
         return filetype.image_match(buf)
 
-    return async_func(filepath) if asynchronous else filetype.image_match(filepath)
+    return async_func(filepath) if asynch else filetype.image_match(filepath)

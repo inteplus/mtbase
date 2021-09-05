@@ -1,10 +1,16 @@
-'''Useful subroutines dealing with asyn functions.
+'''Useful subroutines dealing with asyn and asynch functions.
 
 An asyn function is a coroutine function (declared with 'async def') but can operate in one of two
 modes: asynchronously and synchronously, specified by a boolean keyword argument 'asyn'.
 Asynchronicity means as usual an asynchronous function declared with 'async def'. However,
 synchronicity means that the function can be invoked without an event loop, via invoking
 :func:`srun`.
+
+An asynch function is a normal function (declared with 'def') but can operate in one of two modes:
+asynchronously and synchronously, specified by a boolean keyword argument 'asynch'. When in
+asynchronous mode, the function returns a coroutine that must be intercepted with keyword 'await'
+as if this is a coroutine function. When in synchronous mode, the function behaves like a normal
+function.
 
 '''
 
@@ -14,7 +20,7 @@ import asyncio
 import aiofiles
 
 
-__all__ = ['srun', 'sleep', 'read_binary', 'write_binary']
+__all__ = ['srun', 'srun2', 'sleep', 'read_binary', 'write_binary']
 
 
 def srun(asyn_func, *args, **kwargs):
@@ -41,6 +47,36 @@ def srun(asyn_func, *args, **kwargs):
         coro.close()
     except StopIteration as e:
         return e.value
+
+
+def srun2(asyn_func, *args, asynch: bool = False, **kwargs):
+    '''Invokes an asyn function from inside an asynch function.
+
+    Parameters
+    ----------
+    asyn_func : function
+        an asyn function (declared with 'async def')
+    args : list
+        positional arguments of the asyn function
+    asynch : bool
+        whether to invoke the function asynchronously (True) or synchronously (False)
+    kwargs : dict
+        keyword arguments of the asyn function
+
+    Returns
+    -------
+    object
+        whatver the asyn function returns
+    '''
+
+    async def async_func(*args, **kwargs):
+        return await asyn_func(*args, **kwargs)
+
+    def sync_func(*args, **kwargs):
+        return srun(asyn_func, *args, **kwargs)
+
+    func = async_func if asynch else sync_func
+    return func(*args, **kwargs)
 
 
 async def sleep(secs: float, asyn: bool = True):
