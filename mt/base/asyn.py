@@ -4,13 +4,16 @@ An asyn function is a coroutine function (declared with 'async def') but can ope
 modes: asynchronously and synchronously, specified by a boolean keyword argument 'asyn'.
 Asynchronicity means as usual an asynchronous function declared with 'async def'. However,
 synchronicity means that the function can be invoked without an event loop, via invoking
-:func:`srun`.
+:func:`srun`. Asyn functions are good for building library subroutines supporting both asynchronous
+and synchronous modes, but they break backward compatibility because of they 'async' requirement.
 
 An asynch function is a normal function (declared with 'def') but can operate in one of two modes:
 asynchronously and synchronously, specified by a boolean keyword argument 'asynch'. When in
-asynchronous mode, the function returns a coroutine that must be intercepted with keyword 'await'
+asynchronous mode, the function returns a coroutine that must be intercepted with keyword 'await',
 as if this is a coroutine function. When in synchronous mode, the function behaves like a normal
-function.
+function. Asynch functions are good for backward compatibility, because they are normal functions
+that can pretend to be a coroutine function, but they are bad for developing library subroutines
+supporting both asynchronous and synchronous modes.
 
 '''
 
@@ -20,7 +23,7 @@ import asyncio
 import aiofiles
 
 
-__all__ = ['srun', 'srun2', 'sleep', 'read_binary', 'write_binary']
+__all__ = ['srun', 'arun', 'sleep', 'read_binary', 'write_binary']
 
 
 def srun(asyn_func, *args, **kwargs):
@@ -49,7 +52,7 @@ def srun(asyn_func, *args, **kwargs):
         return e.value
 
 
-def srun2(asyn_func, *args, asynch: bool = False, **kwargs):
+def arun(asyn_func, *args, asynch: bool = False, **kwargs):
     '''Invokes an asyn function from inside an asynch function.
 
     Parameters
