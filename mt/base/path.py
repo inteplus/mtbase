@@ -1,35 +1,48 @@
-'''Useful functions dealing with paths.
-
-MT-NOTE: For backward compatibility only. Use module `mt.base.net` instead.'''
+'''Useful functions dealing with paths.'''
 
 
 import os as _os
-import os.path as _op
 import shutil as _su
 import atexit as _ex
 import time as _t
 import platform as _pl
+import aiofiles.os
 
-from os import rename, utime, walk, stat, chmod, listdir
+from os import utime, walk, chmod, listdir
 from os.path import *
 from glob import glob
 
 from . import logger
 from .threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
+from .asyn import arun
 
 
-__all__ = ['remove', 'make_dirs', 'lock', 'rename', 'utime', 'walk', 'stat', 'chmod', 'listdir', 'glob']
+__all__ = ['remove_asyn', 'remove', 'make_dirs', 'lock', 'rename_asyn', 'rename', 'utime', 'walk', 'stat_asyn', 'stat', 'chmod', 'listdir', 'glob']
 
 
 _path_lock = Lock()
 
-def remove(path):
-    '''Removes a path completely, regardless of it being a file or a folder. If the path does not exist, do nothing.'''
+
+async def remove_asyn(path, asyn: bool = True):
+    '''An asyn function that removes a path completely, regardless of it being a file or a folder.
+
+    If the path does not exist, do nothing.
+
+    Parameters
+    ----------
+    path : str
+        a path to a link, a file or a directory
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+    '''
     with _path_lock:
         if islink(path):
             _os.unlink(path)
         elif isfile(path):
-            _os.remove(path)
+            if asyn:
+                await aiofiles.os.remove(path)
+            else:
+                _os.remove(path)
         elif isdir(path):
             try:
                 _su.rmtree(path)
@@ -37,6 +50,22 @@ def remove(path):
                 if _pl.system() == 'Windows':
                     pass # this can sometimes fail on Windows
                 raise e
+
+
+def remove(path, asynch: bool = False):
+    '''An asynch function that removes a path completely, regardless of it being a file or a folder.
+
+    If the path does not exist, do nothing.
+
+    Parameters
+    ----------
+    path : str
+        a path to a link, a file or a directory
+    asynch : bool
+        whether to invoke the function asynchronously (True) or synchronously (False)
+    '''
+    return arun(remove_asyn, path, asynch=asynch)
+
 
 def make_dirs(path, shared=True):
     '''Convenient invocation of `os.makedirs(path, exist_ok=True)`. If `shared` is True, every newly created folder will have permission 0o775.'''
@@ -72,15 +101,15 @@ def lock(path, to_write=False):
 
     Parameters
     ----------
-        path : str
-            local path
-        to_write : bool
-            whether lock to write or to read
+    path : str
+        local path
+    to_write : bool
+        whether lock to write or to read
 
     Returns
     -------
-        lock : ReadRWLock or WriteRWLock
-            an instance of WriteRWLock if to_write is True, otherwise an instance of ReadRWLock
+    lock : ReadRWLock or WriteRWLock
+        an instance of WriteRWLock if to_write is True, otherwise an instance of ReadRWLock
     '''
     with lock.__lock0:
         # get the current lock, or create one if it needs be
@@ -108,6 +137,110 @@ def lock(path, to_write=False):
 lock.__lock0 = Lock()
 lock.__locks = {}
 lock.__cleanup_cnt = 0
+
+
+async def rename_asyn(src, dst, asyn: bool = True):
+    '''An asyn function that renames a file or a directory.
+
+    Parameters
+    ----------
+    src : str
+        path to the source file or directory
+    dst : path
+        new name also as a path
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+    '''
+
+    if asyn:
+        retval = await aiofiles.os.rename(src, dst)
+        return retval
+
+    return _os.rename(src, dst)
+
+
+def rename(src, dst, asynch: bool = False):
+    '''An asynch function that renames a file or a directory.
+
+    Parameters
+    ----------
+    src : str
+        path to the source file or directory
+    dst : path
+        new name also as a path
+    asynch : bool
+        whether to invoke the function asynchronously (True) or synchronously (False)
+    '''
+
+    return arun(rename_asyn, src, dst, asynch=asynch)
+
+
+async def stat_asyn(path, dir_fd=None, follow_symlinks=True, asyn: bool = True):
+    '''An asyn function that performs a stat system call on the given path.
+
+    Parameters
+    ----------
+    path : str
+        Path to be examined; can be string, bytes, a path-like object or open-file-descriptor int.
+    dir_fd : object, optional
+        If not None, it should be a file descriptor open to a directory, and path should be a
+        relative string; path will then be relative to that directory.
+    follow_symlinks : bool
+        If False, and the last element of the path is a symbolic link, stat will examine the
+        symbolic link itself instead of the file the link points to.
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+
+    Returns
+    -------
+    os.stat_result
+        the resulting instance
+
+    Notes
+    -----
+    dir_fd and follow_symlinks may not be implemented on your platform. If they are unavailable,
+    using them will raise a NotImplementedError.
+
+    It's an error to use dir_fd or follow_symlinks when specifying path as an open file descriptor.
+    '''
+
+    if asyn:
+        retval = await aiofiles.os.stat(path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
+        return retval
+
+    return _os.stat(path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
+
+
+def stat(path, dir_fd=None, follow_symlinks=True, asynch: bool = False):
+    '''An asynch function that performs a stat system call on the given path.
+
+    Parameters
+    ----------
+    path : str
+        Path to be examined; can be string, bytes, a path-like object or open-file-descriptor int.
+    dir_fd : object, optional
+        If not None, it should be a file descriptor open to a directory, and path should be a
+        relative string; path will then be relative to that directory.
+    follow_symlinks : bool
+        If False, and the last element of the path is a symbolic link, stat will examine the
+        symbolic link itself instead of the file the link points to.
+    asynch : bool
+        whether to invoke the function asynchronously (True) or synchronously (False)
+
+    Returns
+    -------
+    os.stat_result
+        the resulting instance
+
+    Notes
+    -----
+    dir_fd and follow_symlinks may not be implemented on your platform. If they are unavailable,
+    using them will raise a NotImplementedError.
+
+    It's an error to use dir_fd or follow_symlinks when specifying path as an open file descriptor.
+    '''
+
+    return arun(stat_asyn, path, dir_fd=dir_fd, follow_symlinks=follow_symlinks, asynch=asynch)
 
 
 # exit function
