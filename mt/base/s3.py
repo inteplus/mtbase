@@ -2,14 +2,19 @@
 
 
 from typing import Optional, Union
+import asyncio
 import aiobotocore
 import botocore
 import botocore.session
 import botocore.exceptions
 from halo import Halo
+from tqdm import tqdm
+
+from .asyn import read_binary, srun
+from .with_utils import dummy_scope
 
 
-__all__ = ['split', 'join', 'get_session', 'list_objects', 'get_object', 'get_object_acl', 'put_object', 'delete_object']
+__all__ = ['split', 'join', 'get_session', 'list_objects', 'get_object', 'get_object_acl', 'put_object', 'delete_object', 'put_files']
 
 
 def join(bucket: str, prefix: Optional[str] = None):
@@ -132,7 +137,7 @@ async def list_objects(s3_client: Union[aiobotocore.client.AioBaseClient, botoco
     return retval
 
 
-async def get_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, show_progress=False, asyn: bool = True):
+async def get_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, show_progress: bool = False, asyn: bool = True):
     '''An asyn function that gets the content of a given s3cmd url.
 
     Parameters
@@ -195,7 +200,7 @@ async def get_object_acl(s3_client: Union[aiobotocore.client.AioBaseClient, boto
     return response
 
 
-async def put_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, data: bytes, show_progress=False, asyn: bool = True):
+async def put_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, data: bytes, show_progress: bool = False, asyn: bool = True):
     '''An asyn function that puts some content to given s3cmd url.
 
     Parameters
@@ -224,7 +229,7 @@ async def put_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore
     if asyn:
         await s3_client.put_object(Bucket=bucket, Key=prefix, Body=data)
     else:
-        s3_client.get_object(Bucket=bucket, Key=prefix, Body=data)
+        s3_client.put_object(Bucket=bucket, Key=prefix, Body=data)
     if show_progress:
         spinner.succeed('{} bytes uploaded'.format(len(data)))
     return data
@@ -254,3 +259,40 @@ async def delete_object(s3_client: Union[aiobotocore.client.AioBaseClient, botoc
     else:
         response = s3_client.delete_object(Bucket=bucket, Key=prefix)
     return response
+
+
+async def put_files(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], bucket: str, filepath2key_map: dict, show_progress: bool = False, asyn: bool = True):
+    '''An asyn function that uploads many files to the same S3 bucket.
+
+    In asynchronous mode, the files are uploaded concurrently. In synchronous mode, the files are
+    uploaded sequentially.
+
+    Parameters
+    ----------
+    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
+        the s3 client that matches with the 'asyn' keyword argument below
+    bucket : str
+        bucket name
+    filepath2key_map : dict
+        mapping from local filepath to bucket key, defining which file to upload and where to
+        upload to in the S3 bucket
+    show_progress : bool
+        show a progress bar in the terminal
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+    '''
+
+    async def process_item(filepath, s3_client, bucket, key, progress_bar, asyn: bool = True):
+        s3cmd_url = join(bucket, key)
+        data = await read_binary(filepath, asyn=asyn)
+        await put_object(s3_client, s3cmd_url, data, show_progress=False, asyn=asyn)
+        if isinstance(progress_bar, tqdm):
+            progress_bar.update()
+
+    with tqdm(total=len(filepath2key_map), unit='file') if show_progress else dummy_scope as progress_bar:
+        if asyn:
+            coros = [process_item(filepath, s3_client, bucket, key, progress_bar) for filepath, key in filepath2key_map.items()]
+            await asyncio.gather(*coros)
+        else:
+            for filepath, key in filepath2key_map.items():
+                srun(process_item, filepath, s3_client, bucket, key, progress_bar)

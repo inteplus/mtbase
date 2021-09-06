@@ -19,6 +19,8 @@ setup(name='mtbase',
           'aiohttp', # for downloading http and https urls
           'aiobotocore', # for dealing with S3 files
           'filetype', # to determine the type of a file
+          'halo', # for nice spinners
+          'tqdm', # for nice progress bars
           #'matplotlib', # for drawing stuff, optional
       ],
       url='https://github.com/inteplus/mtbase',
