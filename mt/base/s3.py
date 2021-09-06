@@ -350,7 +350,7 @@ def put_files_boto3(s3_client: botocore.client.BaseClient, bucket: str, filepath
     transfer_config = s3transfer.TransferConfig(use_threads=True, max_concurrency=20)
     s3t = s3transfer.create_transfer_manager(s3_client, transfer_config)
 
-    with tqdm(total=len(filepath2key_map), unit='file') if show_progress else dummy_scope as progress_bar:
+    with tqdm(unit='byte') if show_progress else dummy_scope as progress_bar:
         for filepath, key in filepath2key_map.items():
             s3t.upload(
                 filepath, bucket, key,
