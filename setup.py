@@ -17,6 +17,7 @@ setup(name='mtbase',
           'numpy', # common ndarray
           'aiofiles', # for loading/saving files asynchronously
           'aiohttp', # for downloading http and https urls
+          'aiobotocore', # for dealing with S3 files
           'filetype', # to determine the type of a file
           #'matplotlib', # for drawing stuff, optional
       ],

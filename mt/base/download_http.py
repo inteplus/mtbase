@@ -13,6 +13,9 @@ from urllib.error import HTTPError
 from threading import Lock, Semaphore
 from .bg_invoke import BgInvoke
 
+from .logging import logger
+logger.warn_module_move("mt.base.download_http", "mt.base.http")
+
 
 __all__ = ['download_http', 'download_http_single', 'download_http_with_file_size', 'download_http_without_file_size', 'request_file_size']
 

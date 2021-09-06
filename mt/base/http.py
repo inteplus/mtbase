@@ -12,7 +12,7 @@ from .path import chmod
 __all__ = ['download', 'download_and_chmod']
 
 
-async def download(url, asyn: bool = True, session: Optional[aiohttp.ClientSession] = None):
+async def download(url, asyn: bool = True, http_session: Optional[aiohttp.ClientSession] = None):
     '''An asyn function that opens a binary file and reads the content.
 
     Parameters
@@ -21,7 +21,7 @@ async def download(url, asyn: bool = True, session: Optional[aiohttp.ClientSessi
         a http or https URL
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
-    session : aiohttp.ClientSession, optional
+    http_session : aiohttp.ClientSession, optional
         If the mode is asynchronous, an open client session must be provided. Otherwise the
         argument is ignored.
 
@@ -39,17 +39,17 @@ async def download(url, asyn: bool = True, session: Optional[aiohttp.ClientSessi
     if not asyn:
         return requests.get(url).content
 
-    if session is None:
+    if http_session is None:
         raise ValueError("In asynchronous mode, an open client session is needed. But None has been provided.")
 
-    async with session.get(url) as response:
+    async with http_session.get(url) as response:
         if response.status < 200 or response.status >= 300:
             raise IOError("Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(url, response.status, response.headers['content-type']))
         content = await response.read()
     return content
 
 
-async def download_and_chmod(url, filepath, file_mode=0o664, asyn: bool = True, session: Optional[aiohttp.ClientSession] = None):
+async def download_and_chmod(url, filepath, file_mode=0o664, asyn: bool = True, http_session: Optional[aiohttp.ClientSession] = None):
     '''An asyn function that downloads an http or https url as binary to a file with predefined permissions.
 
     Parameters
@@ -62,12 +62,12 @@ async def download_and_chmod(url, filepath, file_mode=0o664, asyn: bool = True, 
         to be passed directly to `os.chmod()` if not None
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
-    session : aiohttp.ClientSession, optional
+    http_session : aiohttp.ClientSession, optional
         If the mode is asynchronous, an open client session must be provided. Otherwise the
         argument is ignored.
     '''
 
-    content = await download(url, asyn=asyn, session=session)
+    content = await download(url, asyn=asyn, http_session=http_session)
 
     await write_binary(filepath, content, asyn=asyn)
 
