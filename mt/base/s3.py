@@ -14,7 +14,7 @@ from .asyn import read_binary, srun
 from .with_utils import dummy_scope
 
 
-__all__ = ['split', 'join', 'get_session', 'create_s3_client', 'list_objects', 'get_object', 'get_object_acl', 'put_object', 'delete_object', 'put_files', 'put_files_boto3']
+__all__ = ['split', 'join', 'get_session', 'create_s3_client', 'list_objects', 'list_object_info', 'get_object', 'get_object_acl', 'put_object', 'delete_object', 'put_files', 'put_files_boto3']
 
 
 def join(bucket: str, prefix: Optional[str] = None):
@@ -132,27 +132,77 @@ async def list_objects(s3_client: Union[aiobotocore.client.AioBaseClient, botoco
         The record has multiple attributes.
     '''
 
+    try:
+        bucket, prefix = split(s3cmd_url)
+        paginator = s3_client.get_paginator('list_objects_v2')
+        retval = []
+        if show_progress:
+            spinner = Halo("listing objects at '{}'".format(s3cmd_url), spinner='dots')
+            spinner.start()
+        if asyn:
+            async for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                new_list = result.get('Contents', None)
+                if new_list is None:
+                    raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
+                retval.extend(new_list)
+        else:
+            for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                new_list = result.get('Contents', None)
+                if new_list is None:
+                    raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
+                retval.extend(new_list)
+        if show_progress:
+            spinner.succeed('{} objects found'.format(len(retval)))
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'NoSuchKey':
+            return []
+        raise
+    return retval
+
+
+async def list_object_info(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, asyn: bool = True):
+    '''An asyn function that lists basic information of the object at a given s3cmd url.
+
+    Parameters
+    ----------
+    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
+        the s3 client that matches with the 'asyn' keyword argument below
+    s3cmd_url : str
+        an s3cmd_url in the form 's3://bucket[/prefix]'
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+
+    Returns
+    -------
+    dict or None
+        A dictionary of attributes related to the object, like 'Key', 'LastModified', 'ETag',
+        'Size', 'StorageClass', etc. If the object does not exist, None is returned.
+    '''
+
     bucket, prefix = split(s3cmd_url)
     paginator = s3_client.get_paginator('list_objects_v2')
-    retval = []
-    if show_progress:
-        spinner = Halo("listing objects at '{}'".format(s3cmd_url), spinner='dots')
-        spinner.start()
-    if asyn:
-        async for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
-            new_list = result.get('Contents', None)
-            if new_list is None:
-                raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
-            retval.extend(new_list)
-    else:
-        for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
-            new_list = result.get('Contents', None)
-            if new_list is None:
-                raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
-            retval.extend(new_list)
-    if show_progress:
-        spinner.succeed('{} objects found'.format(len(retval)))
-    return retval
+    try:
+        if asyn:
+            async for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                new_list = result.get('Contents', None)
+                if new_list is None:
+                    raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
+                for item in new_list:
+                    if item['Key'] == prefix:
+                        return item
+        else:
+            for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                new_list = result.get('Contents', None)
+                if new_list is None:
+                    raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
+                for item in new_list:
+                    if item['Key'] == prefix:
+                        return item
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'NoSuchKey':
+            return None
+        raise
+    return None
 
 
 async def get_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, show_progress: bool = False, asyn: bool = True):
