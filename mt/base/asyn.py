@@ -26,7 +26,7 @@ import aiofiles
 __all__ = ['srun', 'arun', 'sleep', 'read_binary', 'write_binary']
 
 
-def srun(asyn_func, *args, **kwargs):
+def srun(asyn_func, *args, **kwargs) -> object:
     '''Invokes an asyn function synchronously, without using keyword 'await'.
 
     Parameters
@@ -52,7 +52,7 @@ def srun(asyn_func, *args, **kwargs):
         return e.value
 
 
-def arun(asyn_func, *args, asynch: bool = False, **kwargs):
+def arun(asyn_func, *args, asynch: bool = False, **kwargs) -> object:
     '''Invokes an asyn function from inside an asynch function.
 
     Parameters
