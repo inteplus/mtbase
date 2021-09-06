@@ -287,12 +287,12 @@ async def put_files(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.
     In asynchronous mode, the files are uploaded concurrently. In synchronous mode, the files are
     uploaded sequentially.
 
-    Despite our best effort, this function is still slow compared to 'aws s3 sync'. Please see the
-    following thread for more details:
+    Despite our best effort, this function may sometimes be slower than calling 'aws s3 sync'. Please
+    see the following thread for more details:
 
     https://stackoverflow.com/questions/56639630/how-can-i-increase-my-aws-s3-upload-speed-when-using-boto3
 
-    It is recommended to use :func:`put_files_boto3` instead until the situation has improved.
+    It is recommended to use :func:`put_files_boto3` in those cases.
 
     Parameters
     ----------
@@ -356,3 +356,4 @@ def put_files_boto3(s3_client: botocore.client.BaseClient, bucket: str, filepath
                 filepath, bucket, key,
                 subscribers = [s3transfer.ProgressCallbackInvoker(progress_bar.update)],
             )
+        s3t.shutdown() # wait for all the upload tasks to finish
