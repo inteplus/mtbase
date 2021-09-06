@@ -14,7 +14,7 @@
 # ```
 
 MAJOR_VERSION=1
-MINOR_VERSION=9
+MINOR_VERSION=10
 
 VERSION_YEAR=`date -u +'%Y'`
 VERSION_MONTH=`date -u +'%m'`

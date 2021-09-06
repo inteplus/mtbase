@@ -5,13 +5,11 @@ from typing import Optional, Union
 import aiobotocore
 import botocore
 import botocore.session
+import botocore.exceptions
 from halo import Halo
 
-#from .asyn import sleep, write_binary
-#from .path import chmod
 
-
-__all__ = ['split', 'join', 'get_session', 'list_objects']
+__all__ = ['split', 'join', 'get_session', 'list_objects', 'get_object', 'get_object_acl', 'put_object', 'delete_object']
 
 
 def join(bucket: str, prefix: Optional[str] = None):
@@ -91,7 +89,7 @@ def get_session(profile = None, asyn: bool = True):
 
 
 async def list_objects(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, show_progress=False, asyn: bool = True):
-    '''An asyn function that lists all objects in a given bucket with optional prefix.
+    '''An asyn function that lists all objects prefixed with a given s3cmd url.
 
     Parameters
     ----------
@@ -107,8 +105,8 @@ async def list_objects(s3_client: Union[aiobotocore.client.AioBaseClient, botoco
     Returns
     -------
     list
-        list of records, each of which corresponds to an object matching the prefix. The record
-        has multiple attributes.
+        list of records, each of which corresponds to an object prefixed with the given s3cmd url.
+        The record has multiple attributes.
     '''
 
     bucket, prefix = split(s3cmd_url)
@@ -123,14 +121,136 @@ async def list_objects(s3_client: Union[aiobotocore.client.AioBaseClient, botoco
             if new_list is None:
                 raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
             retval.extend(new_list)
-            if show_progress:
-                spinner.succeed('{} objects found'.format(len(retval)))
     else:
         for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
             new_list = result.get('Contents', None)
             if new_list is None:
                 raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
             retval.extend(new_list)
-            if show_progress:
-                spinner.succeed('{} objects found'.format(len(retval)))
+    if show_progress:
+        spinner.succeed('{} objects found'.format(len(retval)))
     return retval
+
+
+async def get_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, show_progress=False, asyn: bool = True):
+    '''An asyn function that gets the content of a given s3cmd url.
+
+    Parameters
+    ----------
+    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
+        the s3 client that matches with the 'asyn' keyword argument below
+    s3cmd_url : str
+        an s3cmd_url in the form 's3://bucket[/prefix]'
+    show_progress : bool
+        show a progress spinner in the terminal
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+
+    Returns
+    -------
+    bytes
+        the content of the given s3cmd url
+    '''
+
+    bucket, prefix = split(s3cmd_url)
+    if show_progress:
+        spinner = Halo("getting object '{}'".format(s3cmd_url), spinner='dots')
+        spinner.start()
+    if asyn:
+        response = await s3_client.get_object(Bucket=bucket, Key=prefix)
+        # this will ensure the connection is correctly re-used/closed
+        async with response['Body'] as stream:
+            data = await stream.read()
+    else:
+        response = s3_client.get_object(Bucket=bucket, Key=prefix)
+        data = response['Body'].read()
+    if show_progress:
+        spinner.succeed('{} bytes downloaded'.format(len(data)))
+    return data
+
+
+async def get_object_acl(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, asyn: bool = True):
+    '''An asyn function that gets the object properties of a given s3cmd url.
+
+    Parameters
+    ----------
+    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
+        the s3 client that matches with the 'asyn' keyword argument below
+    s3cmd_url : str
+        an s3cmd_url in the form 's3://bucket[/prefix]'
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+
+    Returns
+    -------
+    bytes
+        the content of the given s3cmd url
+    '''
+
+    bucket, prefix = split(s3cmd_url)
+    if asyn:
+        response = await s3_client.get_object_acl(Bucket=bucket, Key=prefix)
+    else:
+        response = s3_client.get_object_acl(Bucket=bucket, Key=prefix)
+    return response
+
+
+async def put_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, data: bytes, show_progress=False, asyn: bool = True):
+    '''An asyn function that puts some content to given s3cmd url.
+
+    Parameters
+    ----------
+    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
+        the s3 client that matches with the 'asyn' keyword argument below
+    s3cmd_url : str
+        an s3cmd_url in the form 's3://bucket[/prefix]'
+    data: bytes
+         the content to be uploaded
+    show_progress : bool
+        show a progress spinner in the terminal
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+
+    Returns
+    -------
+    bytes
+        the content of the given s3cmd url
+    '''
+
+    bucket, prefix = split(s3cmd_url)
+    if show_progress:
+        spinner = Halo("putting object '{}'".format(s3cmd_url), spinner='dots')
+        spinner.start()
+    if asyn:
+        await s3_client.put_object(Bucket=bucket, Key=prefix, Body=data)
+    else:
+        s3_client.get_object(Bucket=bucket, Key=prefix, Body=data)
+    if show_progress:
+        spinner.succeed('{} bytes uploaded'.format(len(data)))
+    return data
+
+
+async def delete_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, asyn: bool = True):
+    '''An asyn function that deletes a given s3cmd url.
+
+    Parameters
+    ----------
+    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
+        the s3 client that matches with the 'asyn' keyword argument below
+    s3cmd_url : str
+        an s3cmd_url in the form 's3://bucket[/prefix]'
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+
+    Returns
+    -------
+    list
+        the response from S3 of the deletion operation. Lots of attributes expected.
+    '''
+
+    bucket, prefix = split(s3cmd_url)
+    if asyn:
+        response = await s3_client.delete_object(Bucket=bucket, Key=prefix)
+    else:
+        response = s3_client.delete_object(Bucket=bucket, Key=prefix)
+    return response
