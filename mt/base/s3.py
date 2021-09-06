@@ -93,7 +93,7 @@ def get_session(profile = None, asyn: bool = True) -> Union[aiobotocore.AioSessi
     return klass(profile=profile)
 
 
-def create_s3_client(botocore_session: Union[aiobotocore.AioSession, botocore.session.Session], asyn: bool = True) -> Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
+def create_s3_client(botocore_session: Union[aiobotocore.AioSession, botocore.session.Session]) -> Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
     '''Creates an s3 client for the botocore session, maximizing the number of connections.
 
     Parameters
@@ -101,8 +101,6 @@ def create_s3_client(botocore_session: Union[aiobotocore.AioSession, botocore.se
     botocore_session: aiobotocore.AioSession or botocore.session.Session
         In asynchronous mode, an aiobotocore.AioSession instance is returned. In synchronous mode,
         a botocore.session.Session instance is returned.
-    asyn : bool
-        whether session is to be used asynchronously or synchronously
 
     Returns
     -------
