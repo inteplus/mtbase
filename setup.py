@@ -18,6 +18,7 @@ setup(name='mtbase',
           'aiofiles', # for loading/saving files asynchronously
           'aiohttp', # for downloading http and https urls
           'aiobotocore', # for dealing with S3 files
+          'boto3', # for fast uploading of massive files
           'filetype', # to determine the type of a file
           'halo', # for nice spinners
           'tqdm', # for nice progress bars

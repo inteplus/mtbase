@@ -14,7 +14,7 @@ from .asyn import read_binary, srun
 from .with_utils import dummy_scope
 
 
-__all__ = ['split', 'join', 'get_session', 'list_objects', 'get_object', 'get_object_acl', 'put_object', 'delete_object', 'put_files']
+__all__ = ['split', 'join', 'get_session', 'create_s3_client', 'list_objects', 'get_object', 'get_object_acl', 'put_object', 'delete_object', 'put_files', 'put_files_boto3']
 
 
 def join(bucket: str, prefix: Optional[str] = None):
@@ -68,7 +68,7 @@ def split(s3cmd_url: str):
     return bucket, prefix
 
 
-def get_session(profile = None, asyn: bool = True):
+def get_session(profile = None, asyn: bool = True) -> Union[aiobotocore.AioSession, botocore.session.Session]:
     '''Gets a botocore session, for either asynchronous mode or synchronous mode.
 
     Parameters
@@ -80,17 +80,37 @@ def get_session(profile = None, asyn: bool = True):
 
     Returns
     -------
-    object
+    botocore_session: aiobotocore.AioSession or botocore.session.Session
         In asynchronous mode, an aiobotocore.AioSession instance is returned. In synchronous mode,
         a botocore.session.Session instance is returned.
 
     Notes
     -----
-    Please use the session's member function `create_client('s3')` to create an s3 client.
+    Please use :func:`create_s3_client` to create an s3 client.
     '''
 
     klass = aiobotocore.AioSession if asyn else botocore.session.Session
     return klass(profile=profile)
+
+
+def create_s3_client(botocore_session: Union[aiobotocore.AioSession, botocore.session.Session], asyn: bool = True) -> Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
+    '''Creates an s3 client for the botocore session, maximizing the number of connections.
+
+    Parameters
+    ----------
+    botocore_session: aiobotocore.AioSession or botocore.session.Session
+        In asynchronous mode, an aiobotocore.AioSession instance is returned. In synchronous mode,
+        a botocore.session.Session instance is returned.
+    asyn : bool
+        whether session is to be used asynchronously or synchronously
+
+    Returns
+    -------
+    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
+        the s3 client that matches with the 'asyn' keyword argument below
+    '''
+    config = botocore.config.Config(max_pool_connections=20)
+    return botocore_session.create_client('s3', config=config)
 
 
 async def list_objects(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, show_progress=False, asyn: bool = True):
@@ -267,6 +287,13 @@ async def put_files(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.
     In asynchronous mode, the files are uploaded concurrently. In synchronous mode, the files are
     uploaded sequentially.
 
+    Despite our best effort, this function is still slow compared to 'aws s3 sync'. Please see the
+    following thread for more details:
+
+    https://stackoverflow.com/questions/56639630/how-can-i-increase-my-aws-s3-upload-speed-when-using-boto3
+
+    It is recommended to use :func:`put_files_boto3` instead until the situation has improved.
+
     Parameters
     ----------
     s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
@@ -296,3 +323,36 @@ async def put_files(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.
         else:
             for filepath, key in filepath2key_map.items():
                 srun(process_item, filepath, s3_client, bucket, key, progress_bar)
+
+
+def put_files_boto3(s3_client: botocore.client.BaseClient, bucket: str, filepath2key_map: dict, show_progress: bool = False):
+    '''Uploads many files to the same S3 bucket using boto3.
+
+    This function implements the code in the url below. It does not use asyncio but it uses
+    multi-threading.
+
+    https://stackoverflow.com/questions/56639630/how-can-i-increase-my-aws-s3-upload-speed-when-using-boto3
+
+    Parameters
+    ----------
+    s3_client : botocore.client.BaseClient
+        the (synchronous) s3 client return from :func:`create_s3_client`
+    bucket : str
+        bucket name
+    filepath2key_map : dict
+        mapping from local filepath to bucket key, defining which file to upload and where to
+        upload to in the S3 bucket
+    show_progress : bool
+        show a progress bar in the terminal
+    '''
+
+    import boto3.s3.transfer as s3transfer
+    transfer_config = s3transfer.TransferConfig(use_threads=True, max_concurrency=20)
+    s3t = s3transfer.create_transfer_manager(s3_client, transfer_config)
+
+    with tqdm(total=len(filepath2key_map), unit='file') if show_progress else dummy_scope as progress_bar:
+        for filepath, key in filepath2key_map.items():
+            s3t.upload(
+                filepath, bucket, key,
+                subscribers = [s3transfer.ProgressCallbackInvoker(progress_bar.update)],
+            )
