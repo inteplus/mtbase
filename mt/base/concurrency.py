@@ -589,6 +589,7 @@ async def aio_work_generator(func, num_work_ids, skip_null: bool = True, max_con
 
             # get some tasks done
             done_task_list, cur_task_list = await asyncio.wait(cur_task_list, return_when=asyncio.FIRST_COMPLETED)
+            cur_task_list = list(cur_task_list)
 
             # yield the results
             for done_task in done_task_list:
