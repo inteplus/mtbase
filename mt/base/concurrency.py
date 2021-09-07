@@ -569,33 +569,32 @@ async def aio_work_generator(func, num_work_ids, skip_null: bool = True, max_con
         an asynchronous generator
     '''
 
-    coros = [func(work_id) for work_id in num_work_ids]
+    coros = [func(work_id) for work_id in range(num_work_ids)]
 
     if max_concurrency is None:
         for coro in asyncio.as_completed(coros):
             result = await coro
             if not skip_null or result is not None:
                 yield result
-        return
+    else:
+        pos = 0
+        cur_task_list = []
+        while (pos < num_work_ids) or (len(cur_task_list) > 0):
+            # add tasks to run concurrently
+            spare = min(max_concurrency - len(cur_task_list), num_work_ids - pos)
+            if spare > 0:
+                new_task_list = [asyncio.ensure_future(coros[pos+i]) for i in range(spare)]
+                cur_task_list.extend(new_task_list)
+                pos += spare
 
-    pos = 0
-    cur_task_list = []
-    while pos < num_work_ids:
-        # add tasks to run concurrently
-        spare = min(max_concurrency - len(cur_task_list), num_work_ids - pos)
-        if spare > 0:
-            new_task_list = [asyncio.ensure_future(coros[pos+i]) for i in range(spare)]
-            cur_task_list.extend(new_task_list)
-            pos += spare
+            # get some tasks done
+            done_task_list, cur_task_list = await asyncio.wait(cur_task_list, return_when=asyncio.FIRST_COMPLETED)
 
-        # get some tasks done
-        done_task_list, cur_task_list = await asyncio.wait(cur_task_list)
-
-        # yield the results
-        for done_task in done_task_list:
-            e = done_task.exception()
-            if e is not None:
-                raise e
-            result = e.result()
-            if not skip_null or result is not None:
-                yield result
+            # yield the results
+            for done_task in done_task_list:
+                e = done_task.exception()
+                if e is not None:
+                    raise e
+                result = done_task.result()
+                if not skip_null or result is not None:
+                    yield result
