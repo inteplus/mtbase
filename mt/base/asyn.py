@@ -23,7 +23,7 @@ import asyncio
 import aiofiles
 
 
-__all__ = ['srun', 'arun', 'sleep', 'read_binary', 'write_binary']
+__all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary']
 
 
 def srun(asyn_func, *args, **kwargs) -> object:
@@ -80,6 +80,33 @@ def arun(asyn_func, *args, asynch: bool = False, **kwargs) -> object:
 
     func = async_func if asynch else sync_func
     return func(*args, **kwargs)
+
+
+async def arun2(asynch_func, *args, asyn: bool = True, **kwargs) -> object:
+    '''Invokes an asynch function from inside an asyn function.
+
+    Parameters
+    ----------
+    asyn_func : function
+        an asyn function (declared with 'async def')
+    args : list
+        positional arguments of the asyn function
+    asynch : bool
+        whether to invoke the function asynchronously (True) or synchronously (False)
+    kwargs : dict
+        keyword arguments of the asyn function
+
+    Returns
+    -------
+    object
+        whatver the asyn function returns
+    '''
+
+    if asyn:
+        retval = await asynch_func(*args, asynch=True, **kwargs)
+    else:
+        retval = asynch_func(*args, asynch=False, **kwargs)
+    return retval
 
 
 async def sleep(secs: float, asyn: bool = True):
