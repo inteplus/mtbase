@@ -542,11 +542,12 @@ def serial_work_generator(func, num_work_ids):
         yield func(work_id)
 
 
-async def aio_work_generator(func, num_work_ids, skip_null: bool = True, max_concurrency: int = None):
+async def aio_work_generator(func, num_work_ids, skip_null: bool = True, max_concurrency: int = 1024):
     '''An asynchronous generator that does some works and yields the work results.
 
     This function uses asyncio to do works concurrently. The number of concurrent works is
-    optionally upper-bounded by `max_concurrency`.
+    optionally upper-bounded by `max_concurrency`. It is of good use when the works are IO-bound.
+    Otherwise, :class:`WorkIterator` or :func:`serial_work_generator` are more suitable options.
 
     Parameters
     ----------
@@ -587,7 +588,7 @@ async def aio_work_generator(func, num_work_ids, skip_null: bool = True, max_con
             cur_task_list.extend(new_task_list)
             pos += spare
 
-        # get some task done
+        # get some tasks done
         done_task_list, cur_task_list = await asyncio.wait(cur_task_list)
 
         # yield the results
