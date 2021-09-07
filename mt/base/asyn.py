@@ -19,11 +19,12 @@ supporting both asynchronous and synchronous modes.
 
 
 import time
+import json
 import asyncio
 import aiofiles
 
 
-__all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary']
+__all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save']
 
 
 def srun(asyn_func, *args, **kwargs) -> object:
@@ -180,3 +181,93 @@ async def write_binary(filepath, buf: bytes, asyn: bool = True):
     else:
         with open(filepath, mode='wb') as f:
             return f.write(buf)
+
+
+async def read_text(filepath, size: int = None, asyn: bool = True):
+    '''An asyn function that opens a text file and reads the content.
+
+    Parameters
+    ----------
+    filepath : str
+        path to the file
+    size : int
+        size to read from the beginning of the file, in bytes. If None is given, read the whole
+        file.
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+
+    Returns
+    -------
+    str
+        the content read from file
+    '''
+
+    if asyn:
+        async with aiofiles.open(filepath, mode='rt') as f:
+            return await f.read(size)
+    else:
+        with open(filepath, mode='rt') as f:
+            return f.read(size)
+
+
+async def write_text(filepath, buf: str, asyn: bool = True):
+    '''An asyn function that creates a text file and writes the content.
+
+    Parameters
+    ----------
+    filepath : str
+        path to the file
+    buf : str
+        data (in bytes) to be written to the file
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+
+    Returns
+    -------
+    bytes
+        the content read from file
+    '''
+
+    if asyn:
+        async with aiofiles.open(filepath, mode='wt') as f:
+            return await f.write(buf)
+    else:
+        with open(filepath, mode='wt') as f:
+            return f.write(buf)
+
+
+async def json_load(filepath, asyn: bool = True):
+    '''An asyn function that loads the json-like object of a file.
+
+    Parameters
+    ----------
+    filepath : str
+        path to the file
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+
+    Returns
+    -------
+    object
+        the loaded json-like object
+    '''
+
+    content = await read_text(filepath, asyn=asyn)
+    return json.loads(content)
+
+
+async def json_save(filepath, obj, asyn: bool = True):
+    '''An asyn function that saves a json-like object to a file.
+
+    Parameters
+    ----------
+    filepath : str
+        path to the file
+    obj : object
+        json-like object to be written to the file
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+    '''
+
+    content = json.dumps(obj)
+    await write_text(filepath, content, asyn=asyn)
