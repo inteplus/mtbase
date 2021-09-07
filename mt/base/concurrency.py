@@ -5,11 +5,12 @@ import queue as _q
 import threading as _t
 import multiprocessing as _mp
 from time import sleep
+import asyncio
 
 from .bg_invoke import BgInvoke, BgThread, BgException
 
 
-__all__ = ['Counter', 'ProcessParalleliser', 'WorkIterator', 'serial_work_generator']
+__all__ = ['Counter', 'ProcessParalleliser', 'WorkIterator', 'serial_work_generator', 'aio_work_generator']
 
 
 class Counter(object):
@@ -428,7 +429,7 @@ class WorkIterator(object):
     provided and is less than or equal a provided threshold.
     '''
 
-    def __init__(self, func, buffer_size=None, skip_null=True, push_timeout=30, pop_timeout=60*60, max_num_workers=None, serial_mode=False, logger=None):
+    def __init__(self, func, buffer_size=None, skip_null: bool = True, push_timeout=30, pop_timeout=60*60, max_num_workers=None, serial_mode=False, logger=None):
         self.skip_null = skip_null
         self.send_counter = 0
         self.recv_counter = 0
@@ -518,14 +519,17 @@ class WorkIterator(object):
         return self
 
 def serial_work_generator(func, num_work_ids):
-    '''A generator that serially iterates from 0 to num_work_ids-1, returning the work result in each iteration.
+    '''A generator that serially does some works and yields the work results.
 
-    This function complements the WorkIterator class to deal with cases when the number of works is small.
+    This function complements the WorkIterator class to deal with cases when the number of works is
+    small.
 
     Parameters
     ----------
     func : function
-        a function representing the work process. The function takes as input a non-negative integer 'work_id' and returns some result in the form of `(work_id, ...)` if successful else None.
+        a function representing the work process. The function takes as input a non-negative
+        integer 'work_id' and returns some result in the form of `(work_id, ...)` if successful
+        else None.
     num_work_ids : int
         number of works to iterate over without using multiprocessing or multithreading.
 
@@ -536,3 +540,61 @@ def serial_work_generator(func, num_work_ids):
     '''
     for work_id in range(num_work_ids):
         yield func(work_id)
+
+
+async def aio_work_generator(func, num_work_ids, skip_null: bool = True, max_concurrency: int = None):
+    '''An asynchronous generator that does some works and yields the work results.
+
+    This function uses asyncio to do works concurrently. The number of concurrent works is
+    optionally upper-bounded by `max_concurrency`.
+
+    Parameters
+    ----------
+    func : function
+        a coroutine function (defined with 'async def') representing the work process. The function
+        takes as input a non-negative integer 'work_id' and returns some result in the form of
+        `(work_id, ...)` if successful else None.
+    num_work_ids : int
+        number of works to iterate over without using multiprocessing or multithreading.
+    skip_null : bool, optional
+        whether or not to skip the iteration that contains None as the work result.
+    max_concurrency : int
+        the maximum number of concurrent works at any time, good for managing memory allocations.
+        If None is given, all works will be scheduled to run at once.
+
+    Returns
+    -------
+    object
+        an asynchronous generator
+    '''
+
+    coros = [func(work_id) for work_id in num_work_ids]
+
+    if max_concurrency is None:
+        for coro in asyncio.as_completed(coros):
+            result = await coro
+            if not skip_null or result is not None:
+                yield result
+        return
+
+    pos = 0
+    cur_task_list = []
+    while pos < num_work_ids:
+        # add tasks to run concurrently
+        spare = min(max_concurrency - len(cur_task_list), num_work_ids - pos)
+        if spare > 0:
+            new_task_list = [asyncio.ensure_future(coros[pos+i]) for i in range(spare)]
+            cur_task_list.extend(new_task_list)
+            pos += spare
+
+        # get some task done
+        done_task_list, cur_task_list = await asyncio.wait(cur_task_list)
+
+        # yield the results
+        for done_task in done_task_list:
+            e = done_task.exception()
+            if e is not None:
+                raise e
+            result = e.result()
+            if not skip_null or result is not None:
+                yield result
