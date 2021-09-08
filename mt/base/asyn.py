@@ -15,6 +15,9 @@ function. Asynch functions are good for backward compatibility, because they are
 that can pretend to be a coroutine function, but they are bad for developing library subroutines
 supporting both asynchronous and synchronous modes.
 
+An asyn or asynch function may accept keyword argument 'context_vars', a dictionary of context
+variables supporting the function in either asynchronous mode or synchronous mode. The values in
+'context_vars' are usually the enter-results of either asynchronous or normal with statements.
 '''
 
 

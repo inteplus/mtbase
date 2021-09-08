@@ -12,12 +12,10 @@ from tqdm import tqdm
 
 from .asyn import read_binary, srun
 from .with_utils import dummy_scope
+from .contextlib import asynccontextmanager
 
 
 __all__ = ['split', 'join', 'get_session', 'create_s3_client', 'list_objects', 'list_object_info', 'get_object', 'get_object_acl', 'put_object', 'delete_object', 'put_files', 'put_files_boto3']
-
-
-# MT-TODO: create a context dictionary containing contextual data like s3_client, http_session, maybe logger so we can manage the context more easily.
 
 
 def join(bucket: str, prefix: Optional[str] = None):
@@ -96,14 +94,17 @@ def get_session(profile = None, asyn: bool = True) -> Union[aiobotocore.AioSessi
     return klass(profile=profile)
 
 
-def create_s3_client(botocore_session: Union[aiobotocore.AioSession, botocore.session.Session]) -> Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
-    '''Creates an s3 client for the botocore session, maximizing the number of connections.
+@asynccontextmanager
+async def create_s3_client(botocore_session: Union[aiobotocore.AioSession, botocore.session.Session], asyn: bool = True) -> Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
+    '''An asyn context manager that creates an s3 client for the botocore session, maximizing the number of connections.
 
     Parameters
     ----------
     botocore_session: aiobotocore.AioSession or botocore.session.Session
         In asynchronous mode, an aiobotocore.AioSession instance is returned. In synchronous mode,
         a botocore.session.Session instance is returned.
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
 
     Returns
     -------
@@ -111,22 +112,28 @@ def create_s3_client(botocore_session: Union[aiobotocore.AioSession, botocore.se
         the s3 client that matches with the 'asyn' keyword argument below
     '''
     config = botocore.config.Config(max_pool_connections=20)
-    return botocore_session.create_client('s3', config=config)
+    if asyn:
+        async with botocore_session.create_client('s3', config=config) as s3_client:
+            yield s3_client
+    else:
+        yield botocore_session.create_client('s3', config=config)
 
 
-async def list_objects(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, show_progress=False, asyn: bool = True):
+async def list_objects(s3cmd_url: str, show_progress=False, asyn: bool = True, context_vars: dict = {}):
     '''An asyn function that lists all objects prefixed with a given s3cmd url.
 
     Parameters
     ----------
-    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
-        the s3 client that matches with the 'asyn' keyword argument below
     s3cmd_url : str
         an s3cmd_url in the form 's3://bucket[/prefix]'
     show_progress : bool
         show a progress spinner in the terminal
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        dictionary of context variables with which the function runs. Variable 's3_client' must
+        exist and hold an enter-result of an async with statement invoking
+        :func:`create_s3_client`.
 
     Returns
     -------
@@ -135,6 +142,7 @@ async def list_objects(s3_client: Union[aiobotocore.client.AioBaseClient, botoco
         The record has multiple attributes.
     '''
 
+    s3_client = context_vars['s3_client']
     try:
         bucket, prefix = split(s3cmd_url)
         paginator = s3_client.get_paginator('list_objects_v2')
@@ -163,17 +171,19 @@ async def list_objects(s3_client: Union[aiobotocore.client.AioBaseClient, botoco
     return retval
 
 
-async def list_object_info(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, asyn: bool = True):
+async def list_object_info(s3cmd_url: str, asyn: bool = True, context_vars: dict = {}):
     '''An asyn function that lists basic information of the object at a given s3cmd url.
 
     Parameters
     ----------
-    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
-        the s3 client that matches with the 'asyn' keyword argument below
     s3cmd_url : str
         an s3cmd_url in the form 's3://bucket[/prefix]'
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        dictionary of context variables with which the function runs. Variable 's3_client' must
+        exist and hold an enter-result of an async with statement invoking
+        :func:`create_s3_client`.
 
     Returns
     -------
@@ -183,6 +193,7 @@ async def list_object_info(s3_client: Union[aiobotocore.client.AioBaseClient, bo
     '''
 
     bucket, prefix = split(s3cmd_url)
+    s3_client = context_vars['s3_client']
     paginator = s3_client.get_paginator('list_objects_v2')
     try:
         if asyn:
@@ -208,19 +219,21 @@ async def list_object_info(s3_client: Union[aiobotocore.client.AioBaseClient, bo
     return None
 
 
-async def get_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, show_progress: bool = False, asyn: bool = True):
+async def get_object(s3cmd_url: str, show_progress: bool = False, asyn: bool = True, context_vars: dict = {}):
     '''An asyn function that gets the content of a given s3cmd url.
 
     Parameters
     ----------
-    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
-        the s3 client that matches with the 'asyn' keyword argument below
     s3cmd_url : str
         an s3cmd_url in the form 's3://bucket[/prefix]'
     show_progress : bool
         show a progress spinner in the terminal
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        dictionary of context variables with which the function runs. Variable 's3_client' must
+        exist and hold an enter-result of an async with statement invoking
+        :func:`create_s3_client`.
 
     Returns
     -------
@@ -229,6 +242,7 @@ async def get_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore
     '''
 
     bucket, prefix = split(s3cmd_url)
+    s3_client = context_vars['s3_client']
     if show_progress:
         spinner = Halo("getting object '{}'".format(s3cmd_url), spinner='dots')
         spinner.start()
@@ -245,17 +259,19 @@ async def get_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore
     return data
 
 
-async def get_object_acl(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, asyn: bool = True):
+async def get_object_acl(s3cmd_url: str, asyn: bool = True, context_vars: dict = {}):
     '''An asyn function that gets the object properties of a given s3cmd url.
 
     Parameters
     ----------
-    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
-        the s3 client that matches with the 'asyn' keyword argument below
     s3cmd_url : str
         an s3cmd_url in the form 's3://bucket[/prefix]'
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        dictionary of context variables with which the function runs. Variable 's3_client' must
+        exist and hold an enter-result of an async with statement invoking
+        :func:`create_s3_client`.
 
     Returns
     -------
@@ -264,6 +280,7 @@ async def get_object_acl(s3_client: Union[aiobotocore.client.AioBaseClient, boto
     '''
 
     bucket, prefix = split(s3cmd_url)
+    s3_client = context_vars['s3_client']
     if asyn:
         response = await s3_client.get_object_acl(Bucket=bucket, Key=prefix)
     else:
@@ -271,13 +288,11 @@ async def get_object_acl(s3_client: Union[aiobotocore.client.AioBaseClient, boto
     return response
 
 
-async def put_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, data: bytes, show_progress: bool = False, asyn: bool = True):
+async def put_object(s3cmd_url: str, data: bytes, show_progress: bool = False, asyn: bool = True, context_vars: dict = {}):
     '''An asyn function that puts some content to given s3cmd url.
 
     Parameters
     ----------
-    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
-        the s3 client that matches with the 'asyn' keyword argument below
     s3cmd_url : str
         an s3cmd_url in the form 's3://bucket[/prefix]'
     data: bytes
@@ -286,6 +301,10 @@ async def put_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore
         show a progress spinner in the terminal
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        dictionary of context variables with which the function runs. Variable 's3_client' must
+        exist and hold an enter-result of an async with statement invoking
+        :func:`create_s3_client`.
 
     Returns
     -------
@@ -294,6 +313,7 @@ async def put_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore
     '''
 
     bucket, prefix = split(s3cmd_url)
+    s3_client = context_vars['s3_client']
     if show_progress:
         spinner = Halo("putting object '{}'".format(s3cmd_url), spinner='dots')
         spinner.start()
@@ -306,17 +326,19 @@ async def put_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore
     return data
 
 
-async def delete_object(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], s3cmd_url: str, asyn: bool = True):
+async def delete_object(s3cmd_url: str, asyn: bool = True, context_vars: dict = {}):
     '''An asyn function that deletes a given s3cmd url.
 
     Parameters
     ----------
-    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
-        the s3 client that matches with the 'asyn' keyword argument below
     s3cmd_url : str
         an s3cmd_url in the form 's3://bucket[/prefix]'
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        dictionary of context variables with which the function runs. Variable 's3_client' must
+        exist and hold an enter-result of an async with statement invoking
+        :func:`create_s3_client`.
 
     Returns
     -------
@@ -325,6 +347,7 @@ async def delete_object(s3_client: Union[aiobotocore.client.AioBaseClient, botoc
     '''
 
     bucket, prefix = split(s3cmd_url)
+    s3_client = context_vars['s3_client']
     if asyn:
         response = await s3_client.delete_object(Bucket=bucket, Key=prefix)
     else:
@@ -332,7 +355,7 @@ async def delete_object(s3_client: Union[aiobotocore.client.AioBaseClient, botoc
     return response
 
 
-async def put_files(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient], bucket: str, filepath2key_map: dict, show_progress: bool = False, asyn: bool = True):
+async def put_files(bucket: str, filepath2key_map: dict, show_progress: bool = False, asyn: bool = True, context_vars: dict = {}):
     '''An asyn function that uploads many files to the same S3 bucket.
 
     In asynchronous mode, the files are uploaded concurrently. In synchronous mode, the files are
@@ -347,8 +370,6 @@ async def put_files(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.
 
     Parameters
     ----------
-    s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
-        the s3 client that matches with the 'asyn' keyword argument below
     bucket : str
         bucket name
     filepath2key_map : dict
@@ -358,25 +379,29 @@ async def put_files(s3_client: Union[aiobotocore.client.AioBaseClient, botocore.
         show a progress bar in the terminal
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        dictionary of context variables with which the function runs. Variable 's3_client' must
+        exist and hold an enter-result of an async with statement invoking
+        :func:`create_s3_client`.
     '''
 
-    async def process_item(filepath, s3_client, bucket, key, progress_bar, asyn: bool = True):
+    async def process_item(filepath, bucket, key, progress_bar, asyn: bool = True, context_vars: dict = {}):
         s3cmd_url = join(bucket, key)
         data = await read_binary(filepath, asyn=asyn)
-        await put_object(s3_client, s3cmd_url, data, show_progress=False, asyn=asyn)
+        await put_object(s3cmd_url, data, show_progress=False, asyn=asyn, context_vars=context_vars)
         if isinstance(progress_bar, tqdm):
             progress_bar.update()
 
     with tqdm(total=len(filepath2key_map), unit='file') if show_progress else dummy_scope as progress_bar:
         if asyn:
-            coros = [process_item(filepath, s3_client, bucket, key, progress_bar) for filepath, key in filepath2key_map.items()]
+            coros = [process_item(filepath, bucket, key, progress_bar, context_vars=context_vars) for filepath, key in filepath2key_map.items()]
             await asyncio.gather(*coros)
         else:
             for filepath, key in filepath2key_map.items():
-                srun(process_item, filepath, s3_client, bucket, key, progress_bar)
+                srun(process_item, filepath, bucket, key, progress_bar, context_vars=context_vars)
 
 
-def put_files_boto3(s3_client: botocore.client.BaseClient, bucket: str, filepath2key_map: dict, show_progress: bool = False):
+def put_files_boto3(bucket: str, filepath2key_map: dict, show_progress: bool = False, context_vars: dict = {}):
     '''Uploads many files to the same S3 bucket using boto3.
 
     This function implements the code in the url below. It does not use asyncio but it uses
@@ -386,8 +411,6 @@ def put_files_boto3(s3_client: botocore.client.BaseClient, bucket: str, filepath
 
     Parameters
     ----------
-    s3_client : botocore.client.BaseClient
-        the (synchronous) s3 client return from :func:`create_s3_client`
     bucket : str
         bucket name
     filepath2key_map : dict
@@ -395,10 +418,15 @@ def put_files_boto3(s3_client: botocore.client.BaseClient, bucket: str, filepath
         upload to in the S3 bucket
     show_progress : bool
         show a progress bar in the terminal
+    context_vars : dict
+        dictionary of context variables with which the function runs. Variable 's3_client' must
+        exist and hold an enter-result of an async with statement invoking
+        :func:`create_s3_client`.
     '''
 
     import boto3.s3.transfer as s3transfer
     transfer_config = s3transfer.TransferConfig(use_threads=True, max_concurrency=20)
+    s3_client = context_vars['s3_client']
     s3t = s3transfer.create_transfer_manager(s3_client, transfer_config)
 
     with tqdm(unit='byte') if show_progress else dummy_scope as progress_bar:

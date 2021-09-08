@@ -35,7 +35,7 @@ async def create_http_session(asyn: bool = True):
         yield None
 
 
-async def download(url, asyn: bool = True, http_session: Optional[aiohttp.ClientSession] = None):
+async def download(url, asyn: bool = True, context_vars: dict = {}):
     '''An asyn function that opens a binary file and reads the content.
 
     Parameters
@@ -44,9 +44,10 @@ async def download(url, asyn: bool = True, http_session: Optional[aiohttp.Client
         a http or https URL
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
-    http_session : aiohttp.ClientSession, optional
-        If the mode is asynchronous, an open client session must be provided. Otherwise the
-        argument is ignored.
+    context_vars : dict
+        dictionary of context variables with which the function runs. In asynchronous mode,
+        variable 'http_session' must exist and hold an enter-result of an async with statement
+        invoking :func:`create_http_session`.
 
     Returns
     -------
@@ -62,6 +63,7 @@ async def download(url, asyn: bool = True, http_session: Optional[aiohttp.Client
     if not asyn:
         return requests.get(url).content
 
+    http_session = context_vars['http_session']
     if http_session is None:
         raise ValueError("In asynchronous mode, an open client session is needed. But None has been provided.")
 
@@ -72,7 +74,7 @@ async def download(url, asyn: bool = True, http_session: Optional[aiohttp.Client
     return content
 
 
-async def download_and_chmod(url, filepath, file_mode=0o664, asyn: bool = True, http_session: Optional[aiohttp.ClientSession] = None):
+async def download_and_chmod(url, filepath, file_mode=0o664, asyn: bool = True, context_vars: dict = {}):
     '''An asyn function that downloads an http or https url as binary to a file with predefined permissions.
 
     Parameters
@@ -85,12 +87,13 @@ async def download_and_chmod(url, filepath, file_mode=0o664, asyn: bool = True, 
         to be passed directly to `os.chmod()` if not None
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
-    http_session : aiohttp.ClientSession, optional
-        If the mode is asynchronous, an open client session must be provided. Otherwise the
-        argument is ignored.
+    context_vars : dict
+        dictionary of context variables with which the function runs. In asynchronous mode,
+        variable 'http_session' must exist and hold an enter-result of an async with statement
+        invoking :func:`create_http_session`.
     '''
 
-    content = await download(url, asyn=asyn, http_session=http_session)
+    content = await download(url, asyn=asyn, context_vars=context_vars)
 
     await write_binary(filepath, content, asyn=asyn)
 
