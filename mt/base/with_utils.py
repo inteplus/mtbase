@@ -1,11 +1,20 @@
 """Utilities to work with the with statement."""
 
 
+import contextlib
+
+from .deprecated import deprecated_func
+
+
 __all__ = ['DummyScopeForWithStatement', 'dummy_scope', 'join_scopes']
 
 
 class DummyScopeForWithStatement(object):
     '''Dummy scope for the with statement.
+
+    Warning
+    -------
+    This class is deprecated as of 2021/09/08. Please do not use.
 
     >>> with dummy_scope:
     ...     a = 1
@@ -17,9 +26,10 @@ class DummyScopeForWithStatement(object):
     def __exit__(self, type, value, traceback):
         pass
 
-dummy_scope = DummyScopeForWithStatement()
+dummy_scope = contextlib.nullcontext()
 
 
+@deprecated_func(deprecated_version="2021.1", suggested_func="(use built-in compound with)", docstring="    ")
 class join_scopes(object):
     '''Joins two or more with statements into one.
 
