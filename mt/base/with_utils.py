@@ -29,7 +29,7 @@ class DummyScopeForWithStatement(object):
 dummy_scope = contextlib.nullcontext()
 
 
-@deprecated_func(deprecated_version="2021.1", suggested_func="(use built-in compound with)", docstring="    ")
+@deprecated_func(deprecated_version="2021.1", suggested_func="(use built-in compound with)", docstring_prefix="    ")
 class join_scopes(object):
     '''Joins two or more with statements into one.
 
