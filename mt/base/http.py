@@ -5,11 +5,34 @@ from typing import Optional
 import aiohttp
 import requests
 
+from .contextlib import asynccontextmanager
+
 from .asyn import sleep, write_binary
 from .path import chmod
 
 
 __all__ = ['download', 'download_and_chmod']
+
+
+@asynccontextmanager
+async def create_http_session(asyn: bool = True):
+    '''An asyn context manager that creates a http session.
+
+    Parameters
+    ----------
+    asyn : bool
+        whether the session is asynchronous or synchronous
+
+    Returns
+    -------
+    http_session : aiohttp.ClientSession, optional
+        an open client session in asynchronous mode. Otherwise, None.
+    '''
+    if asyn:
+        async with aiohttp.ClientSession() as http_session:
+            yield http_session
+    else:
+        yield None
 
 
 async def download(url, asyn: bool = True, http_session: Optional[aiohttp.ClientSession] = None):
