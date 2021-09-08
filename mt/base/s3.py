@@ -17,6 +17,9 @@ from .with_utils import dummy_scope
 __all__ = ['split', 'join', 'get_session', 'create_s3_client', 'list_objects', 'list_object_info', 'get_object', 'get_object_acl', 'put_object', 'delete_object', 'put_files', 'put_files_boto3']
 
 
+# MT-TODO: create a context dictionary containing contextual data like s3_client, http_session, maybe logger so we can manage the context more easily.
+
+
 def join(bucket: str, prefix: Optional[str] = None):
     '''Joins a bucket and a prefix into an s3cmd url.
 
