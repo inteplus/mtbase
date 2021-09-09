@@ -13,9 +13,10 @@ from tqdm import tqdm
 from .aio import read_binary, srun
 from .with_utils import dummy_scope
 from .contextlib import asynccontextmanager
+from .http import create_http_session
 
 
-__all__ = ['split', 'join', 'get_session', 'create_s3_client', 'list_objects', 'list_object_info', 'get_object', 'get_object_acl', 'put_object', 'delete_object', 'put_files', 'put_files_boto3']
+__all__ = ['split', 'join', 'get_session', 'create_s3_client', 'create_context_vars', 'list_objects', 'list_object_info', 'get_object', 'get_object_acl', 'put_object', 'delete_object', 'put_files', 'put_files_boto3']
 
 
 def join(bucket: str, prefix: Optional[str] = None):
@@ -117,6 +118,30 @@ async def create_s3_client(profile = None, asyn: bool = True) -> Union[aiobotoco
             yield s3_client
     else:
         yield session.create_client('s3', config=config)
+
+
+@asynccontextmanager
+async def create_context_vars(profile = None, asyn: bool = False):
+    '''Creates a dictionary of context variables for running functions in this package.
+
+    Parameters
+    ----------
+    profile : str, optional
+        one of the profiles specified in the AWS. The default is used if None is given.
+    asyn : bool
+        whether the functions are to be invoked asynchronously or synchronously
+
+    Returns
+    -------
+    context_vars : dict
+        dictionary of context variables to run the functions in this package. These include
+        's3_client' and 'http_session'.
+    '''
+
+    async with create_s3_client(profile=profile, asyn=asyn) as s3_client,\
+               create_http_session() as http_session:
+        context_vars = {'s3_client': s3_client, 'http_session': http_session}
+        yield context_vars
 
 
 async def list_objects(s3cmd_url: str, show_progress=False, asyn: bool = True, context_vars: dict = {}):
