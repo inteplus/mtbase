@@ -242,7 +242,7 @@ async def write_text(filepath, buf: str, asyn: bool = True):
             return f.write(buf)
 
 
-async def json_load(filepath, asyn: bool = True):
+async def json_load(filepath, asyn: bool = True, **kwargs):
     '''An asyn function that loads the json-like object of a file.
 
     Parameters
@@ -251,6 +251,8 @@ async def json_load(filepath, asyn: bool = True):
         path to the file
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
+    kwargs : dict
+        keyword arguments passed as-is to :func:`json.loads`
 
     Returns
     -------
@@ -259,10 +261,10 @@ async def json_load(filepath, asyn: bool = True):
     '''
 
     content = await read_text(filepath, asyn=asyn)
-    return json.loads(content)
+    return json.loads(content, **kwargs)
 
 
-async def json_save(filepath, obj, asyn: bool = True):
+async def json_save(filepath, obj, asyn: bool = True, **kwargs):
     '''An asyn function that saves a json-like object to a file.
 
     Parameters
@@ -273,7 +275,9 @@ async def json_save(filepath, obj, asyn: bool = True):
         json-like object to be written to the file
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
+    kwargs : dict
+        keyword arguments passed as-is to :func:`json.dumps`
     '''
 
-    content = json.dumps(obj)
+    content = json.dumps(obj, **kwargs)
     await write_text(filepath, content, asyn=asyn)
