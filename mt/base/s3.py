@@ -87,7 +87,7 @@ def get_session(profile = None, asyn: bool = True) -> Union[aiobotocore.AioSessi
 
     Notes
     -----
-    Please use :func:`create_s3_client` to create an s3 client.
+    This function is used as part of :func:`create_s3_client` to create an s3 client.
     '''
 
     klass = aiobotocore.AioSession if asyn else botocore.session.Session
@@ -95,14 +95,13 @@ def get_session(profile = None, asyn: bool = True) -> Union[aiobotocore.AioSessi
 
 
 @asynccontextmanager
-async def create_s3_client(botocore_session: Union[aiobotocore.AioSession, botocore.session.Session], asyn: bool = True) -> Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
-    '''An asyn context manager that creates an s3 client for the botocore session, maximizing the number of connections.
+async def create_s3_client(profile = None, asyn: bool = True) -> Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
+    '''An asyn context manager that creates an s3 client for a given profile, maximizing the number of connections.
 
     Parameters
     ----------
-    botocore_session: aiobotocore.AioSession or botocore.session.Session
-        In asynchronous mode, an aiobotocore.AioSession instance is returned. In synchronous mode,
-        a botocore.session.Session instance is returned.
+    profile : str, optional
+        the profile from which the session is created
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
 
@@ -111,12 +110,13 @@ async def create_s3_client(botocore_session: Union[aiobotocore.AioSession, botoc
     s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
         the s3 client that matches with the 'asyn' keyword argument below
     '''
+    session = get_session(profile=profile, asyn=asyn)
     config = botocore.config.Config(max_pool_connections=20)
     if asyn:
-        async with botocore_session.create_client('s3', config=config) as s3_client:
+        async with session.create_client('s3', config=config) as s3_client:
             yield s3_client
     else:
-        yield botocore_session.create_client('s3', config=config)
+        yield session.create_client('s3', config=config)
 
 
 async def list_objects(s3cmd_url: str, show_progress=False, asyn: bool = True, context_vars: dict = {}):
