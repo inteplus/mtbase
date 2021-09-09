@@ -5,12 +5,13 @@ import queue as _q
 import threading as _t
 import multiprocessing as _mp
 from time import sleep
+import psutil
 import asyncio
 
 from .bg_invoke import BgInvoke, BgThread, BgException
 
 
-__all__ = ['Counter', 'ProcessParalleliser', 'WorkIterator', 'serial_work_generator', 'aio_work_generator']
+__all__ = ['Counter', 'used_memory_too_much', 'used_cpu_too_much', 'ProcessParalleliser', 'WorkIterator', 'serial_work_generator', 'aio_work_generator']
 
 
 class Counter(object):
@@ -29,10 +30,16 @@ class Counter(object):
         return self.val.value
 
 
-def has_memory():
-    import psutil
+# ----------------------------------------------------------------------
+
+
+def used_memory_too_much():
     mem = psutil.virtual_memory()
-    return mem.available >= mem.total*0.1 # keep a healthy 10% memory
+    return mem.percent > 90 # 90% usage is the limit
+
+
+def used_cpu_too_much():
+    return psutil.cpu_percent() > 90 # 90% usage is the limit
 
 
 # ----------------------------------------------------------------------
@@ -122,7 +129,7 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
                 break
 
         # get a work id
-        if (not to_die) and (not has_work): # and has_memory():
+        if (not to_die) and (not has_work): # and not used_memory_too_much():
             work_id = -1
             try:
                 work_id = queue_in.get_nowait()
@@ -195,7 +202,7 @@ class ProcessParalleliser(object):
         self.pipe_list = []
         self.process_list = []
         for i in range(self.num_workers):
-            if not has_memory():
+            if used_memory_too_much():
                 break
             pipe = _mp.Pipe()
             self.pipe_list.append(pipe[0])
