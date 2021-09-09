@@ -14,7 +14,7 @@ from glob import glob
 
 from . import logger
 from .threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
-from .asyn import arun
+from .aio import arun
 
 
 __all__ = ['remove_asyn', 'remove', 'make_dirs', 'lock', 'rename_asyn', 'rename', 'utime', 'walk', 'stat_asyn', 'stat', 'chmod', 'listdir', 'glob']

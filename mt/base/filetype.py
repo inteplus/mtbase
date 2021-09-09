@@ -5,10 +5,10 @@ import aiofiles
 from filetype import *
 import filetype
 
-from .asyn import srun, read_binary
+from .aio import srun, read_binary
 
 
-__all__ = ['read_file_header', 'is_image', 'image_match']
+__all__ = ['read_file_header', 'is_image_asyn', 'image_match_asyn']
 
 
 async def read_file_header(filepath, asyn: bool = True):
@@ -34,16 +34,15 @@ async def read_file_header(filepath, asyn: bool = True):
     return buf
 
 
-def is_image(filepath, asynch: bool = False):
-    '''An asynch function that checks if a file is an image.
+async def is_image_asyn(filepath, asyn: bool = True):
+    '''An asyn function that checks if a file is an image.
 
     Parameters
     ----------
     filepath : str
         path to the file that can be an image file
-    asynch : bool
-        whether or not the file I/O is done asynchronously. If True, you must use keyword 'await'
-        to invoke the function
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
 
     Returns
     -------
@@ -56,26 +55,22 @@ def is_image(filepath, asynch: bool = False):
         the wrapped function
     '''
 
-    async def async_func(filepath):
-        if not isinstance(filepath, str):
-            return filetype.is_image(filepath)
+    if not asyn or not isinstance(filepath, str):
+        return filetype.is_image(filepath)
 
-        buf = await read_file_header(filepath)
-        return is_image(buf)
-
-    return async_func(filepath) if asynch else filetype.is_image(filepath)
+    buf = await read_file_header(filepath, asyn=asyn)
+    return filetype.is_image(buf)
 
 
-def image_match(filepath, asynch: bool = False):
-    '''An asynch function that obtains the image file type.
+async def image_match_asyn(filepath, asyn: bool = True):
+    '''An asyn function that obtains the image file type.
 
     Parameters
     ----------
     filepath : str
         path to the file that can be an image file
-    asynch : bool
-        whether or not the file I/O is done asynchronously. If True, you must use keyword 'await'
-        to invoke the function
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
 
     Returns
     -------
@@ -83,11 +78,8 @@ def image_match(filepath, asynch: bool = False):
         the file type, with mime and extension attributes
     '''
 
-    async def async_func(filepath):
-        if not isinstance(filepath, str):
-            return filetype.image_match(filepath)
+    if not asyn or not isinstance(filepath, str):
+        return filetype.image_match(filepath)
 
-        buf = await read_file_header(filepath)
-        return filetype.image_match(buf)
-
-    return async_func(filepath) if asynch else filetype.image_match(filepath)
+    buf = await read_file_header(filepath, asyn=asyn)
+    return filetype.image_match(buf)

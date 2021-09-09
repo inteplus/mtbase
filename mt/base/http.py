@@ -7,7 +7,7 @@ import requests
 
 from .contextlib import asynccontextmanager
 
-from .asyn import sleep, write_binary
+from .aio import sleep, write_binary
 from .path import chmod
 
 

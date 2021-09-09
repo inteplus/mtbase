@@ -10,7 +10,7 @@ import botocore.exceptions
 from halo import Halo
 from tqdm import tqdm
 
-from .asyn import read_binary, srun
+from .aio import read_binary, srun
 from .with_utils import dummy_scope
 from .contextlib import asynccontextmanager
 
