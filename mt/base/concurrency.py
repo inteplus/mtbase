@@ -43,7 +43,7 @@ HEARTBEAT_PERIOD = 5 # send a heart beat every 5 intervals
 MAX_MISS_CNT = 240 # number of times before we declare that the other process has died
 
 
-def worker_process(func, heartbeat_pipe, queue_in, queue_out, asyn_mode: bool = False, logger=None):
+def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
 
     '''
     The worker process.
@@ -69,19 +69,11 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, asyn_mode: bool = 
 
     The parent process owns all the pipes and queues.
 
-    The worker process operates in one of two modes, normal mode or asyn mode. In normal mode, the
-    function that does the work is a normal function. It takes work id as the sole argument. In
-    asyn mode, the function is an asyn function, defined in :module:`mt.base.aio`. The function
-    takes additionally keyword arguments 'asyn' and 'context_vars' as inputs. The worker process
-    creates keyword argument 'context_vars' using :func:`mt.base.s3.create_s3_client`
-
     Parameters
     ----------
     func : function
-        In normal mode, a function taking work_id as the only argument and returning something.
-        In asyn mode, a function taking work_id as the positional argument and 'asyn' and
-        'context_vars' as keyword arguments. The function is run in a background thread of the
-        worker process.
+        a function taking work_id as the only argument and returning something. The function is run
+        in a background thread of the worker process
     heartbeat_pipe : multiprocessing.Connection
         the child connection of a parent-child pipe to communicate with the parent about their
         heartbeats
