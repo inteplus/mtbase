@@ -14,7 +14,7 @@ from glob import glob
 
 from . import logger
 from .threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
-from .aio import arun
+from .aio import srun
 
 
 __all__ = ['remove_asyn', 'remove', 'make_dirs', 'lock', 'rename_asyn', 'rename', 'utime', 'walk', 'stat_asyn', 'stat', 'chmod', 'listdir', 'glob']
@@ -52,8 +52,8 @@ async def remove_asyn(path, asyn: bool = True):
                 raise e
 
 
-def remove(path, asynch: bool = False):
-    '''An asynch function that removes a path completely, regardless of it being a file or a folder.
+def remove(path):
+    '''Removes a path completely, regardless of it being a file or a folder.
 
     If the path does not exist, do nothing.
 
@@ -61,10 +61,8 @@ def remove(path, asynch: bool = False):
     ----------
     path : str
         a path to a link, a file or a directory
-    asynch : bool
-        whether to invoke the function asynchronously (True) or synchronously (False)
     '''
-    return arun(remove_asyn, path, asynch=asynch)
+    return srun(remove_asyn, path)
 
 
 def make_dirs(path, shared=True):
@@ -159,8 +157,8 @@ async def rename_asyn(src, dst, asyn: bool = True):
     return _os.rename(src, dst)
 
 
-def rename(src, dst, asynch: bool = False):
-    '''An asynch function that renames a file or a directory.
+def rename(src, dst):
+    '''Renames a file or a directory.
 
     Parameters
     ----------
@@ -168,11 +166,9 @@ def rename(src, dst, asynch: bool = False):
         path to the source file or directory
     dst : path
         new name also as a path
-    asynch : bool
-        whether to invoke the function asynchronously (True) or synchronously (False)
     '''
 
-    return arun(rename_asyn, src, dst, asynch=asynch)
+    return srun(rename_asyn, src, dst)
 
 
 async def stat_asyn(path, dir_fd=None, follow_symlinks=True, asyn: bool = True):
@@ -211,8 +207,8 @@ async def stat_asyn(path, dir_fd=None, follow_symlinks=True, asyn: bool = True):
     return _os.stat(path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
 
 
-def stat(path, dir_fd=None, follow_symlinks=True, asynch: bool = False):
-    '''An asynch function that performs a stat system call on the given path.
+def stat(path, dir_fd=None, follow_symlinks=True):
+    '''Performs a stat system call on the given path.
 
     Parameters
     ----------
@@ -224,8 +220,6 @@ def stat(path, dir_fd=None, follow_symlinks=True, asynch: bool = False):
     follow_symlinks : bool
         If False, and the last element of the path is a symbolic link, stat will examine the
         symbolic link itself instead of the file the link points to.
-    asynch : bool
-        whether to invoke the function asynchronously (True) or synchronously (False)
 
     Returns
     -------
@@ -240,7 +234,7 @@ def stat(path, dir_fd=None, follow_symlinks=True, asynch: bool = False):
     It's an error to use dir_fd or follow_symlinks when specifying path as an open file descriptor.
     '''
 
-    return arun(stat_asyn, path, dir_fd=dir_fd, follow_symlinks=follow_symlinks, asynch=asynch)
+    return srun(stat_asyn, path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
 
 
 # exit function
