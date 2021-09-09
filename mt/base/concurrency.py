@@ -1,6 +1,7 @@
 '''Concurrency in dask way. Needed for streaming workloads.'''
 
 import os
+import numpy as np
 import queue as _q
 import threading as _t
 import multiprocessing as _mp
@@ -11,7 +12,8 @@ import asyncio
 from .bg_invoke import BgInvoke, BgThread, BgException
 
 
-__all__ = ['Counter', 'used_memory_too_much', 'used_cpu_too_much', 'ProcessParalleliser', 'WorkIterator', 'serial_work_generator', 'aio_work_generator']
+__all__ = ['Counter', 'used_memory_too_much', 'used_cpu_too_much', 'split_works', 'ProcessParalleliser', 'WorkIterator', 'serial_work_generator',
+           'aio_work_generator', 'run_asyn_works_in_new_context', 'run_asyn_works']
 
 
 class Counter(object):
@@ -40,6 +42,37 @@ def used_memory_too_much():
 
 def used_cpu_too_much():
     return psutil.cpu_percent() > 90 # 90% usage is the limit
+
+
+def split_works(num_works, num_buckets = None):
+    '''Splits a number of works randomly into a few buckets, returning the work id per bucket.
+
+    Parameters
+    ----------
+    num_works : int
+        number of works
+
+    num_buckets : int, optional
+        number of buckets. If not specified, the number of cpus will be used.
+
+    Returns
+    -------
+    work_id_list_list : list
+        a nested list of work id lists. The work ids, in interval [0, num_works), are split
+        approximately evenly and randomly into the buckets
+    '''
+
+    N = num_works
+    K = _mp.cpu_count() if num_buckets is None else num_buckets
+
+    rng = np.random.default_rng()
+    vals = np.floor(rng.uniform(0, K, size=N)).astype(int)
+    retval = [[] for k in range(K)]
+    for n in range(N): # slow but fine
+        k = vals[n]
+        retval[k].append(n)
+
+    return retval
 
 
 # ----------------------------------------------------------------------
@@ -608,4 +641,175 @@ async def aio_work_generator(func, num_work_ids, skip_null: bool = True, max_con
                     yield result
 
 
-# MT-TODO: implement an asyn_parallelise or something that uses both multiprocessing and asyncio to process. 
+async def run_asyn_works_in_new_context(progress_queue: _mp.Queue, func, func_args: list = [], func_kwargs: dict = {}, context_id = None, work_id_list: list = [], max_concurrency: int = 1024, asyn: bool = True, profile = None):
+    '''Invokes the same asyn function with different work ids concurrently and asynchronously, and under a new context.
+
+    Parameters
+    ----------
+    progress_queue: multiprocessing.Queue
+        a shared queue so that the main process can observe the progress inside the context. See
+        notes below.
+    func : function
+        an asyn function that may return something and may raise an Exception. The function must
+        have the first argument being the work id, and must accept keyword argument 'asyn' and
+        'context_vars'. The context variables are automatically created via invoking
+        :func:`mt.base.s3.create_context_vars` and passed to the function.
+    func_args : list
+        additional positional arguments to be passed to the function as-is
+    func_kwargs : dict
+        additional keyword arguments to be passed to the function as-is
+    context_id : int, optional
+        the context id to be assigned to the new context. Default is None if we do not care.
+    work_id_list : list
+        list of work ids to be passed to the function
+    max_concurrency : int
+        the maximum number of concurrent works in the context at any time, good for managing memory
+        allocations. If None is given, all works in the context will be scheduled to run at once.
+    asyn : bool
+        whether the asyn function is to be invoked asynchronously or synchronously
+    profile : str, optional
+        one of the profiles specified in the AWS. The default is used if None is given.
+
+    Notes
+    -----
+    This function returns nothing but while it is running, the progress queue regularly receives
+    messages. Each message is a tuple `(context_id, message_code, work_id, ...)`. The user should
+    process the progress queue.
+    '''
+
+    def get_done_task_result(task, work_id):
+        if task.cancelled():
+            return (context_id, 'task_cancelled', work_id)
+        e = task.exception()
+        if e is not None:
+            import io
+            tracestack = io.StringIO()
+            task.print_stack(file=tracestack)
+            return (context_id, 'task_raised', work_id, e, tracestack.getvalue())
+        result = task.result()
+        return (context_id, 'task_returned', work_id, result)
+
+    progress_queue.put_nowait((context_id, 'context_created'))
+
+    import asyncio
+    from .s3 import create_context_vars
+    
+    async with create_context_vars(asyn=asyn, profile=profile) as context_vars:
+        if max_concurrency is None:
+            task_map = {}
+            for work_id in work_id_list:
+                task = asyncio.ensure_future(func(work_id, *func_args, asyn=asyn, context_vars=context_vars, **func_kwargs))
+                progress_queue.put_nowait((context_id, 'task_scheduled', work_id))
+                task_map[task] = work_id
+
+            while len(task_map) > 0:
+                done_task_set, _ = await asyncio.wait(task_map.keys(), return_when=asyncio.FIRST_COMPLETED)
+                for task in done_task_set:
+                    work_id = task_map[task]
+                    progress_queue.put_nowait(get_done_task_result(task, work_id))
+                    del task_map[task]
+
+        else:
+            cur_pos = 0
+            cur_task_map = {}
+
+            while cur_pos < len(work_id_list) or len(cur_task_map) > 0:
+                # add tasks to run concurrently
+                spare = min(max_concurrency - len(cur_task_map), len(work_id_list) - cur_pos)
+                if spare > 0:
+                    for i in range(spare):
+                        work_id = work_id_list[cur_pos + i]
+                        task = asyncio.ensure_future(func(work_id, *func_args, asyn=asyn, context_vars=context_vars, **func_kwargs))
+                        progress_queue.put_nowait((context_id, 'task_scheduled', work_id))
+                        cur_task_map[task] = work_id
+                    cur_pos += spare
+
+                # get some tasks done
+                done_task_set, _ = await asyncio.wait(cur_task_map.keys(), return_when=asyncio.FIRST_COMPLETED)
+                for task in done_task_set:
+                    work_id = cur_task_map[task]
+                    progress_queue.put_nowait(get_done_task_result(task, work_id))
+                    del cur_task_map[task]
+
+    progress_queue.put_nowait((context_id, 'context_destroyed'))
+
+
+def run_asyn_works(progress_queue: _mp.Queue, func, func_args: list = [], func_kwargs: dict = {}, num_processes = None, num_works: int = 0, max_concurrency: int = 1024, profile = None):
+    '''Splits the list of work ids into blocks and invokes :func:`run_asyn_works_in_new_context` to run each block in a new context in a separate process.
+
+    Parameters
+    ----------
+    progress_queue: multiprocessing.Queue
+        a shared queue so that the main process can observe the progress inside every context. See
+        notes below.
+    func : function
+        an asyn function that may return something and may raise an Exception. The function must
+        have the first argument being the work id, and must accept keyword argument 'asyn' and
+        'context_vars'. The context variables are automatically created via invoking
+        :func:`mt.base.s3.create_context_vars` and passed to the function.
+    func_args : list
+        additional positional arguments to be passed to the function as-is
+    func_kwargs : dict
+        additional keyword arguments to be passed to the function as-is
+    num_processes : int
+        the number of processes to be created. If not specified, it is equal to the number of CPUs.
+    num_works : int
+        number of works
+    max_concurrency : int
+        the maximum number of concurrent works in each context at any time, good for managing
+        memory allocations. If None is given, all works in each context will be scheduled to run at
+        once.
+    profile : str, optional
+        one of the profiles specified in the AWS. The default is used if None is given.
+
+    Returns
+    -------
+    process_list : list
+        list of processes that have been started to run the function
+
+    Notes
+    -----
+    This function returns as soon as it launches all the processes. While it is running, the
+    progress queue regularly receives messages. Each message is a tuple
+    `(context_id, message_code, work_id, ...)`. The user should process the progress queue.
+
+    The context ids are zero-based. The work ids are zero-based. The number of contexts is equal to
+    the number of processes.
+    '''
+
+    if num_works <= 0:
+        return
+
+    num_buckets = _mp.cpu_count() if num_processes is None else num_processes
+    work_id_list_list = split_works(num_works, num_buckets)
+
+    def worker_process(progress_queue: _mp.Queue, func, func_args: list = [], func_kwargs: dict = {}, context_id = None, work_id_list: list = [], max_concurrency: int = 1024, profile = None):
+        import asyncio
+        asyncio.run(run_asyn_works_in_new_context(
+            progress_queue, func,
+            func_args=func_args,
+            func_kwargs=func_kwargs,
+            context_id=context_id,
+            work_id_list=work_id_list,
+            max_concurrency=max_concurrency,
+            asyn=True,
+            profile=profile,
+        ))
+
+    process_list = []
+    for context_id in range(num_buckets):
+        p = _mp.Process(
+            target=worker_process,
+            args=(progress_queue, func),
+            kwargs={
+                'func_args': func_args,
+                'func_kwargs': func_kwargs,
+                'context_id': context_id,
+                'work_id_list': work_id_list_list[context_id],
+                'max_concurrency': max_concurrency,
+                'profile': profile,
+            })
+        p.start()
+        process_list.append(p)
+
+    return process_list

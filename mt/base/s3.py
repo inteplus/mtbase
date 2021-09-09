@@ -102,7 +102,7 @@ async def create_s3_client(profile = None, asyn: bool = True) -> Union[aiobotoco
     Parameters
     ----------
     profile : str, optional
-        the profile from which the session is created
+        the profile from which the s3 client is created
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
 
