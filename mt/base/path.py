@@ -1,5 +1,7 @@
 '''Useful functions dealing with paths.'''
 
+from typing import Union
+
 
 import os as _os
 import shutil as _su
@@ -7,6 +9,7 @@ import atexit as _ex
 import time as _t
 import platform as _pl
 import aiofiles.os
+from pathlib import Path, _ignore_error as pathlib_ignore_error
 
 from os import utime, walk, chmod, listdir
 from os.path import *
@@ -17,13 +20,42 @@ from .threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
 from .aio import srun
 
 
-__all__ = ['remove_asyn', 'remove', 'make_dirs', 'lock', 'rename_asyn', 'rename', 'utime', 'walk', 'stat_asyn', 'stat', 'chmod', 'listdir', 'glob']
+__all__ = ['exists_asyn', 'remove_asyn', 'remove', 'make_dirs', 'lock', 'rename_asyn', 'rename', 'utime', 'walk', 'stat_asyn', 'stat', 'chmod', 'listdir', 'glob']
 
 
 _path_lock = Lock()
 
 
-async def remove_asyn(path, asyn: bool = True):
+async def exists_asyn(path: Union[Path, str], asyn: bool = True):
+    '''An asyn function that checks if a path exists, regardless of it being a file or a folder.
+
+    Parameters
+    ----------
+    path : str
+        a path to a link, a file or a directory
+    asyn : bool
+        whether the function is to be invoked asynchronously or synchronously
+
+    Notes
+    -----
+    Just like :func:`os.path.exists`. The function returns False for broken symbolic links.
+    '''
+    if not asyn:
+        return exists(path)
+
+    try:
+        await aiofiles.os.stat(str(path))
+    except OSError as e:
+        if not pathlib_ignore_error(e):
+            raise
+        return False
+    except ValueError:
+        # Non-encodable path
+        return False
+    return True
+
+
+async def remove_asyn(path: Union[Path, str], asyn: bool = True):
     '''An asyn function that removes a path completely, regardless of it being a file or a folder.
 
     If the path does not exist, do nothing.
@@ -52,7 +84,7 @@ async def remove_asyn(path, asyn: bool = True):
                 raise e
 
 
-def remove(path):
+def remove(path: Union[Path, str]):
     '''Removes a path completely, regardless of it being a file or a folder.
 
     If the path does not exist, do nothing.
@@ -65,7 +97,7 @@ def remove(path):
     return srun(remove_asyn, path)
 
 
-def make_dirs(path, shared=True):
+def make_dirs(path: Union[Path, str], shared: bool = True):
     '''Convenient invocation of `os.makedirs(path, exist_ok=True)`. If `shared` is True, every newly created folder will have permission 0o775.'''
     if not path: # empty path, just ignore
         return
@@ -94,7 +126,7 @@ def make_dirs(path, shared=True):
             _os.makedirs(path, mode=0o775, exist_ok=True)
 
 
-def lock(path, to_write=False):
+def lock(path: Union[Path, str], to_write: bool = False):
     '''Returns the current MROW lock for a given path.
 
     Parameters
@@ -137,7 +169,7 @@ lock.__locks = {}
 lock.__cleanup_cnt = 0
 
 
-async def rename_asyn(src, dst, asyn: bool = True):
+async def rename_asyn(src: Union[Path, str], dst: Union[Path, str], asyn: bool = True):
     '''An asyn function that renames a file or a directory.
 
     Parameters
@@ -157,7 +189,7 @@ async def rename_asyn(src, dst, asyn: bool = True):
     return _os.rename(src, dst)
 
 
-def rename(src, dst):
+def rename(src: Union[Path, str], dst: Union[Path, str]):
     '''Renames a file or a directory.
 
     Parameters
@@ -171,7 +203,7 @@ def rename(src, dst):
     return srun(rename_asyn, src, dst)
 
 
-async def stat_asyn(path, dir_fd=None, follow_symlinks=True, asyn: bool = True):
+async def stat_asyn(path: Union[Path, str], dir_fd=None, follow_symlinks=True, asyn: bool = True):
     '''An asyn function that performs a stat system call on the given path.
 
     Parameters
@@ -207,7 +239,7 @@ async def stat_asyn(path, dir_fd=None, follow_symlinks=True, asyn: bool = True):
     return _os.stat(path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
 
 
-def stat(path, dir_fd=None, follow_symlinks=True):
+def stat(path: Union[Path, str], dir_fd=None, follow_symlinks=True):
     '''Performs a stat system call on the given path.
 
     Parameters
