@@ -606,7 +606,7 @@ async def aio_work_generator(func, num_work_ids, skip_null: bool = True, max_con
     Returns
     -------
     object
-        an asynchronous generator
+        an asynchronous generator yielding each result in the form `(work_id, ...)`
     '''
 
     coros = [func(work_id) for work_id in range(num_work_ids)]
