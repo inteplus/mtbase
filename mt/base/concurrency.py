@@ -788,6 +788,9 @@ async def asyn_work_generator(func, func_args: list = [], func_kwargs: dict = {}
     The context ids are zero-based. The number of contexts is equal to the number of processes.
     The work ids are task ids and are zero-based. The messages related to when a task is done are
     yielded.
+
+    Asyncio and KeyboardInterrupt are not happy with each other.
+    https://bugs.python.org/issue42683
     '''
 
     if num_works <= 0:
