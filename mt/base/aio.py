@@ -33,7 +33,7 @@ import multiprocessing.queues as mq
 import aiofiles
 
 
-__all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'Queue', 'qput_aio', 'qget_aio', 'BgProcess']
+__all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'yield_control', 'qput_aio', 'qget_aio', 'BgProcess']
 
 
 def srun(asyn_func, *args, **kwargs) -> object:
@@ -286,6 +286,13 @@ async def json_save(filepath, obj, asyn: bool = True, **kwargs):
     await write_text(filepath, content, asyn=asyn)
 
 
+async def yield_control():
+    '''Yields the control back to the current event loop.'''
+    fut = asyncio.Future()
+    fut.set_result(None)
+    await fut
+
+
 async def qput_aio(q: mq.Queue, obj, block : bool = True, timeout : float = None, aio_interval : float = 0.001):
     '''Puts obj into the queue q.
 
@@ -394,7 +401,7 @@ class BgProcess:
         '''
 
         while self.sending:
-            await asyncio.sleep(0) # yield control back to the event loop
+            await yield_control()
 
         try:
             self.sending = True
