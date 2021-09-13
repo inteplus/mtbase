@@ -28,9 +28,11 @@ import time
 import json
 import asyncio
 import aiofiles
+import queue
+import multiprocessing as mp
 
 
-__all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save']
+__all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'Queue']
 
 
 def srun(asyn_func, *args, **kwargs) -> object:
@@ -281,3 +283,73 @@ async def json_save(filepath, obj, asyn: bool = True, **kwargs):
 
     content = json.dumps(obj, **kwargs)
     await write_text(filepath, content, asyn=asyn)
+
+
+class Queue(mp.Queue):
+    '''A subclass of :class:`multiprocessing.Queue` with 'put_aio' and 'get_aio' functions.
+
+    Parameters
+    ----------
+    maxsize : int, optional
+        maximum queue size
+
+    See Also
+    --------
+    multiprocessing.Queue
+        original class
+    '''
+
+    async def put_aio(self, obj, block : bool = True, timeout : float = None, aio_interval : float = 0.001):
+        '''Puts obj into the queue.
+
+        If the optional argument `block` is True (the default) and `timeout` is None (the default),
+        block asynchronously if necessary until a free slot is available. If timeout is a positive
+        number, it blocks asynchronously at most timeout seconds and raises the :class:`queue.Full`
+        exception if no free slot was available within that time. Otherwise (`block` is False),
+        put an item on the queue if a free slot is immediately available, else raise the
+        :class:`queue.Full` exception (timeout is ignored in that case).
+        '''
+
+        if not block:
+            return self.put(obj, block=False)
+
+        if timeout is None:
+            while self.full():
+                await asyncio.sleep(aio_interval)
+            return self.put(obj, block=True)
+
+        cnt = int(timeout / aio_interval)+1
+        while cnt > 0:
+            if not self.full():
+                return self.put(obj, block=True)
+            await asyncio.sleep(aio_interval)
+            cnt -= 1
+        raise queue.Full()
+
+
+    async def get_aio(self, block : bool = True, timeout : float = None, aio_interval : float = 0.001):
+        '''Removes and returns an item from the queue.
+
+        If optional args `block` is True (the default) and `timeout` is None (the default), block
+        asynchronously if necessary until an item is available. If `timeout` is a positive number,
+        it blocks asynchronously at most timeout seconds and raises the :class:`queue.Empty`
+        exception if no item was available within that time. Otherwise (`block` is False), return
+        an item if one is immediately available, else raise the :class:`queue.Empty` exception
+        (`timeout` is ignored in that case).
+        '''
+
+        if not block:
+            return self.get(block=False)
+
+        if timeout is None:
+            while self.empty():
+                await asyncio.sleep(aio_interval)
+            return self.get(block=True)
+
+        cnt = int(timeout / aio_interval)+1
+        while cnt > 0:
+            if not self.empty():
+                return self.get(block=True)
+            await asyncio.sleep(aio_interval)
+            cnt -= 1
+        raise queue.Empty()
