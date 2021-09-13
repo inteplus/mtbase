@@ -362,9 +362,9 @@ class Queue(mq.Queue):
 
 
 class BgProcess:
-    '''Launches a background process that communicates with the foreground process via message passing only.
+    '''Launches a child process that communicates with the parent process via message passing.
 
-    You should subclass this class and implement :func:`handle_message`. See the docstring of the
+    You should subclass this class and implement :func:`child_handle_message`. See the docstring of the
     function below.
 
     '''
@@ -380,8 +380,51 @@ class BgProcess:
     def __del__(self):
         self.close()
 
-    def handle_message(self, msg: object) -> object:
+    async def send(self, msg, send_timeout : float = None, recv_timeout : float = None):
+        '''Sends a message to the child process and awaits for the returning message.
+
+        Parameters
+        ----------
+        msg : object
+            message to be sent to the child process
+        send_timeout : float
+            If specified, the number of seconds to wait asynchronously while sending the message,
+            before raising a :class`queue.Full` exception. If not, asynchronously blocks until
+            the message is sent through.
+        recv_timeout : float
+            If specified, the number of seconds to wait asynchronously to receive the message,
+            before raising a :class:`queue.Empty` exception. If not, asynchronously blocks until
+            the message from the child process is received.
+
+        Returns
+        -------
+        object
+            message received from the child process
+
+        Raises
+        ------
+        RuntimeError
+            if the child process is not alive while processing the message
+        '''
+
+        await self.msg_p2c.put_aio(msg, timeout=send_timeout)
+        retval = await self.msg_c2p.get_aio(timeout=recv_timeout)
+
+        if isinstance(retval, tuple) and retval[0] == 'exit':
+            if retval[1] is not None:
+                if isinstance(retval[1], Exception):
+                    raise retval[1]
+                else:
+                    raise RuntimeError(retval[1])
+            else:
+                raise RuntimeError("Unexpected normal child exit while processing a message.")
+
+        return retval
+
+    def child_handle_message(self, msg: object) -> object:
         '''Handles a message obtained from the queue.
+
+        This function should only be called by the child process.
 
         It takes as input a message from the parent-to-child queue and processes the message.
         Once done, it returns another message which will be placed into the child-to-parent
@@ -416,7 +459,7 @@ class BgProcess:
                 self.msg_c2p.put(('exit', None))
                 return
 
-            msg = self.handle_message(msg) # handle the message and return
+            msg = self.child_handle_message(msg) # handle the message and return
             self.msg_c2p.put(msg)
           except KeyboardInterrupt as e:
             self.msg_c2p.put(('ignored_exception', e))
