@@ -3,6 +3,7 @@
 from typing import Union
 
 
+import asyncio
 import os as _os
 import shutil as _su
 import atexit as _ex
@@ -20,7 +21,7 @@ from .threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
 from .aio import srun
 
 
-__all__ = ['exists_asyn', 'remove_asyn', 'remove', 'make_dirs', 'lock', 'rename_asyn', 'rename', 'utime', 'walk', 'stat_asyn', 'stat', 'chmod', 'listdir', 'glob']
+__all__ = ['exists_asyn', 'exists_timeout', 'remove_asyn', 'remove', 'make_dirs', 'lock', 'rename_asyn', 'rename', 'utime', 'walk', 'stat_asyn', 'stat', 'chmod', 'listdir', 'glob']
 
 
 _path_lock = Lock()
@@ -35,6 +36,11 @@ async def exists_asyn(path: Union[Path, str], asyn: bool = True):
         a path to a link, a file or a directory
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
+
+    Returns
+    -------
+    bool
+        whether or not the path exists
 
     Notes
     -----
@@ -53,6 +59,30 @@ async def exists_asyn(path: Union[Path, str], asyn: bool = True):
         # Non-encodable path
         return False
     return True
+
+
+async def exists_timeout(path: Union[Path, str], timeout: float = 1.0):
+    '''Checks if a path exists for a number of seconds, raising an :class:`asyncio.TimeoutError` if timeout.
+
+    Call this function rarely as the wrapping is expensive.
+
+    Parameters
+    ----------
+    path : str
+        a path to a link, a file or a directory
+
+    Returns
+    -------
+    bool
+        whether or not the path exists
+
+    Notes
+    -----
+    Just like :func:`os.path.exists`. The function returns False for broken symbolic links.
+    '''
+    task = asyncio.ensure_future(exists_asyn(path, asyn=True))
+    retval = await asyncio.wait_for(task, timeout=timeout)
+    return retval
 
 
 async def remove_asyn(path: Union[Path, str], asyn: bool = True):
