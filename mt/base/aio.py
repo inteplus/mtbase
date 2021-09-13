@@ -29,7 +29,7 @@ import json
 import asyncio
 import aiofiles
 import queue
-import multiprocessing as mp
+import multiprocessing.queues as mq
 
 
 __all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'Queue']
@@ -285,8 +285,8 @@ async def json_save(filepath, obj, asyn: bool = True, **kwargs):
     await write_text(filepath, content, asyn=asyn)
 
 
-class Queue(mp.Queue):
-    '''A subclass of :class:`multiprocessing.Queue` with 'put_aio' and 'get_aio' functions.
+class Queue(mq.Queue):
+    '''A subclass of :class:`multiprocessing.queues.Queue` with 'put_aio' and 'get_aio' functions.
 
     Parameters
     ----------
@@ -296,7 +296,7 @@ class Queue(mp.Queue):
     See Also
     --------
     multiprocessing.Queue
-        original class
+        the original class
     '''
 
     async def put_aio(self, obj, block : bool = True, timeout : float = None, aio_interval : float = 0.001):
