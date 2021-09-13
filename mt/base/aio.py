@@ -29,7 +29,6 @@ import json
 import asyncio
 import queue
 import multiprocessing as mp
-import threading as th
 import multiprocessing.queues as mq
 import aiofiles
 
@@ -362,7 +361,7 @@ class BgProcess:
         self.parent_pid = None
         self.child_process = mp.Process(target=self._worker_process)
         self.child_process.start()
-        self.thread_lock = th.Lock()
+        self.sending = False
 
     def __del__(self):
         self.close()
@@ -393,7 +392,12 @@ class BgProcess:
         RuntimeError
             if the child process is not alive while processing the message
         '''
-        with self.thread_lock: # to be thread-safe
+
+        while self.sending:
+            await asyncio.sleep(0) # yield control back to the event loop
+
+        try:
+            self.sending = True
             await qput_aio(self.msg_p2c, msg, timeout=send_timeout)
             retval = await qget_aio(self.msg_c2p, timeout=recv_timeout)
 
@@ -405,7 +409,8 @@ class BgProcess:
                         raise RuntimeError(retval[1])
                 else:
                     raise RuntimeError("Unexpected normal child exit while processing a message.")
-
+        finally:
+            self.sending = False
         return retval
 
     def child_handle_message(self, msg: object) -> object:
