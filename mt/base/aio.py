@@ -27,10 +27,10 @@ choice.
 import time
 import json
 import asyncio
-import aiofiles
 import queue
 import multiprocessing as mp
 import multiprocessing.queues as mq
+import aiofiles
 
 
 __all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'Queue', 'qput_aio', 'qget_aio', 'BgProcess']
