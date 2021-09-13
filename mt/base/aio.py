@@ -348,6 +348,10 @@ class BgProcess:
     You should subclass this class and implement :func:`child_handle_message`. See the docstring of the
     function below.
 
+    Notes
+    -----
+    In interactive mode, remember to delete any instance of the the class when you exit or else it
+    will not exit.
     '''
 
     def __init__(self):
