@@ -33,7 +33,7 @@ import multiprocessing as mp
 import multiprocessing.queues as mq
 
 
-__all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'Queue', 'BgProcess']
+__all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'Queue', 'qput_aio', 'qget_aio', 'BgProcess']
 
 
 def srun(asyn_func, *args, **kwargs) -> object:
@@ -286,79 +286,60 @@ async def json_save(filepath, obj, asyn: bool = True, **kwargs):
     await write_text(filepath, content, asyn=asyn)
 
 
-class Queue(mq.Queue):
-    '''A subclass of :class:`multiprocessing.queues.Queue` with 'put_aio' and 'get_aio' functions.
+async def qput_aio(q: mq.Queue, obj, block : bool = True, timeout : float = None, aio_interval : float = 0.001):
+    '''Puts obj into the queue q.
 
-    Parameters
-    ----------
-    maxsize : int, optional
-        maximum queue size
-
-    See Also
-    --------
-    multiprocessing.queues.Queue
-        the original class
-
-    Notes
-    -----
-    To perform asynchronous blocking, the functions `put_aio` and `get_aio` use asynchronous
-    polling of a given interval (default 1ms) specified by keyword parameters 'aio_interval'.
+    If the optional argument `block` is True (the default) and `timeout` is None (the default),
+    block asynchronously if necessary until a free slot is available. If timeout is a positive
+    number, it blocks asynchronously at most timeout seconds and raises the :class:`queue.Full`
+    exception if no free slot was available within that time. Otherwise (`block` is False),
+    put an item on the queue if a free slot is immediately available, else raise the
+    :class:`queue.Full` exception (timeout is ignored in that case).
     '''
 
-    async def put_aio(self, obj, block : bool = True, timeout : float = None, aio_interval : float = 0.001):
-        '''Puts obj into the queue.
+    if not block:
+        return q.put(obj, block=False)
 
-        If the optional argument `block` is True (the default) and `timeout` is None (the default),
-        block asynchronously if necessary until a free slot is available. If timeout is a positive
-        number, it blocks asynchronously at most timeout seconds and raises the :class:`queue.Full`
-        exception if no free slot was available within that time. Otherwise (`block` is False),
-        put an item on the queue if a free slot is immediately available, else raise the
-        :class:`queue.Full` exception (timeout is ignored in that case).
-        '''
-
-        if not block:
-            return self.put(obj, block=False)
-
-        if timeout is None:
-            while self.full():
-                await asyncio.sleep(aio_interval)
-            return self.put(obj, block=True)
-
-        cnt = int(timeout / aio_interval)+1
-        while cnt > 0:
-            if not self.full():
-                return self.put(obj, block=True)
+    if timeout is None:
+        while q.full():
             await asyncio.sleep(aio_interval)
-            cnt -= 1
-        raise queue.Full()
+        return q.put(obj, block=True)
+
+    cnt = int(timeout / aio_interval)+1
+    while cnt > 0:
+        if not q.full():
+            return q.put(obj, block=True)
+        await asyncio.sleep(aio_interval)
+        cnt -= 1
+    raise queue.Full()
 
 
-    async def get_aio(self, block : bool = True, timeout : float = None, aio_interval : float = 0.001):
-        '''Removes and returns an item from the queue.
+async def qget_aio(q: mq.Queue, block : bool = True, timeout : float = None, aio_interval : float = 0.001):
+    '''Removes and returns an item from the queue q.
 
-        If optional args `block` is True (the default) and `timeout` is None (the default), block
-        asynchronously if necessary until an item is available. If `timeout` is a positive number,
-        it blocks asynchronously at most timeout seconds and raises the :class:`queue.Empty`
-        exception if no item was available within that time. Otherwise (`block` is False), return
-        an item if one is immediately available, else raise the :class:`queue.Empty` exception
-        (`timeout` is ignored in that case).
-        '''
+    If optional args `block` is True (the default) and `timeout` is None (the default), block
+    asynchronously if necessary until an item is available. If `timeout` is a positive number,
+    it blocks asynchronously at most timeout seconds and raises the :class:`queue.Empty`
+    exception if no item was available within that time. Otherwise (`block` is False), return
+    an item if one is immediately available, else raise the :class:`queue.Empty` exception
+    (`timeout` is ignored in that case).
+    '''
 
-        if not block:
-            return self.get(block=False)
+    if not block:
+        return q.get(block=False)
 
-        if timeout is None:
-            while self.empty():
-                await asyncio.sleep(aio_interval)
-            return self.get(block=True)
-
-        cnt = int(timeout / aio_interval)+1
-        while cnt > 0:
-            if not self.empty():
-                return self.get(block=True)
+    if timeout is None:
+        while q.empty():
             await asyncio.sleep(aio_interval)
-            cnt -= 1
-        raise queue.Empty()
+        return q.get(block=True)
+
+    cnt = int(timeout / aio_interval)+1
+    while cnt > 0:
+        if not q.empty():
+            return q.get(block=True)
+        await asyncio.sleep(aio_interval)
+        cnt -= 1
+    raise queue.Empty()
 
 
 class BgProcess:
@@ -370,8 +351,8 @@ class BgProcess:
     '''
 
     def __init__(self):
-        self.msg_p2c = Queue()
-        self.msg_c2p = Queue()
+        self.msg_p2c = mp.Queue()
+        self.msg_c2p = mp.Queue()
         self.msg_cnt = 0
         self.parent_pid = None
         self.child_process = mp.Process(target=self._worker_process)
@@ -407,8 +388,8 @@ class BgProcess:
             if the child process is not alive while processing the message
         '''
 
-        await self.msg_p2c.put_aio(msg, timeout=send_timeout)
-        retval = await self.msg_c2p.get_aio(timeout=recv_timeout)
+        await qput_aio(self.msg_p2c, msg, timeout=send_timeout)
+        retval = await qget_aio(self.msg_c2p, timeout=recv_timeout)
 
         if isinstance(retval, tuple) and retval[0] == 'exit':
             if retval[1] is not None:
