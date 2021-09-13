@@ -29,10 +29,11 @@ import json
 import asyncio
 import aiofiles
 import queue
+import multiprocessing as mp
 import multiprocessing.queues as mq
 
 
-__all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'Queue']
+__all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'Queue', 'BgProcess']
 
 
 def srun(asyn_func, *args, **kwargs) -> object:
@@ -295,8 +296,13 @@ class Queue(mq.Queue):
 
     See Also
     --------
-    multiprocessing.Queue
+    multiprocessing.queues.Queue
         the original class
+
+    Notes
+    -----
+    To perform asynchronous blocking, the functions `put_aio` and `get_aio` use asynchronous
+    polling of a given interval (default 1ms) specified by keyword parameters 'aio_interval'.
     '''
 
     async def put_aio(self, obj, block : bool = True, timeout : float = None, aio_interval : float = 0.001):
@@ -353,3 +359,68 @@ class Queue(mq.Queue):
             await asyncio.sleep(aio_interval)
             cnt -= 1
         raise queue.Empty()
+
+
+class BgProcess:
+    '''Launches a background process that communicates with the foreground process via message passing only.
+
+    You should subclass this class and implement :func:`handle_message`. See the docstring of the
+    function below.
+
+    '''
+
+    def __init__(self):
+        self.msg_p2c = Queue()
+        self.msg_c2p = Queue()
+        self.msg_cnt = 0
+        self.parent_pid = None
+        self.child_process = mp.Process(target=self._worker_process)
+        self.child_process.start()
+
+    def __del__(self):
+        self.close()
+
+    def handle_message(self, msg: object) -> object:
+        '''Handles a message obtained from the queue.
+
+        It takes as input a message from the parent-to-child queue and processes the message.
+        Once done, it returns another message which will be placed into the child-to-parent
+        queue.
+
+        The message can be anything picklable and is usually a tuple. Special messages are
+        `('exit', None or Exception)` and `('ignored_exception', Exception)` must not be
+        returned as they interfere with the calling `_worker_process` internal function.
+
+        The user should override this function. The default behaviour is returning whatever
+        sent to it.
+        '''
+        return msg
+
+    def _worker_process(self):
+        import psutil
+        import queue
+
+        while True:
+          try:
+            if self.parent_pid is not None:
+                if not psutil.pid_exists(self.parent_pid):
+                    self.msg_c2p.put(('exit', RuntimeError('Parent does not exist.')))
+                    return
+
+            try:
+                msg = self.msg_p2c.get(block=True, timeout=1)
+            except queue.Empty:
+                continue
+
+            if msg == 'exit':
+                self.msg_c2p.put(('exit', None))
+                return
+
+            msg = self.handle_message(msg) # handle the message and return
+            self.msg_c2p.put(msg)
+          except KeyboardInterrupt as e:
+            self.msg_c2p.put(('ignored_exception', e))
+
+    def close(self):
+        self.msg_p2c.put('exit')
+
