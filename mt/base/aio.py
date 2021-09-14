@@ -410,15 +410,17 @@ class BgProcess:
             while True:
                 retval = await qget_aio(self.msg_c2p, timeout=recv_timeout)
                 if retval[0] != 'ignored_exception':
-                    continue
+                    break
             if retval[0] == 'exit':
                 if retval[1] is None:
                     raise RuntimeError("Child process died normally while parent process is expecting some message response.", msg)
                 else:
                     raise RuntimeError("Child process died abruptedly with an exception.", retval[1], msg)
+            if retval[0] == 'raised_exception':
+                raise RuntimeError("Child raised an exception while processing the message.", retval[1], retval[2])
         finally:
             self.sending = False
-        return retval
+        return retval[1]
 
     def child_handle_message(self, msg: object) -> object:
         '''Handles a message obtained from the queue.
@@ -426,23 +428,24 @@ class BgProcess:
         This function should only be called by the child process.
 
         It takes as input a message from the parent-to-child queue and processes the message.
-        Once done, it returns another message which will be placed into the child-to-parent
-        queue.
+        Once done, it returns an object which will be wrapped into a message and placed into the
+        child-to-parent queue.
 
-        Each message is a tuple, with the first component being a command or response string.
-        Special messages are `('exit', None or Exception)` and `('ignored_exception', Exception)`
-        must not be returned as they interfere with the calling `_worker_process` internal
-        function.
-
-        Otherwise, the output messages are `('returned', retval)` or a successful invocation
-        or `('raised_exception', Exception, input_message)` for an exception incurred in handling
-        the message. Sending a traceback is a pain so you should instead pass a logger to your
-        subclass.
+        An input message can be anything. Usually it is a tuple with the first component being
+        a command string. The output message can also be anything. If the handle succeeds,
+        the returning value is then wrapped into a `('returned', retval)` output message. If
+        an exception is raised, it is wrapped into a `('raised_exception', exc)` output message.
+        Sending a traceback is a pain so you should instead pass a logger to your subclass.
 
         The user should override this function. The default behaviour is returning whatever
         sent to it.
+
+        If KeyboardInterrupt is raised in the child process but outside this function, you will
+        get a `('ignored_exception', KeyboardInterrupt)` message. If the child process dies
+        you will get a `('exit', None or Exception)` message depending on whether the child process
+        dies normally or abruptedly.
         '''
-        return ('returned', msg)
+        return msg
 
     def _worker_process(self):
         import psutil
@@ -464,7 +467,8 @@ class BgProcess:
                 break
 
             try:
-                msg = self.child_handle_message(msg) # handle the message and return
+                retval = self.child_handle_message(msg) # handle the message and return
+                msg = ('returned', retval)
             except Exception as e:
                 msg = ('raised_exception', e, msg)
             self.msg_c2p.put(msg)
