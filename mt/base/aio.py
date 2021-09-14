@@ -374,7 +374,7 @@ class BgProcess:
     def __del__(self):
         self.close()
 
-    async def send(self, msg, recv_timeout : float = None, recv_aio_interval = 0.01):
+    async def send(self, msg, recv_timeout : float = None, recv_aio_interval = 0.001):
         '''Sends a message to the child process and awaits for the returning message.
 
         Parameters
