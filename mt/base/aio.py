@@ -374,21 +374,20 @@ class BgProcess:
     def __del__(self):
         self.close()
 
-    async def send(self, msg, send_timeout : float = None, recv_timeout : float = None):
+    async def send(self, msg, send_timeout : float = None, recv_timeout : float = None, recv_aio_interval = 0.001):
         '''Sends a message to the child process and awaits for the returning message.
 
         Parameters
         ----------
         msg : object
             message to be sent to the child process
-        send_timeout : float
-            If specified, the number of seconds to wait asynchronously while sending the message,
-            before raising a :class`queue.Full` exception. If not, asynchronously blocks until
-            the message is sent through.
         recv_timeout : float
             If specified, the number of seconds to wait asynchronously to receive the message,
             before raising a :class:`queue.Empty` exception. If not, asynchronously blocks until
             the message from the child process is received.
+        recv_aio_interval : float
+            time unit to simulate asynchronous blocking while waiting for message response. Default
+            is 1ms.
 
         Returns
         -------
@@ -406,7 +405,7 @@ class BgProcess:
 
         try:
             self.sending = True
-            await qput_aio(self.msg_p2c, msg, timeout=send_timeout)
+            self.msg_p2c.put_nowait(msg, timeout=send_timeout)
             while True:
                 retval = await qget_aio(self.msg_c2p, timeout=recv_timeout)
                 if retval[0] == 'ignored_exception':
@@ -469,7 +468,7 @@ class BgProcess:
                 self.prefix = prefix
 
             def write(self, text):
-                self.msg_c2p.put(('write', self.prefix, text))
+                self.msg_c2p.put_nowait(('write', self.prefix, text))
 
         sys.stderr = Writer(self.msg_c2p, 'stderr')
         sys.stdout = Writer(self.msg_c2p, 'stdout')
@@ -478,7 +477,7 @@ class BgProcess:
           try:
             if self.parent_pid is not None:
                 if not psutil.pid_exists(self.parent_pid):
-                    self.msg_c2p.put(('exit', RuntimeError('Parent does not exist.')))
+                    self.msg_c2p.put_nowait(('exit', RuntimeError('Parent does not exist.')))
                     return
 
             try:
@@ -494,15 +493,15 @@ class BgProcess:
                 msg = ('returned', retval)
             except Exception as e:
                 msg = ('raised_exception', e, msg)
-            self.msg_c2p.put(msg)
+            self.msg_c2p.put_nowait(msg)
           except KeyboardInterrupt as e:
-            self.msg_c2p.put(('ignored_exception', e))
+            self.msg_c2p.put_nowait(('ignored_exception', e))
           except Exception as e:
-            self.msg_c2p.put(('exit', e))
+            self.msg_c2p.put_nowait(('exit', e))
             return
 
-        self.msg_c2p.put(('exit', None))
+        self.msg_c2p.put_nowait(('exit', None))
 
     def close(self):
-        self.msg_p2c.put('exit')
+        self.msg_p2c.put_nowait('exit')
 
