@@ -32,7 +32,6 @@ import queue
 import multiprocessing as mp
 import multiprocessing.queues as mq
 import aiofiles
-import contextlib
 
 
 __all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'yield_control', 'qput_aio', 'qget_aio', 'BgProcess']
@@ -444,7 +443,9 @@ class BgProcess:
         Sending a traceback is a pain so you should instead pass a logger to your subclass.
 
         If the child process prints anything to stdout our stderr, it will be redirected as
-        `('write', 'stdout' or 'stderr', text)` in the output queue.
+        `('write', 'stdout' or 'stderr', text)` in the output queue. Note that for now only
+        Python-generated printouts can be redirected. Native printouts require more cumbersome
+        solutions. See: https://exceptionshub.com/python-multiprocessing-how-can-i-reliably-redirect-stdout-from-a-child-process-2.html
 
         The user should override this function. The default behaviour is returning whatever
         sent to it.
@@ -459,6 +460,7 @@ class BgProcess:
     def _worker_process(self):
         import psutil
         import queue
+        import sys
 
         class Writer:
 
@@ -469,8 +471,8 @@ class BgProcess:
             def write(self, text):
                 self.msg_c2p.put(('write', self.prefix, text))
 
-        stderr = Writer(self.msg_c2p, 'stderr')
-        stdout = Writer(self.msg_c2p, 'stdout')
+        sys.stderr = Writer(self.msg_c2p, 'stderr')
+        sys.stdout = Writer(self.msg_c2p, 'stdout')
 
         while True:
           try:
@@ -488,8 +490,7 @@ class BgProcess:
                 break
 
             try:
-                with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(stdout):
-                    retval = self.child_handle_message(msg) # handle the message and return
+                retval = self.child_handle_message(msg) # handle the message and return
                 msg = ('returned', retval)
             except Exception as e:
                 msg = ('raised_exception', e, msg)
