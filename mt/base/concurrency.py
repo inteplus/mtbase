@@ -582,7 +582,7 @@ def serial_work_generator(func, num_work_ids):
         yield func(work_id)
 
 
-async def aio_work_generator(func, num_work_ids, skip_null: bool = True, max_concurrency: int = 1024):
+async def aio_work_generator(func, num_work_ids, skip_null: bool = True, func_kwargs: dict = {}, max_concurrency: int = 1024):
     '''An asynchronous generator that does some works and yields the work results.
 
     This function uses asyncio to do works concurrently. The number of concurrent works is
@@ -593,12 +593,14 @@ async def aio_work_generator(func, num_work_ids, skip_null: bool = True, max_con
     ----------
     func : function
         a coroutine function (defined with 'async def') representing the work process. The function
-        takes as input a non-negative integer 'work_id' and returns some result in the form of
-        `(work_id, ...)` if successful else None.
+        takes as input a non-negative integer 'work_id' and optionally some keyword arguments. It
+        returns some result in the form of `(work_id, ...)` if successful else None.
     num_work_ids : int
         number of works to iterate over without using multiprocessing or multithreading.
     skip_null : bool, optional
         whether or not to skip the iteration that contains None as the work result.
+    func_kwargs : dict
+        additional keyword arguments to be passed to the function as-is
     max_concurrency : int
         the maximum number of concurrent works at any time, good for managing memory allocations.
         If None is given, all works will be scheduled to run at once.
@@ -609,7 +611,7 @@ async def aio_work_generator(func, num_work_ids, skip_null: bool = True, max_con
         an asynchronous generator yielding each result in the form `(work_id, ...)`
     '''
 
-    coros = [func(work_id) for work_id in range(num_work_ids)]
+    coros = [func(work_id, **func_kwargs) for work_id in range(num_work_ids)]
 
     if max_concurrency is None:
         for coro in asyncio.as_completed(coros):
