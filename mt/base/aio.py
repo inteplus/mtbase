@@ -32,6 +32,7 @@ import queue
 import multiprocessing as mp
 import multiprocessing.queues as mq
 import aiofiles
+import contextlib
 
 
 __all__ = ['srun', 'arun', 'arun2', 'sleep', 'read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'yield_control', 'qput_aio', 'qget_aio', 'BgProcess']
@@ -409,8 +410,13 @@ class BgProcess:
             await qput_aio(self.msg_p2c, msg, timeout=send_timeout)
             while True:
                 retval = await qget_aio(self.msg_c2p, timeout=recv_timeout)
-                if retval[0] != 'ignored_exception':
-                    break
+                if retval[0] == 'ignored_exception':
+                    continue
+                if retval[0] == 'write': # child printing something
+                    for line in retval[2].splitlines():
+                        print("BgProcess ({}): {}".format(retval[1], line))
+                    continue
+                break
             if retval[0] == 'exit':
                 if retval[1] is None:
                     raise RuntimeError("Child process died normally while parent process is expecting some message response.", msg)
@@ -437,6 +443,9 @@ class BgProcess:
         an exception is raised, it is wrapped into a `('raised_exception', exc)` output message.
         Sending a traceback is a pain so you should instead pass a logger to your subclass.
 
+        If the child process prints anything to stdout our stderr, it will be redirected as
+        `('write', 'stdout' or 'stderr', text)` in the output queue.
+
         The user should override this function. The default behaviour is returning whatever
         sent to it.
 
@@ -450,6 +459,18 @@ class BgProcess:
     def _worker_process(self):
         import psutil
         import queue
+
+        class Writer:
+
+            def __init__(self, msg_c2p, prefix):
+                self.msg_c2p = msg_c2p
+                self.prefix = prefix
+
+            def write(self, text):
+                self.msg_c2p.put(('write', self.prefix, text))
+
+        stderr = Writer(self.msg_c2p, 'stderr')
+        stdout = Writer(self.msg_c2p, 'stdout')
 
         while True:
           try:
@@ -467,7 +488,8 @@ class BgProcess:
                 break
 
             try:
-                retval = self.child_handle_message(msg) # handle the message and return
+                with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(stdout):
+                    retval = self.child_handle_message(msg) # handle the message and return
                 msg = ('returned', retval)
             except Exception as e:
                 msg = ('raised_exception', e, msg)
