@@ -407,16 +407,15 @@ class BgProcess:
         try:
             self.sending = True
             await qput_aio(self.msg_p2c, msg, timeout=send_timeout)
-            retval = await qget_aio(self.msg_c2p, timeout=recv_timeout)
-
-            if isinstance(retval, tuple) and retval[0] == 'exit':
-                if retval[1] is not None:
-                    if isinstance(retval[1], Exception):
-                        raise retval[1]
-                    else:
-                        raise RuntimeError(retval[1])
+            while True:
+                retval = await qget_aio(self.msg_c2p, timeout=recv_timeout)
+                if retval[0] != 'ignored_exception':
+                    continue
+            if retval[0] == 'exit':
+                if retval[1] is None:
+                    raise RuntimeError("Child process died normally while parent process is expecting some message response.", msg)
                 else:
-                    raise RuntimeError("Unexpected normal child exit while processing a message.")
+                    raise RuntimeError("Child process died abruptedly with an exception.", retval[1], msg)
         finally:
             self.sending = False
         return retval
@@ -436,8 +435,9 @@ class BgProcess:
         function.
 
         Otherwise, the output messages are `('returned', retval)` or a successful invocation
-        or `('raised_exception', Exception)` for an exception incurred in handling the message.
-        Sending a traceback is a pain so you should instead pass a logger to your subclass.
+        or `('raised_exception', Exception, input_message)` for an exception incurred in handling
+        the message. Sending a traceback is a pain so you should instead pass a logger to your
+        subclass.
 
         The user should override this function. The default behaviour is returning whatever
         sent to it.
@@ -465,10 +465,8 @@ class BgProcess:
 
             try:
                 msg = self.child_handle_message(msg) # handle the message and return
-            except KeyboardInterrupt as e:
-                msg = ('ignored_exception', e)
             except Exception as e:
-                msg = ('raised_exception', e)
+                msg = ('raised_exception', e, msg)
             self.msg_c2p.put(msg)
           except KeyboardInterrupt as e:
             self.msg_c2p.put(('ignored_exception', e))
