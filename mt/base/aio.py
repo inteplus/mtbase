@@ -27,6 +27,7 @@ choice.
 import time
 import json
 import asyncio
+import os
 import queue
 import multiprocessing as mp
 import multiprocessing.queues as mq
@@ -365,7 +366,7 @@ class BgProcess:
         self.msg_p2c = mp.Queue()
         self.msg_c2p = mp.Queue()
         self.msg_cnt = 0
-        self.parent_pid = None
+        self.parent_pid = os.getpid()
         self.child_process = mp.Process(target=self._worker_process)
         self.child_process.start()
         self.sending = False
