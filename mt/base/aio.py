@@ -374,7 +374,7 @@ class BgProcess:
     def __del__(self):
         self.close()
 
-    async def send(self, msg, send_timeout : float = None, recv_timeout : float = None, recv_aio_interval = 0.001):
+    async def send(self, msg, recv_timeout : float = None, recv_aio_interval = 0.01):
         '''Sends a message to the child process and awaits for the returning message.
 
         Parameters
@@ -405,9 +405,9 @@ class BgProcess:
 
         try:
             self.sending = True
-            self.msg_p2c.put_nowait(msg, timeout=send_timeout)
+            self.msg_p2c.put_nowait(msg)
             while True:
-                retval = await qget_aio(self.msg_c2p, timeout=recv_timeout)
+                retval = await qget_aio(self.msg_c2p, timeout=recv_timeout, aio_interval=recv_aio_interval)
                 if retval[0] == 'ignored_exception':
                     continue
                 if retval[0] == 'write': # child printing something
