@@ -430,14 +430,19 @@ class BgProcess:
         Once done, it returns another message which will be placed into the child-to-parent
         queue.
 
-        The message can be anything picklable and is usually a tuple. Special messages are
-        `('exit', None or Exception)` and `('ignored_exception', Exception)` must not be
-        returned as they interfere with the calling `_worker_process` internal function.
+        Each message is a tuple, with the first component being a command or response string.
+        Special messages are `('exit', None or Exception)` and `('ignored_exception', Exception)`
+        must not be returned as they interfere with the calling `_worker_process` internal
+        function.
+
+        Otherwise, the output messages are `('returned', retval)` or a successful invocation
+        or `('raised_exception', Exception)` for an exception incurred in handling the message.
+        Sending a traceback is a pain so you should instead pass a logger to your subclass.
 
         The user should override this function. The default behaviour is returning whatever
         sent to it.
         '''
-        return msg
+        return ('returned', msg)
 
     def _worker_process(self):
         import psutil
@@ -456,13 +461,22 @@ class BgProcess:
                 continue
 
             if msg == 'exit':
-                self.msg_c2p.put(('exit', None))
-                return
+                break
 
-            msg = self.child_handle_message(msg) # handle the message and return
+            try:
+                msg = self.child_handle_message(msg) # handle the message and return
+            except KeyboardInterrupt as e:
+                msg = ('ignored_exception', e)
+            except Exception as e:
+                msg = ('raised_exception', e)
             self.msg_c2p.put(msg)
           except KeyboardInterrupt as e:
             self.msg_c2p.put(('ignored_exception', e))
+          except Exception as e:
+            self.msg_c2p.put(('exit', e))
+            return
+
+        self.msg_c2p.put(('exit', None))
 
     def close(self):
         self.msg_p2c.put('exit')
