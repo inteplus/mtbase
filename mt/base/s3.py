@@ -111,7 +111,7 @@ async def create_s3_client(profile = None, asyn: bool = True) -> Union[aiobotoco
     s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
         the s3 client that matches with the 'asyn' keyword argument below
     '''
-    session = get_session(profile=profile, context_vars=context_vars)
+    session = get_session(profile=profile, asyn=asyn)
     config = botocore.config.Config(max_pool_connections=20)
     if asyn:
         async with session.create_client('s3', config=config) as s3_client:
