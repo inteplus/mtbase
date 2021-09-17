@@ -27,15 +27,16 @@ __all__ = ['exists_asyn', 'exists_timeout', 'remove_asyn', 'remove', 'make_dirs'
 _path_lock = Lock()
 
 
-async def exists_asyn(path: Union[Path, str], asyn: bool = True):
+async def exists_asyn(path: Union[Path, str], context_vars: dict = {}):
     '''An asyn function that checks if a path exists, regardless of it being a file or a folder.
 
     Parameters
     ----------
     path : str
         a path to a link, a file or a directory
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
 
     Returns
     -------
@@ -46,7 +47,7 @@ async def exists_asyn(path: Union[Path, str], asyn: bool = True):
     -----
     Just like :func:`os.path.exists`. The function returns False for broken symbolic links.
     '''
-    if not asyn:
+    if not context_vars['async']:
         return exists(path)
 
     try:
@@ -80,12 +81,12 @@ async def exists_timeout(path: Union[Path, str], timeout: float = 1.0):
     -----
     Just like :func:`os.path.exists`. The function returns False for broken symbolic links.
     '''
-    task = asyncio.ensure_future(exists_asyn(path, asyn=True))
+    task = asyncio.ensure_future(exists_asyn(path, context_vars={'async': True}))
     retval = await asyncio.wait_for(task, timeout=timeout)
     return retval
 
 
-async def remove_asyn(path: Union[Path, str], asyn: bool = True):
+async def remove_asyn(path: Union[Path, str], context_vars: dict = {}):
     '''An asyn function that removes a path completely, regardless of it being a file or a folder.
 
     If the path does not exist, do nothing.
@@ -94,14 +95,15 @@ async def remove_asyn(path: Union[Path, str], asyn: bool = True):
     ----------
     path : str
         a path to a link, a file or a directory
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
     '''
     with _path_lock:
         if islink(path):
             _os.unlink(path)
         elif isfile(path):
-            if asyn:
+            if context_vars['async']:
                 await aiofiles.os.remove(path)
             else:
                 _os.remove(path)
@@ -199,7 +201,7 @@ lock.__locks = {}
 lock.__cleanup_cnt = 0
 
 
-async def rename_asyn(src: Union[Path, str], dst: Union[Path, str], asyn: bool = True):
+async def rename_asyn(src: Union[Path, str], dst: Union[Path, str], context_vars: dict = {}):
     '''An asyn function that renames a file or a directory.
 
     Parameters
@@ -208,11 +210,12 @@ async def rename_asyn(src: Union[Path, str], dst: Union[Path, str], asyn: bool =
         path to the source file or directory
     dst : path
         new name also as a path
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
     '''
 
-    if asyn:
+    if context_vars['async']:
         retval = await aiofiles.os.rename(src, dst)
         return retval
 
@@ -233,7 +236,7 @@ def rename(src: Union[Path, str], dst: Union[Path, str]):
     return srun(rename_asyn, src, dst)
 
 
-async def stat_asyn(path: Union[Path, str], dir_fd=None, follow_symlinks=True, asyn: bool = True):
+async def stat_asyn(path: Union[Path, str], dir_fd=None, follow_symlinks=True, context_vars: dict = {}):
     '''An asyn function that performs a stat system call on the given path.
 
     Parameters
@@ -246,8 +249,9 @@ async def stat_asyn(path: Union[Path, str], dir_fd=None, follow_symlinks=True, a
     follow_symlinks : bool
         If False, and the last element of the path is a symbolic link, stat will examine the
         symbolic link itself instead of the file the link points to.
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
 
     Returns
     -------
@@ -262,7 +266,7 @@ async def stat_asyn(path: Union[Path, str], dir_fd=None, follow_symlinks=True, a
     It's an error to use dir_fd or follow_symlinks when specifying path as an open file descriptor.
     '''
 
-    if asyn:
+    if context_vars['async']:
         retval = await aiofiles.os.stat(path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
         return retval
 

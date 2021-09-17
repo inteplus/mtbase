@@ -111,7 +111,7 @@ async def create_s3_client(profile = None, asyn: bool = True) -> Union[aiobotoco
     s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
         the s3 client that matches with the 'asyn' keyword argument below
     '''
-    session = get_session(profile=profile, asyn=asyn)
+    session = get_session(profile=profile, context_vars=context_vars)
     config = botocore.config.Config(max_pool_connections=20)
     if asyn:
         async with session.create_client('s3', config=config) as s3_client:
@@ -144,7 +144,7 @@ async def create_context_vars(profile = None, asyn: bool = False):
         yield context_vars
 
 
-async def list_objects(s3cmd_url: str, show_progress=False, asyn: bool = True, context_vars: dict = {}):
+async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict = {}):
     '''An asyn function that lists all objects prefixed with a given s3cmd url.
 
     Parameters
@@ -153,12 +153,11 @@ async def list_objects(s3cmd_url: str, show_progress=False, asyn: bool = True, c
         an s3cmd_url in the form 's3://bucket[/prefix]'
     show_progress : bool
         show a progress spinner in the terminal
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
     context_vars : dict
-        dictionary of context variables with which the function runs. Variable 's3_client' must
-        exist and hold an enter-result of an async with statement invoking
-        :func:`create_s3_client`.
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        In addition, variable 's3_client' must exist and hold an enter-result of an async with
+        statement invoking :func:`mt.base.s3.create_s3_client`.
 
     Returns
     -------
@@ -175,7 +174,7 @@ async def list_objects(s3cmd_url: str, show_progress=False, asyn: bool = True, c
         if show_progress:
             spinner = Halo("listing objects at '{}'".format(s3cmd_url), spinner='dots')
             spinner.start()
-        if asyn:
+        if context_vars['async']:
             async for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
                 new_list = result.get('Contents', None)
                 if new_list is None:
@@ -196,19 +195,18 @@ async def list_objects(s3cmd_url: str, show_progress=False, asyn: bool = True, c
     return retval
 
 
-async def list_object_info(s3cmd_url: str, asyn: bool = True, context_vars: dict = {}):
+async def list_object_info(s3cmd_url: str, context_vars: dict = {}):
     '''An asyn function that lists basic information of the object at a given s3cmd url.
 
     Parameters
     ----------
     s3cmd_url : str
         an s3cmd_url in the form 's3://bucket[/prefix]'
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
     context_vars : dict
-        dictionary of context variables with which the function runs. Variable 's3_client' must
-        exist and hold an enter-result of an async with statement invoking
-        :func:`create_s3_client`.
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        In addition, variable 's3_client' must exist and hold an enter-result of an async with
+        statement invoking :func:`mt.base.s3.create_s3_client`.
 
     Returns
     -------
@@ -221,7 +219,7 @@ async def list_object_info(s3cmd_url: str, asyn: bool = True, context_vars: dict
     s3_client = context_vars['s3_client']
     paginator = s3_client.get_paginator('list_objects_v2')
     try:
-        if asyn:
+        if context_vars['async']:
             async for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
                 new_list = result.get('Contents', None)
                 if new_list is None:
@@ -244,7 +242,7 @@ async def list_object_info(s3cmd_url: str, asyn: bool = True, context_vars: dict
     return None
 
 
-async def get_object(s3cmd_url: str, show_progress: bool = False, asyn: bool = True, context_vars: dict = {}):
+async def get_object(s3cmd_url: str, show_progress: bool = False, context_vars: dict = {}):
     '''An asyn function that gets the content of a given s3cmd url.
 
     Parameters
@@ -253,12 +251,11 @@ async def get_object(s3cmd_url: str, show_progress: bool = False, asyn: bool = T
         an s3cmd_url in the form 's3://bucket[/prefix]'
     show_progress : bool
         show a progress spinner in the terminal
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
     context_vars : dict
-        dictionary of context variables with which the function runs. Variable 's3_client' must
-        exist and hold an enter-result of an async with statement invoking
-        :func:`create_s3_client`.
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        In addition, variable 's3_client' must exist and hold an enter-result of an async with
+        statement invoking :func:`mt.base.s3.create_s3_client`.
 
     Returns
     -------
@@ -271,7 +268,7 @@ async def get_object(s3cmd_url: str, show_progress: bool = False, asyn: bool = T
     if show_progress:
         spinner = Halo("getting object '{}'".format(s3cmd_url), spinner='dots')
         spinner.start()
-    if asyn:
+    if context_vars['async']:
         response = await s3_client.get_object(Bucket=bucket, Key=prefix)
         # this will ensure the connection is correctly re-used/closed
         async with response['Body'] as stream:
@@ -284,19 +281,18 @@ async def get_object(s3cmd_url: str, show_progress: bool = False, asyn: bool = T
     return data
 
 
-async def get_object_acl(s3cmd_url: str, asyn: bool = True, context_vars: dict = {}):
+async def get_object_acl(s3cmd_url: str, context_vars: dict = {}):
     '''An asyn function that gets the object properties of a given s3cmd url.
 
     Parameters
     ----------
     s3cmd_url : str
         an s3cmd_url in the form 's3://bucket[/prefix]'
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
     context_vars : dict
-        dictionary of context variables with which the function runs. Variable 's3_client' must
-        exist and hold an enter-result of an async with statement invoking
-        :func:`create_s3_client`.
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        In addition, variable 's3_client' must exist and hold an enter-result of an async with
+        statement invoking :func:`mt.base.s3.create_s3_client`.
 
     Returns
     -------
@@ -306,14 +302,14 @@ async def get_object_acl(s3cmd_url: str, asyn: bool = True, context_vars: dict =
 
     bucket, prefix = split(s3cmd_url)
     s3_client = context_vars['s3_client']
-    if asyn:
+    if context_vars['async']:
         response = await s3_client.get_object_acl(Bucket=bucket, Key=prefix)
     else:
         response = s3_client.get_object_acl(Bucket=bucket, Key=prefix)
     return response
 
 
-async def put_object(s3cmd_url: str, data: bytes, show_progress: bool = False, asyn: bool = True, context_vars: dict = {}):
+async def put_object(s3cmd_url: str, data: bytes, show_progress: bool = False, context_vars: dict = {}):
     '''An asyn function that puts some content to given s3cmd url.
 
     Parameters
@@ -324,12 +320,11 @@ async def put_object(s3cmd_url: str, data: bytes, show_progress: bool = False, a
          the content to be uploaded
     show_progress : bool
         show a progress spinner in the terminal
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
     context_vars : dict
-        dictionary of context variables with which the function runs. Variable 's3_client' must
-        exist and hold an enter-result of an async with statement invoking
-        :func:`create_s3_client`.
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        In addition, variable 's3_client' must exist and hold an enter-result of an async with
+        statement invoking :func:`mt.base.s3.create_s3_client`.
 
     Returns
     -------
@@ -342,7 +337,7 @@ async def put_object(s3cmd_url: str, data: bytes, show_progress: bool = False, a
     if show_progress:
         spinner = Halo("putting object '{}'".format(s3cmd_url), spinner='dots')
         spinner.start()
-    if asyn:
+    if context_vars['async']:
         await s3_client.put_object(Bucket=bucket, Key=prefix, Body=data)
     else:
         s3_client.put_object(Bucket=bucket, Key=prefix, Body=data)
@@ -351,19 +346,18 @@ async def put_object(s3cmd_url: str, data: bytes, show_progress: bool = False, a
     return data
 
 
-async def delete_object(s3cmd_url: str, asyn: bool = True, context_vars: dict = {}):
+async def delete_object(s3cmd_url: str, context_vars: dict = {}):
     '''An asyn function that deletes a given s3cmd url.
 
     Parameters
     ----------
     s3cmd_url : str
         an s3cmd_url in the form 's3://bucket[/prefix]'
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
     context_vars : dict
-        dictionary of context variables with which the function runs. Variable 's3_client' must
-        exist and hold an enter-result of an async with statement invoking
-        :func:`create_s3_client`.
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        In addition, variable 's3_client' must exist and hold an enter-result of an async with
+        statement invoking :func:`mt.base.s3.create_s3_client`.
 
     Returns
     -------
@@ -373,14 +367,14 @@ async def delete_object(s3cmd_url: str, asyn: bool = True, context_vars: dict = 
 
     bucket, prefix = split(s3cmd_url)
     s3_client = context_vars['s3_client']
-    if asyn:
+    if context_vars['async']:
         response = await s3_client.delete_object(Bucket=bucket, Key=prefix)
     else:
         response = s3_client.delete_object(Bucket=bucket, Key=prefix)
     return response
 
 
-async def put_files(bucket: str, filepath2key_map: dict, show_progress: bool = False, asyn: bool = True, context_vars: dict = {}):
+async def put_files(bucket: str, filepath2key_map: dict, show_progress: bool = False, context_vars: dict = {}):
     '''An asyn function that uploads many files to the same S3 bucket.
 
     In asynchronous mode, the files are uploaded concurrently. In synchronous mode, the files are
@@ -402,23 +396,22 @@ async def put_files(bucket: str, filepath2key_map: dict, show_progress: bool = F
         upload to in the S3 bucket
     show_progress : bool
         show a progress bar in the terminal
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
     context_vars : dict
-        dictionary of context variables with which the function runs. Variable 's3_client' must
-        exist and hold an enter-result of an async with statement invoking
-        :func:`create_s3_client`.
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        In addition, variable 's3_client' must exist and hold an enter-result of an async with
+        statement invoking :func:`mt.base.s3.create_s3_client`.
     '''
 
-    async def process_item(filepath, bucket, key, progress_bar, asyn: bool = True, context_vars: dict = {}):
+    async def process_item(filepath, bucket, key, progress_bar, context_vars: dict = {}):
         s3cmd_url = join(bucket, key)
-        data = await read_binary(filepath, asyn=asyn)
-        await put_object(s3cmd_url, data, show_progress=False, asyn=asyn, context_vars=context_vars)
+        data = await read_binary(filepath, context_vars=context_vars)
+        await put_object(s3cmd_url, data, show_progress=False, context_vars=context_vars)
         if isinstance(progress_bar, tqdm):
             progress_bar.update()
 
     with tqdm(total=len(filepath2key_map), unit='file') if show_progress else dummy_scope as progress_bar:
-        if asyn:
+        if context_vars['async']:
             coros = [process_item(filepath, bucket, key, progress_bar, context_vars=context_vars) for filepath, key in filepath2key_map.items()]
             await asyncio.gather(*coros)
         else:
@@ -444,9 +437,10 @@ def put_files_boto3(bucket: str, filepath2key_map: dict, show_progress: bool = F
     show_progress : bool
         show a progress bar in the terminal
     context_vars : dict
-        dictionary of context variables with which the function runs. Variable 's3_client' must
-        exist and hold an enter-result of an async with statement invoking
-        :func:`create_s3_client`.
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        In addition, variable 's3_client' must exist and hold an enter-result of an async with
+        statement invoking :func:`mt.base.s3.create_s3_client`.
     '''
 
     import boto3.s3.transfer as s3transfer

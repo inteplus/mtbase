@@ -1,8 +1,6 @@
 '''Useful asyn functions dealing with files.'''
 
 
-from typing import Union
-
 import json
 import tempfile
 import aiofiles
@@ -13,7 +11,7 @@ from ..contextlib import asynccontextmanager
 __all__ = ['read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'mkdtemp']
 
 
-async def read_binary(filepath, size: int = None, asyn: bool = True) -> bytes:
+async def read_binary(filepath, size: int = None, context_vars : dict = {}) -> bytes:
     '''An asyn function that opens a binary file and reads the content.
 
     Parameters
@@ -23,8 +21,9 @@ async def read_binary(filepath, size: int = None, asyn: bool = True) -> bytes:
     size : int
         size to read from the beginning of the file, in bytes. If None is given, read the whole
         file.
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
 
     Returns
     -------
@@ -32,7 +31,7 @@ async def read_binary(filepath, size: int = None, asyn: bool = True) -> bytes:
         the content read from file
     '''
 
-    if asyn:
+    if context_vars['async']:
         async with aiofiles.open(filepath, mode='rb') as f:
             return await f.read(size)
     else:
@@ -40,7 +39,7 @@ async def read_binary(filepath, size: int = None, asyn: bool = True) -> bytes:
             return f.read(size)
 
 
-async def write_binary(filepath, buf: bytes, asyn: bool = True):
+async def write_binary(filepath, buf: bytes, context_vars : dict = {}):
     '''An asyn function that creates a binary file and writes the content.
 
     Parameters
@@ -49,11 +48,12 @@ async def write_binary(filepath, buf: bytes, asyn: bool = True):
         path to the file
     buf : bytes
         data (in bytes) to be written to the file
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
     '''
 
-    if asyn:
+    if context_vars['async']:
         async with aiofiles.open(filepath, mode='wb') as f:
             return await f.write(buf)
     else:
@@ -61,7 +61,7 @@ async def write_binary(filepath, buf: bytes, asyn: bool = True):
             return f.write(buf)
 
 
-async def read_text(filepath, size: int = None, asyn: bool = True) -> str:
+async def read_text(filepath, size: int = None, context_vars : dict = {}) -> str:
     '''An asyn function that opens a text file and reads the content.
 
     Parameters
@@ -71,8 +71,9 @@ async def read_text(filepath, size: int = None, asyn: bool = True) -> str:
     size : int
         size to read from the beginning of the file, in bytes. If None is given, read the whole
         file.
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
 
     Returns
     -------
@@ -80,7 +81,7 @@ async def read_text(filepath, size: int = None, asyn: bool = True) -> str:
         the content read from file
     '''
 
-    if asyn:
+    if context_vars['async']:
         async with aiofiles.open(filepath, mode='rt') as f:
             return await f.read(size)
     else:
@@ -88,7 +89,7 @@ async def read_text(filepath, size: int = None, asyn: bool = True) -> str:
             return f.read(size)
 
 
-async def write_text(filepath, buf: str, asyn: bool = True):
+async def write_text(filepath, buf: str, context_vars : dict = {}):
     '''An asyn function that creates a text file and writes the content.
 
     Parameters
@@ -97,11 +98,12 @@ async def write_text(filepath, buf: str, asyn: bool = True):
         path to the file
     buf : str
         data (in bytes) to be written to the file
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
     '''
 
-    if asyn:
+    if context_vars['async']:
         async with aiofiles.open(filepath, mode='wt') as f:
             return await f.write(buf)
     else:
@@ -109,15 +111,16 @@ async def write_text(filepath, buf: str, asyn: bool = True):
             return f.write(buf)
 
 
-async def json_load(filepath, asyn: bool = True, **kwargs):
+async def json_load(filepath, context_vars : dict = {}, **kwargs):
     '''An asyn function that loads the json-like object of a file.
 
     Parameters
     ----------
     filepath : str
         path to the file
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
     kwargs : dict
         keyword arguments passed as-is to :func:`json.loads`
 
@@ -127,11 +130,11 @@ async def json_load(filepath, asyn: bool = True, **kwargs):
         the loaded json-like object
     '''
 
-    content = await read_text(filepath, asyn=asyn)
+    content = await read_text(filepath, context_vars=context_vars)
     return json.loads(content, **kwargs)
 
 
-async def json_save(filepath, obj, asyn: bool = True, **kwargs):
+async def json_save(filepath, obj, context_vars : dict = {}, **kwargs):
     '''An asyn function that saves a json-like object to a file.
 
     Parameters
@@ -140,24 +143,26 @@ async def json_save(filepath, obj, asyn: bool = True, **kwargs):
         path to the file
     obj : object
         json-like object to be written to the file
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
     kwargs : dict
         keyword arguments passed as-is to :func:`json.dumps`
     '''
 
     content = json.dumps(obj, **kwargs)
-    await write_text(filepath, content, asyn=asyn)
+    await write_text(filepath, content, context_vars=context_vars)
 
 
 @asynccontextmanager
-async def mkdtemp(asyn: bool = True):
+async def mkdtemp(context_vars : dict = {}):
     '''An asyn context manager that opens and creates a temporary directory.
 
     Parameters
     ----------
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
 
     Returns
     -------
@@ -165,7 +170,7 @@ async def mkdtemp(asyn: bool = True):
         the context manager whose enter-value is a string containing the temporary dirpath.
     '''
 
-    if asyn:
+    if context_vars['async']:
         async with aiofiles.tempfile.TemporaryDirectory() as tmpdir:
             yield tmpdir
     else:

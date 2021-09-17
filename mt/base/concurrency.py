@@ -643,7 +643,7 @@ async def aio_work_generator(func, num_work_ids, skip_null: bool = True, func_kw
                     yield result
 
 
-async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: list = [], func_kwargs: dict = {}, context_id = None, work_id_list: list = [], max_concurrency: int = 1024, asyn: bool = True, context_vars: dict = {}):
+async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: list = [], func_kwargs: dict = {}, context_id = None, work_id_list: list = [], max_concurrency: int = 1024, context_vars: dict = {}):
     '''Invokes the same asyn function with different work ids concurrently and asynchronously, in a given context.
 
     Parameters
@@ -653,9 +653,8 @@ async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: 
         notes below.
     func : function
         an asyn function that may return something and may raise an Exception. The function must
-        have the first argument being the work id, and must accept keyword argument 'asyn' and
-        'context_vars'. The context variables are automatically created via invoking
-        :func:`mt.base.s3.create_context_vars` and passed to the function.
+        have the first argument being the work id. The context variables provided to the function
+        are automatically created via invoking :func:`mt.base.s3.create_context_vars`.
     func_args : list
         additional positional arguments to be passed to the function as-is
     func_kwargs : dict
@@ -670,10 +669,11 @@ async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: 
     asyn : bool
         whether the asyn function is to be invoked asynchronously or synchronously
     context_vars : dict
-        dictionary of context variables with which the function runs. Variable 's3_client' must
-        exist and hold an enter-result of an async with statement invoking
-        :func:`mt.base.s3.create_s3_client`. In asynchronous mode, variable 'http_session' must
-        exist and hold an enter-result of an async with statement invoking
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        In addition, variable 's3_client' must exist and hold an enter-result of an async with
+        statement invoking :func:`mt.base.s3.create_s3_client`. In asynchronous mode, variable
+        'http_session' must exist and hold an enter-result of an async with statement invoking
         :func:`mt.base.http.create_http_session`. You can use
         :func:`mt.base.s3.create_context_vars` to create a dictionary like this.
 
@@ -702,11 +702,11 @@ async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: 
 
     import asyncio
     keyboard_interrupted = False
-    
+
     if max_concurrency is None:
         task_map = {}
         for work_id in work_id_list:
-            task = asyncio.ensure_future(func(work_id, *func_args, asyn=asyn, context_vars=context_vars, **func_kwargs))
+            task = asyncio.ensure_future(func(work_id, *func_args, context_vars=context_vars, **func_kwargs))
             progress_queue.put_nowait((context_id, 'task_scheduled', work_id))
             task_map[task] = work_id
 
@@ -734,7 +734,7 @@ async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: 
                     if keyboard_interrupted:
                         progress_queue.put_nowait((context_id, 'task_cancelled', work_id))
                     else:
-                        task = asyncio.ensure_future(func(work_id, *func_args, asyn=asyn, context_vars=context_vars, **func_kwargs))
+                        task = asyncio.ensure_future(func(work_id, *func_args, context_vars=context_vars, **func_kwargs))
                         progress_queue.put_nowait((context_id, 'task_scheduled', work_id))
                         cur_task_map[task] = work_id
                 cur_pos += spare
@@ -762,9 +762,8 @@ async def asyn_work_generator(func, func_args: list = [], func_kwargs: dict = {}
     ----------
     func : function
         an asyn function that may return something and may raise an Exception. The function must
-        have the first argument being the work id, and must accept keyword argument 'asyn' and
-        'context_vars'. The context variables are automatically created via invoking
-        :func:`mt.base.s3.create_context_vars` and passed to the function.
+        have the first argument being the work id. The context variables provided to the function
+        are automatically created via invoking :func:`mt.base.s3.create_context_vars`.
     func_args : list
         additional positional arguments to be passed to the function as-is
     func_kwargs : dict
@@ -818,7 +817,6 @@ async def asyn_work_generator(func, func_args: list = [], func_kwargs: dict = {}
                     context_id=context_id,
                     work_id_list=work_id_list,
                     max_concurrency=max_concurrency,
-                    asyn=True,
                     context_vars=context_vars,
                 )
             return content

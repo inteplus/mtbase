@@ -1,7 +1,6 @@
 '''Useful subroutines dealing with downloading http files.'''
 
 
-from typing import Optional
 import aiohttp
 import requests
 
@@ -35,7 +34,7 @@ async def create_http_session(asyn: bool = True):
         yield None
 
 
-async def download(url, asyn: bool = True, context_vars: dict = {}):
+async def download(url, context_vars: dict = {}):
     '''An asyn function that opens a binary file and reads the content.
 
     Parameters
@@ -45,9 +44,10 @@ async def download(url, asyn: bool = True, context_vars: dict = {}):
     asyn : bool
         whether the function is to be invoked asynchronously or synchronously
     context_vars : dict
-        dictionary of context variables with which the function runs. In asynchronous mode,
-        variable 'http_session' must exist and hold an enter-result of an async with statement
-        invoking :func:`create_http_session`.
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        In asynchronous mode, variable 'http_session' must exist and hold an enter-result of an
+        async with statement invoking :func:`create_http_session`.
 
     Returns
     -------
@@ -60,7 +60,7 @@ async def download(url, asyn: bool = True, context_vars: dict = {}):
         if there is a problem downloading
     '''
 
-    if not asyn:
+    if not context_vars['async']:
         return requests.get(url).content
 
     http_session = context_vars['http_session']
@@ -74,7 +74,7 @@ async def download(url, asyn: bool = True, context_vars: dict = {}):
     return content
 
 
-async def download_and_chmod(url, filepath, file_mode=0o664, asyn: bool = True, context_vars: dict = {}):
+async def download_and_chmod(url, filepath, file_mode=0o664, context_vars: dict = {}):
     '''An asyn function that downloads an http or https url as binary to a file with predefined permissions.
 
     Parameters
@@ -85,29 +85,28 @@ async def download_and_chmod(url, filepath, file_mode=0o664, asyn: bool = True, 
        file location to save the content to
     file_mode : int
         to be passed directly to `os.chmod()` if not None
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
     context_vars : dict
-        dictionary of context variables with which the function runs. In asynchronous mode,
-        variable 'http_session' must exist and hold an enter-result of an async with statement
-        invoking :func:`create_http_session`.
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        In asynchronous mode, variable 'http_session' must exist and hold an enter-result of an
+        async with statement invoking :func:`create_http_session`.
     '''
 
-    content = await download(url, asyn=asyn, context_vars=context_vars)
+    content = await download(url, context_vars=context_vars)
 
-    await write_binary(filepath, content, asyn=asyn)
+    await write_binary(filepath, content, context_vars=context_vars)
 
     if file_mode:  # chmod, attempt 1
         try:
             chmod(filepath, file_mode)
         except FileNotFoundError: # attempt 2
             try:
-                await sleep(0.1, asyn=asyn)
+                await sleep(0.1, context_vars=context_vars)
                 chmod(filepath, file_mode)
             except FileNotFoundError: # attempt 3
                 try:
-                    await sleep(1, asyn=asyn)
+                    await sleep(1, context_vars=context_vars)
                     chmod(filepath, file_mode)
                 except FileNotFoundError: # attemp 4
-                    await sleep(10, asyn=asyn)
+                    await sleep(10, context_vars=context_vars)
                     chmod(filepath, file_mode)
