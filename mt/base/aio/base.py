@@ -29,7 +29,8 @@ def srun(asyn_func, *args, extra_context_vars: dict = {}, **kwargs) -> object:
     '''
 
     try:
-        context_vars = {'async': False}.update(extra_context_vars)
+        context_vars = {'async': False}
+        context_vars.update(extra_context_vars)
         coro = asyn_func(*args, context_vars=context_vars, **kwargs)
         coro.send(None)
         coro.close()

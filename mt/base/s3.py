@@ -140,7 +140,7 @@ async def create_context_vars(profile = None, asyn: bool = False):
 
     async with create_s3_client(profile=profile, asyn=asyn) as s3_client,\
                create_http_session() as http_session:
-        context_vars = {'s3_client': s3_client, 'http_session': http_session}
+        context_vars = {'async': asyn, 's3_client': s3_client, 'http_session': http_session}
         yield context_vars
 
 
