@@ -3,6 +3,7 @@
 
 import json
 import tempfile
+import asyncio
 import aiofiles
 
 from ..contextlib import asynccontextmanager
@@ -39,7 +40,7 @@ async def read_binary(filepath, size: int = None, context_vars : dict = {}) -> b
             return f.read(size)
 
 
-async def write_binary(filepath, buf: bytes, context_vars : dict = {}):
+async def write_binary(filepath, buf: bytes, context_vars : dict = {}, file_write_delayed: bool = False):
     '''An asyn function that creates a binary file and writes the content.
 
     Parameters
@@ -51,14 +52,26 @@ async def write_binary(filepath, buf: bytes, context_vars : dict = {}):
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+    file_write_delayed : bool
+        Only valid in asynchronous mode. If True, wraps the file write task into a future and
+        returns the future. In all other cases, proceeds as usual.
+
+    Returns
+    -------
+    asyncio.Future or int
+        either a future or the number of bytes written, depending on whether the file write
+        task is delayed or not
     '''
 
     if context_vars['async']:
-        async with aiofiles.open(filepath, mode='wb') as f:
-            return await f.write(buf)
-    else:
-        with open(filepath, mode='wb') as f:
-            return f.write(buf)
+        async def func(filepath, buf):
+            async with aiofiles.open(filepath, mode='wb') as f:
+                return await f.write(buf)
+        coro = func(filepath, buf)
+        return asyncio.ensure_future(coro) if file_write_delayed else (await coro)
+
+    with open(filepath, mode='wb') as f:
+        return f.write(buf)
 
 
 async def read_text(filepath, size: int = None, context_vars : dict = {}) -> str:
@@ -89,7 +102,7 @@ async def read_text(filepath, size: int = None, context_vars : dict = {}) -> str
             return f.read(size)
 
 
-async def write_text(filepath, buf: str, context_vars : dict = {}):
+async def write_text(filepath, buf: str, context_vars : dict = {}, file_write_delayed: bool = False):
     '''An asyn function that creates a text file and writes the content.
 
     Parameters
@@ -101,14 +114,26 @@ async def write_text(filepath, buf: str, context_vars : dict = {}):
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+    file_write_delayed : bool
+        Only valid in asynchronous mode. If True, wraps the file write task into a future and
+        returns the future. In all other cases, proceeds as usual.
+
+    Returns
+    -------
+    asyncio.Future or int
+        either a future or the number of bytes written, depending on whether the file write
+        task is delayed or not
     '''
 
     if context_vars['async']:
-        async with aiofiles.open(filepath, mode='wt') as f:
-            return await f.write(buf)
-    else:
-        with open(filepath, mode='wt') as f:
-            return f.write(buf)
+        async def func(filepath, buf):
+            async with aiofiles.open(filepath, mode='wy') as f:
+                return await f.write(buf)
+        coro = func(filepath, buf)
+        return asyncio.ensure_future(coro) if file_write_delayed else (await coro)
+
+    with open(filepath, mode='wt') as f:
+        return f.write(buf)
 
 
 async def json_load(filepath, context_vars : dict = {}, **kwargs):
@@ -134,7 +159,7 @@ async def json_load(filepath, context_vars : dict = {}, **kwargs):
     return json.loads(content, **kwargs)
 
 
-async def json_save(filepath, obj, context_vars : dict = {}, **kwargs):
+async def json_save(filepath, obj, context_vars : dict = {}, file_write_delayed: bool = False, **kwargs):
     '''An asyn function that saves a json-like object to a file.
 
     Parameters
@@ -148,10 +173,19 @@ async def json_save(filepath, obj, context_vars : dict = {}, **kwargs):
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
     kwargs : dict
         keyword arguments passed as-is to :func:`json.dumps`
+    file_write_delayed : bool
+        Only valid in asynchronous mode. If True, wraps the file write task into a future and
+        returns the future. In all other cases, proceeds as usual.
+
+    Returns
+    -------
+    asyncio.Future or int
+        either a future or the number of bytes written, depending on whether the file write
+        task is delayed or not
     '''
 
     content = json.dumps(obj, **kwargs)
-    await write_text(filepath, content, context_vars=context_vars)
+    await write_text(filepath, content, context_vars=context_vars, file_write_delayed=file_write_delayed)
 
 
 @asynccontextmanager
