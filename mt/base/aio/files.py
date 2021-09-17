@@ -1,6 +1,7 @@
 '''Useful asyn functions dealing with files.'''
 
 
+import os
 import json
 import tempfile
 import asyncio
@@ -40,7 +41,7 @@ async def read_binary(filepath, size: int = None, context_vars : dict = {}) -> b
             return f.read(size)
 
 
-async def write_binary(filepath, buf: bytes, context_vars : dict = {}, file_write_delayed: bool = False):
+async def write_binary(filepath, buf: bytes, file_mode: int = 0o664, context_vars : dict = {}, file_write_delayed: bool = False):
     '''An asyn function that creates a binary file and writes the content.
 
     Parameters
@@ -49,6 +50,9 @@ async def write_binary(filepath, buf: bytes, context_vars : dict = {}, file_writ
         path to the file
     buf : bytes
         data (in bytes) to be written to the file
+    file_mode : int
+        file mode to be set to using :func:`os.chmod`. Only valid if fp is a string. If None is
+        given, no setting of file mode will happen.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
@@ -64,14 +68,20 @@ async def write_binary(filepath, buf: bytes, context_vars : dict = {}, file_writ
     '''
 
     if context_vars['async']:
-        async def func(filepath, buf):
+        async def func(filepath, buf, file_mode):
             async with aiofiles.open(filepath, mode='wb') as f:
-                return await f.write(buf)
-        coro = func(filepath, buf)
+                retval = await f.write(buf)
+            if file_mode is not None:  # chmod
+                os.chmod(filepath, file_mode)
+            return retval
+        coro = func(filepath, buf, file_mode)
         return asyncio.ensure_future(coro) if file_write_delayed else (await coro)
 
     with open(filepath, mode='wb') as f:
-        return f.write(buf)
+        retval = f.write(buf)
+    if file_mode is not None:  # chmod
+        os.chmod(filepath, file_mode)
+    return retval
 
 
 async def read_text(filepath, size: int = None, context_vars : dict = {}) -> str:
@@ -102,7 +112,7 @@ async def read_text(filepath, size: int = None, context_vars : dict = {}) -> str
             return f.read(size)
 
 
-async def write_text(filepath, buf: str, context_vars : dict = {}, file_write_delayed: bool = False):
+async def write_text(filepath, buf: str, file_mode: int = 0o664, context_vars : dict = {}, file_write_delayed: bool = False):
     '''An asyn function that creates a text file and writes the content.
 
     Parameters
@@ -111,6 +121,9 @@ async def write_text(filepath, buf: str, context_vars : dict = {}, file_write_de
         path to the file
     buf : str
         data (in bytes) to be written to the file
+    file_mode : int
+        file mode to be set to using :func:`os.chmod`. Only valid if fp is a string. If None is
+        given, no setting of file mode will happen.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
@@ -126,14 +139,20 @@ async def write_text(filepath, buf: str, context_vars : dict = {}, file_write_de
     '''
 
     if context_vars['async']:
-        async def func(filepath, buf):
-            async with aiofiles.open(filepath, mode='wy') as f:
-                return await f.write(buf)
-        coro = func(filepath, buf)
+        async def func(filepath, buf, file_mode):
+            async with aiofiles.open(filepath, mode='wt') as f:
+                retval = await f.write(buf)
+            if file_mode is not None:  # chmod
+                os.chmod(filepath, file_mode)
+            return retval
+        coro = func(filepath, buf, file_mode)
         return asyncio.ensure_future(coro) if file_write_delayed else (await coro)
 
     with open(filepath, mode='wt') as f:
-        return f.write(buf)
+        retval = f.write(buf)
+    if file_mode is not None:  # chmod
+        os.chmod(filepath, file_mode)
+    return retval
 
 
 async def json_load(filepath, context_vars : dict = {}, **kwargs):
@@ -159,7 +178,7 @@ async def json_load(filepath, context_vars : dict = {}, **kwargs):
     return json.loads(content, **kwargs)
 
 
-async def json_save(filepath, obj, context_vars : dict = {}, file_write_delayed: bool = False, **kwargs):
+async def json_save(filepath, obj, file_mode: int = 0o664, context_vars : dict = {}, file_write_delayed: bool = False, **kwargs):
     '''An asyn function that saves a json-like object to a file.
 
     Parameters
@@ -168,14 +187,17 @@ async def json_save(filepath, obj, context_vars : dict = {}, file_write_delayed:
         path to the file
     obj : object
         json-like object to be written to the file
+    file_mode : int
+        file mode to be set to using :func:`os.chmod`. Only valid if fp is a string. If None is
+        given, no setting of file mode will happen.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
-    kwargs : dict
-        keyword arguments passed as-is to :func:`json.dumps`
     file_write_delayed : bool
         Only valid in asynchronous mode. If True, wraps the file write task into a future and
         returns the future. In all other cases, proceeds as usual.
+    kwargs : dict
+        keyword arguments passed as-is to :func:`json.dumps`
 
     Returns
     -------
@@ -185,7 +207,7 @@ async def json_save(filepath, obj, context_vars : dict = {}, file_write_delayed:
     '''
 
     content = json.dumps(obj, **kwargs)
-    await write_text(filepath, content, context_vars=context_vars, file_write_delayed=file_write_delayed)
+    await write_text(filepath, content, file_mode=file_mode, context_vars=context_vars, file_write_delayed=file_write_delayed)
 
 
 @asynccontextmanager
