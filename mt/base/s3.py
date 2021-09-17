@@ -416,7 +416,7 @@ async def put_files(bucket: str, filepath2key_map: dict, show_progress: bool = F
             await asyncio.gather(*coros)
         else:
             for filepath, key in filepath2key_map.items():
-                srun(process_item, filepath, bucket, key, progress_bar, context_vars=context_vars)
+                srun(process_item, filepath, bucket, key, progress_bar, extra_context_vars=context_vars)
 
 
 def put_files_boto3(bucket: str, filepath2key_map: dict, show_progress: bool = False, context_vars: dict = {}):
