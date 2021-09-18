@@ -9,7 +9,7 @@ import queue as _q
 import numpy as np
 import psutil
 
-from .bg_invoke import BgInvoke, BgThread, BgException
+from ..bg_invoke import BgInvoke, BgThread, BgException
 
 
 __all__ = ['Counter', 'used_memory_too_much', 'used_cpu_too_much', 'split_works', 'ProcessParalleliser', 'WorkIterator', 'serial_work_generator',
