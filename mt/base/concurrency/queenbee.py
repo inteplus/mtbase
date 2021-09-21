@@ -332,6 +332,7 @@ class Bee:
                 'status': 'raised',
                 'exception': task.exception(),
                 'callstack': tracestack.getvalue(),
+                'other_details': None,
             })
         else:
             conn.send({
