@@ -157,8 +157,8 @@ class BgProcess:
         An input message can be anything. Usually it is a tuple with the first component being
         a command string. The output message can also be anything. If the handle succeeds,
         the returning value is then wrapped into a `('returned', retval)` output message. If
-        an exception is raised, it is wrapped into a `('raised_exception', exc)` output message.
-        Sending a traceback is a pain so you should instead pass a logger to your subclass.
+        an exception is raised, it is wrapped into a `('raised_exception', exc, callstack_lines)`
+        output message.
 
         If the child process prints anything to stdout our stderr, it will be redirected as
         `('write', 'stdout' or 'stderr', text)` in the output queue. Note that for now only
@@ -179,6 +179,7 @@ class BgProcess:
         import psutil
         import queue
         import sys
+        from ..traceback import extract_stack_compact
 
         class Writer:
 
@@ -211,7 +212,7 @@ class BgProcess:
                 retval = self.child_handle_message(msg) # handle the message and return
                 msg = ('returned', retval)
             except Exception as e:
-                msg = ('raised_exception', e, msg)
+                msg = ('raised_exception', e, extract_stack_compact())
             self.msg_c2p.put_nowait(msg)
           except KeyboardInterrupt as e:
             self.msg_c2p.put_nowait(('ignored_exception', e))

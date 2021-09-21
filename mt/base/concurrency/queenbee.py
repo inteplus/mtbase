@@ -40,12 +40,14 @@ class Bee:
 
     The bee posesses a number of connections to communicate with other bees. There are some special
     messages apart from messages controlling task delegation above. The first one is
-    `('dead', -1, exit_code)` where exit_code is typically a string describing why the bee has
-    died. This message is sent to all bees that the dying bee is connected to. It is sent only when
-    the bee has finished up tasks and its worker process is about to terminate. The second one
-    is `('die', -1)` which represents the sender's wish for the receiver to finish its life. Bees
-    are very sensitive, if someone says 'die' they will be very sad, stop accepting new tasks, and
-    die as soon as all existing tasks have been completed.
+    `('dead', death_type, ...)` where `death_type` is either 'normal' or 'killed'. If it is normal,
+    the next argument can be None or a string representing an exit code or a last word. If it is
+    'killed', the next arguments can be an exception followed by a callstack. This message is sent
+    to all bees that the dying bee is connected to. It is sent only when the bee has finished up
+    tasks and its worker process is about to terminate. The second one is `('die',)` which
+    represents the sender's wish for the receiver to finish its life gracecfully. Bees are very
+    sensitive, if someone says 'die' they will be very sad, stop accepting new tasks, and die as
+    soon as all existing tasks have been completed.
 
     Each bee comes with its own life cycle, implemented in the async :func:`run`. The user should
     instead override :func:`handle_task_message` to customise the bee's behaviour.
@@ -193,11 +195,33 @@ class Bee:
                 task = asyncio.ensure_future(self.handle_task_message(conn_id, msg_id, full_msg[2:]))
                 self.working_task_map[task] = (conn_id, msg_id)
 
-        self.inform_death(self.exit_code)
+        self.inform_death(('normal', self.exit_code))
+
+
+    def process_death_wish(self, conn_id, msg): # msg = (death_type, ...)
+        '''Processes the death wish of another bee.'''
+
+        from ..traceback import extract_stack_compact
+
+        self.conn_alive_list[conn_id] = False # mark the connection as dead
+
+        # process all pending tasks held up by the dead bee
+        for msg_id, other_conn_id in self.requesting_delegated_task_map.items():
+            if other_conn_id != conn_id:
+                continue
+            del self.requesting_delegated_task_map[msg_id] # pop it
+            self.done_delegated_task_map[msg_id] = ('raised', RuntimeError('Delegated task rejected as the delegated bee had been killed.'), extract_stack_compact(), msg[1:])
+        for msg_id, other_conn_id in self.pending_delegated_task_map.items():
+            if other_conn_id != conn_id:
+                continue
+            del self.pending_delegated_task_map[msg_id] # pop it
+            self.done_delegated_task_map[msg_id] = ('raised', RuntimeError('Delegated task cancelled as the delegated bee had been killed.'), extract_stack_compact(), msg[1:])
 
 
     def process_done_await_new_msg(self, task):
         '''Processes the new message from any of the other alive bees.'''
+
+        from ..traceback import extract_stack_compact
 
         self.await_msg_task = None
         if task.cancelled() or task.exception() is not None: # abrupted communication
@@ -210,7 +234,7 @@ class Bee:
             self.to_terminate = True
             self.exit_code = "A bee with conn_id={} said 'die'.".format(conn_id)
         elif full_msg[0] == 'dead':
-            self.conn_alive_list[conn_id] = False # mark the connection as dead
+            self.process_death_wish(conn_id, full_msg[1:])
         elif full_msg[0] == 'request': # new task
             msg_id = full_msg[1]
             conn = self.conn_list[conn_id]
@@ -227,14 +251,14 @@ class Bee:
             if request_status: # accepted
                 self.pending_delegated_task_map[msg_id] = conn_id
             else:
-                self.done_delegated_task_map[msg_id] = ('raised', RuntimeError('Delegated task rejected.'))
+                self.done_delegated_task_map[msg_id] = ('raised', RuntimeError('Delegated task rejected.'), extract_stack_compact())
         elif full_msg[0] == 'result': # delegated task completed
             msg_id = full_msg[1]
             status = full_msg[2]
             conn_id = self.pending_delegated_task_map[msg_id]
             del self.pending_delegated_task_map[msg_id] # pop it
             if status == 'cancelled':
-                self.done_delegated_task_map[msg_id] = ('raised', RuntimeError('Delegated task cancelled.'))
+                self.done_delegated_task_map[msg_id] = ('raised', RuntimeError('Delegated task cancelled.'), extract_stack_compact())
             else:
                 self.done_delegated_task_map[msg_id] = full_msg[2:]
         else:
@@ -244,6 +268,8 @@ class Bee:
     def process_done_task(self, task):
         '''Processes a task that has been completed by the bee itself.'''
 
+        import io
+
         conn_id, msg_id = self.working_task_map[task]
         del self.working_task_map[task] # pop it
         conn = self.conn_list[conn_id]
@@ -251,7 +277,10 @@ class Bee:
         if task.cancelled():
             conn.send(('result', msg_id, 'cancelled'))
         elif task.exception() is not None:
-            conn.send(('result', msg_id, 'raised', task.exception()))
+            tracestack = io.StringIO()
+            task.print_stack(file=tracestack)
+
+            conn.send(('result', msg_id, 'raised', task.exception(), tracestack.getvalue()))
         else:
             conn.send(('result', msg_id, 'done', task.result()))
 
@@ -280,19 +309,19 @@ class Bee:
             await asyncio.sleep(0.1)
 
 
-    def inform_death(self, exit_code):
+    def inform_death(self, msg):
         '''Informs all other alive bees that it has died.
 
         Parameters
         ----------
-        exit_code : object
-            the dying bee's last word
+        msg : tuple
+            message in the form `(death_type, ...)` where death type can be either 'normal' or 'killed'
         '''
 
         for conn_id, conn in self.conn_list:
             if not self.conn_alive_list[conn_id]:
                 continue
-            conn.send(('dead', -1, exit_code))
+            conn.send(('dead',) + msg)
 
 
 class WorkerBee(Bee):
@@ -332,10 +361,12 @@ class WorkerBee(Bee):
 
     def worker_process(self):
         import asyncio
+        from ..traceback import extract_stack_compact
+
         try:
             asyncio.run(self.worker_process_async())
-        except Exception as e:
-            self.w2q_conn.send(('killed', e)) # tell queen bee that it has been killed by an unexpected exception
+        except Exception as e: # tell queen bee that it has been killed by an unexpected exception
+            self.w2q_conn.send(('dead', 'killed', e, extract_stack_compact()))
 
 
 class QueenBee(Bee):
