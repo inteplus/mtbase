@@ -120,6 +120,4 @@ async def sleep(secs: float, context_vars: dict = {}):
 
 async def yield_control():
     '''Yields the control back to the current event loop.'''
-    fut = asyncio.Future()
-    fut.set_result(None)
-    await fut
+    await asyncio.sleep(0)

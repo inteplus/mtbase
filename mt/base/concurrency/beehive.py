@@ -17,7 +17,7 @@ import multiprocessing.connection as mc
 from ..contextlib import nullcontext
 
 
-__all__ = ['Bee', 'WorkerBee', 'QueenBee', 'beehive_run']
+__all__ = ['Bee', 'WorkerBee', 'subprocess_worker_bee', 'QueenBee', 'beehive_run']
 
 
 class Bee:
@@ -46,7 +46,7 @@ class Bee:
     `status` can be one of 3 values: 'cancelled', 'raised' and 'done', depending on whether the
     task was cancelled, raised an exception, or completed without any exception. If `status` is
     'cancelled', key `reason` tells the reason if it is not None. If `status` is 'raised', key
-    `exception` contains an Exception instance and key `callstack` contains a list of text lines
+    `exception` contains an Exception instance and key `traceback` contains a list of text lines
     describing the call stack, and key `other_details` contains other supporting information.
     Finally, if `status` is 'done', key `returning_value` holds the returning value.
 
@@ -55,7 +55,7 @@ class Bee:
     `{'msg_type': 'dead', 'death_type': str, ...}` where `death_type` is either 'normal' or
     'killed'. If it is normal, key `exit_code` is either None or a string representing an exit code
     or a last word. If it is 'killed', key `exception` holds the Exception that caused the bee to
-    be killed, and key `callstack` holds a list of text lines describing the call stack. This
+    be killed, and key `traceback` holds a list of text lines describing the call stack. This
     message is sent to all bees that the dying bee is connected to. It is sent only when the bee
     has finished up tasks and its worker process is about to terminate. The second one is
     `{'msg_type': 'die'}` which represents the sender's wish for the receiver to finish its life
@@ -68,15 +68,20 @@ class Bee:
 
     Parameters
     ----------
+    conn : multiprocessing.connection.Connection
+        connection to the parent who owns the bee
     max_concurrency : int
         maximum number of concurrent tasks that the bee handles at a time
     '''
 
 
-    def __init__(self, max_concurrency: int = 1024):
+    def __init__(self, conn, max_concurrency: int = 1024):
         self.conn_list = []
         self.conn_alive_list = []
+        if not isinstance(max_concurrency, int):
+            raise ValueError("Argument 'max_concurrency' is not an integer: {}.".format(max_concurrency))
         self.max_concurrency = max_concurrency
+        self.add_new_connection(conn) # first connection is always the parent
 
 
     # ----- public -----
@@ -108,6 +113,8 @@ class Bee:
             docstring.
         '''
 
+        import asyncio
+
         # generate new msg id
         msg_id = self.msg_id
         self.msg_id += 1
@@ -117,10 +124,12 @@ class Bee:
         conn.send({'msg_type': 'request', 'msg_id': msg_id, 'task_info': task_info})
         self.requesting_delegated_task_map[msg_id] = conn_id
 
-        # yield control until the task is done
-        from ..aio import yield_control
-        while msg_id not in self.done_delegated_task_map:
-            await yield_control()
+        async def wait_for_key(key, col):
+            # yield control until the task is done
+            while key not in col:
+                await asyncio.sleep(0)
+        wait_task = asyncio.ensure_future(wait_for_key(msg_id, self.done_delegated_task_map))
+        await asyncio.wait([wait_task])
 
         # get the result
         task_result = self.done_delegated_task_map[msg_id]
@@ -165,19 +174,23 @@ class Bee:
 
         import asyncio
 
-        # form the list of current tasks performed by the bee
-        done_task_set, _ = await asyncio.wait(self.working_task_map.keys(), return_when=asyncio.FIRST_COMPLETED)
-
-        # process each of the tasks done by the bee
-        for task in done_task_set:
-            self._deliver_done_task(task)
-
         # transform some pending requests into working tasks
         num_requests = min(self.max_concurrency - len(self.working_task_map), len(self.pending_request_list))
         for i in range(num_requests):
             conn_id, msg_id, task_info = self.pending_request_list.pop(0) # pop it
+            #print("task_info", task_info)
             task = asyncio.ensure_future(self._execute_task(**task_info))
             self.working_task_map[task] = (conn_id, msg_id)
+
+        # await for some tasks to be done
+        if self.working_task_map:
+            done_task_set, _ = await asyncio.wait(self.working_task_map.keys(), timeout=0.1, return_when=asyncio.FIRST_COMPLETED)
+
+            # process each of the tasks done by the bee
+            for task in done_task_set:
+                self._deliver_done_task(task)
+        else:
+            await asyncio.sleep(0.1)
 
 
     async def _run_finalise(self):
@@ -235,7 +248,7 @@ class Bee:
             self.done_delegated_task_map[msg_id] = {
                 'status': 'raised',
                 'exception': RuntimeError('Delegated task rejected as the delegated bee had been killed.'),
-                'callstack': extract_stack_compact(),
+                'traceback': extract_stack_compact(),
                 'other_details': {
                     'conn_id': conn_id,
                     'last_word_msg': msg,
@@ -248,7 +261,7 @@ class Bee:
             self.done_delegated_task_map[msg_id] = {
                 'status': 'raised',
                 'exception': RuntimeError('Delegated task cancelled as the delegated bee had been killed.'),
-                'callstack': extract_stack_compact(),
+                'traceback': extract_stack_compact(),
                 'other_details': {
                     'conn_id': conn_id,
                     'last_word_msg': msg,
@@ -267,19 +280,24 @@ class Bee:
 
         if task.cancelled():
             conn.send({'msg_type': 'result', 'msg_id': msg_id, 'status': 'cancelled', 'reason': None})
+            #print("task_cancelled")
         elif task.exception() is not None:
+            #print("task_raised")
             tracestack = io.StringIO()
             task.print_stack(file=tracestack)
 
-            conn.send({
+            msg = {
                 'msg_type': 'result',
                 'msg_id': msg_id,
                 'status': 'raised',
                 'exception': task.exception(),
-                'callstack': tracestack.getvalue(),
+                'traceback': tracestack.getvalue(),
                 'other_details': None,
-            })
+            }
+            #print("msg=",msg)
+            conn.send(msg)
         else:
+            #print("task_done")
             conn.send({
                 'msg_type': 'result',
                 'msg_id': msg_id,
@@ -302,6 +320,7 @@ class Bee:
         elif msg_type == 'request': # new task
             msg_id = msg['msg_id']
             conn = self.conn_list[conn_id]
+            #print("request: conn_id={}, msg_id={} for {}".format(conn_id, msg_id, self))
             if self.to_terminate:
                 conn.send({'msg_type': 'acknowledged', 'msg_id': msg_id, 'accepted': False}) # reject the request
             else:
@@ -310,6 +329,7 @@ class Bee:
         elif msg_type == 'acknowledged': # delegated task accepted or not
             msg_id = msg['msg_id']
             conn_id = self.requesting_delegated_task_map[msg_id]
+            #print("acknowledged: conn_id={}, msg_id={} for {}".format(conn_id, msg_id, self))
             del self.requesting_delegated_task_map[msg_id] # pop it
             if msg['accepted']:
                 self.started_delegated_task_map[msg_id] = conn_id
@@ -317,26 +337,27 @@ class Bee:
                 self.done_delegated_task_map[msg_id] = {
                     'status': 'raised',
                     'exception': RuntimeError('Delegated task rejected.'),
-                    'callstack': extract_stack_compact(),
+                    'traceback': extract_stack_compact(),
                     'other_details': {'conn_id': conn_id},
                 }
         elif msg_type == 'result': # delegated task done
             msg_id = msg['msg_id']
             status = msg['status']
             conn_id = self.started_delegated_task_map[msg_id]
+            #print("result: conn_id={}, msg_id={} for {}".format(conn_id, msg_id, self))
             del self.started_delegated_task_map[msg_id] # pop it
             if status == 'cancelled':
                 self.done_delegated_task_map[msg_id] = {
                     'status': 'raised',
                     'exception': RuntimeError('Delegated task cancelled.'),
-                    'callstack': extract_stack_compact(),
+                    'traceback': extract_stack_compact(),
                     'other_details': {'conn_id': conn_id, 'reason': msg['reason']},
                 }
             elif status == 'raised':
                 self.done_delegated_task_map[msg_id] = {
                     'status': 'raised',
                     'exception': RuntimeError('Delegated task raised an exception.'),
-                    'callstack': extract_stack_compact(),
+                    'traceback': extract_stack_compact(),
                     'other_details': {'conn_id': conn_id, 'msg': msg},
                 }
             else:
@@ -357,7 +378,8 @@ class Bee:
         self.stop_listening = False # let other futures decide when to stop listening
         while not self.stop_listening:
             dispatched = False
-            for conn_id, conn in self.conn_list:
+            #print("listening:", self)
+            for conn_id, conn in enumerate(self.conn_list):
                 if not self.conn_alive_list[conn_id]:
                     continue
                 if conn.poll(0): # has data?
@@ -380,7 +402,7 @@ class Bee:
 
         wrapped_msg = {'msg_type': 'dead'}
         wrapped_msg.update(msg)
-        for conn_id, conn in self.conn_list:
+        for conn_id, conn in enumerate(self.conn_list):
             if not self.conn_alive_list[conn_id]:
                 continue
             conn.send(wrapped_msg)
@@ -395,55 +417,40 @@ class WorkerBee(Bee):
     ----------
     conn : multiprocessing.connection.Connection
         a connection to communicate with the queen bee
-    profile : str, optional
-        the S3 profile from which the context vars are created. See :func:`mt.base.s3.create_context_vars`.
     max_concurrency : int
         maximum number of concurrent tasks that the bee handles at a time
-
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        In addition, variable 's3_client' must exist and hold an enter-result of an async with
+        statement invoking :func:`mt.base.s3.create_s3_client`.
     '''
 
-    def __init__(self, profile, max_concurrency: int = 1024):
-
-        import multiprocessing as mp
-
-        super().__init__(max_concurrency=max_concurrency)
-        self.profile = profile
-        self.q2w_conn, self.w2q_conn = mp.Pipe()
-        self.process = mp.Process(target=self._worker_process, daemon=True)
-        self.process.start()
+    def __init__(self, conn: mc.Connection, max_concurrency: int = 1024, context_vars: dict = {}):
+        super().__init__(conn, max_concurrency=max_concurrency)
+        self.context_vars = context_vars
 
 
     async def busy_status(self, context_vars: dict = {}):
-        '''A task to check how busy the worker bee is.'''
+        '''A task to check how busy the worker bee is.
+
+        Parameters
+        ----------
+        context_vars : dict
+            a dictionary of context variables within which the function runs. It must include
+            `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+            In addition, variable 's3_client' must exist and hold an enter-result of an async with
+            statement invoking :func:`mt.base.s3.create_s3_client`.
+
+        Returns
+        -------
+        float
+            a scalar between 0 and 1 where 0 means completely free and 1 means completely busy
+        '''
         return len(self.working_task_map) / self.max_concurrency
 
 
     # ----- private -----
-
-
-    async def _worker_process_async(self):
-        from ..s3 import create_context_vars
-
-        async with create_context_vars(profile=self.profile, asyn=True) as context_vars:
-            self.context_vars = context_vars
-            self.add_new_connection(self.w2q_conn)
-
-            await self.run()
-
-
-    def _worker_process(self):
-        import asyncio
-        from ..traceback import extract_stack_compact
-
-        try:
-            asyncio.run(self._worker_process_async())
-        except Exception as e: # tell the queen bee that the worker bee has been killed by an unexpected exception
-            self.w2q_conn.send({
-                'msg_type': 'dead',
-                'death_type': 'killed',
-                'exception': e,
-                'callstack': extract_stack_compact(),
-            })
 
 
     async def _execute_task(self, name: str, args: list = [], kwargs: dict = {}):
@@ -453,16 +460,75 @@ class WorkerBee(Bee):
     _execute_task.__doc__ = Bee._execute_task.__doc__
 
 
-class QueenBee(Bee):
+def subprocess_worker_bee(workerbee_class, profile: str, max_concurrency: int = 1024):
+    '''Creates a daemon subprocess that holds a worker bee and runs the bee in the subprocess.
+
+    Parameters
+    ----------
+    workerbee_class : class
+        subclass of :class:`WorkerBee` that shares the same constructor arguments as the super
+        class
+    profile : str, optional
+        the S3 profile from which the context vars are created.
+        See :func:`mt.base.s3.create_context_vars`.
+    max_concurrency : int
+        maximum number of concurrent tasks that the bee handles at a time
+
+    Returns
+    -------
+    process : multiprocessing.Process
+        the created subprocess
+    conn : multiprocessing.connection.Connection
+        the connection to allow the parent to communicate with the worker bee
+    '''
+
+    async def subprocess_asyn(workerbee_class, conn: mc.Connection, profile: str, max_concurrency: int = 1024):
+        from ..s3 import create_context_vars
+
+        async with create_context_vars(profile=profile, asyn=True) as context_vars:
+            bee = workerbee_class(conn, max_concurrency=max_concurrency, context_vars=context_vars)
+            await bee.run()
+
+    def subprocess(workerbee_class, conn: mc.Connection, profile: str, max_concurrency: int = 1024):
+        import asyncio
+        from ..traceback import extract_stack_compact
+
+        try:
+            asyncio.run(subprocess_asyn(workerbee_class, conn, profile, max_concurrency=max_concurrency))
+        except Exception as e: # tell the queen bee that the worker bee has been killed by an unexpected exception
+            msg = {
+                'msg_type': 'dead',
+                'death_type': 'killed',
+                'exception': e,
+                'traceback': extract_stack_compact(),
+            }
+            #print("WorkerBee exception msg", msg)
+            conn.send(msg)
+
+    import multiprocessing as mp
+
+    w2q_conn, q2w_conn = mp.Pipe()
+    process = mp.Process(
+        target=subprocess,
+        args=(workerbee_class, w2q_conn, profile),
+        kwargs={'max_concurrency': max_concurrency},
+        daemon=True)
+    process.start()
+
+    return process, q2w_conn
+
+
+class QueenBee(WorkerBee):
     '''The queen bee in the BeeHive concurrency model.
 
     The queen bee and her worker bees work in asynchronous mode. Each worker bee operates within a
     context returned from :func:`mt.base.s3.create_context_vars`, with a given profile. It is asked
     to upper-limit number of concurrent asyncio tasks to a given threshold.
 
-    Upon initialising a queen bee, the user must provide a subclass of :class:`WorkerBee` to
-    represent the worker bee class, from which the queen can spawn worker bees. Like other bees, it
-    is expected that the user write member asynchornous functions to handle tasks.
+    The queen bee herself is a worker bee. However, initialising a queen bee, the user must provide
+    a subclass of :class:`WorkerBee` to represent the worker bee class, from which the queen can
+    spawn worker bees. Like other bees, it is expected that the user write member asynchornous
+    functions to handle tasks.
 
     Parameters
     ----------
@@ -476,22 +542,19 @@ class QueenBee(Bee):
         the maximum number of concurrent tasks at any time for a worker bee, good for managing
         memory allocations. Non-integer values are not accepted.
     context_vars : dict
-        a dictionary of context variables within which the function runs. It must include
+        a dictionary of context variables within which the queen be functions runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
         statement invoking :func:`mt.base.s3.create_s3_client`.
     '''
 
     def __init__(self, conn, worker_bee_class, profile: str = None, max_concurrency: int = 1024, context_vars: dict = {}):
-        self.q2u_conn = conn # queen-to-user connection
-        self.context_vars = context_vars # queen's context variables
+        super().__init__(conn, max_concurrency=max_concurrency, context_vars=context_vars)
+
         self.worker_bee_class = worker_bee_class
         self.profile = profile
-        if not isinstance(max_concurrency, int):
-            raise ValueError("Argument 'max_concurrency' is not an integer: {}.".format(max_concurrency))
-        self.max_concurrency = max_concurrency
-        self.worker_map = {} # worker_id -> (worker_bee: WorkerBee, respected: bool)
-        self.worker_id = 0
+        self.worker_map = {} # worker_id -> (conn: mc.Connection, respected: bool, process: mp.Process)
+        self.worker_id = 1 # 0 is for the parent
 
 
     # ----- private -----
@@ -547,9 +610,10 @@ class QueenBee(Bee):
         worker_id = self.worker_id
         self.worker_id += 1
 
-        worker_bee = self.worker_bee_class(profile=self.profile, max_concurrency=self.max_concurrency)
-        self.worker_map[worker_id] = [worker_bee, True] # new worker and is respected
-        self.add_new_connection(worker_bee.q2c_conn)
+        process, q2w_conn = subprocess_worker_bee(self.worker_bee_class, self.profile, max_concurrency=self.max_concurrency)
+        self.worker_map[worker_id] = [q2w_conn, True, process] # new worker and is respected
+        self.add_new_connection(q2w_conn)
+        #print("spawned", self.worker_map, self.conn_list, self.conn_alive_list)
 
         return worker_id
 
@@ -560,13 +624,6 @@ class QueenBee(Bee):
     _mourn_death.__doc__ = Bee._mourn_death.__doc__
 
 
-    async def _execute_task(self, name: str, args: list = [], kwargs: dict = {}):
-        new_kwargs = {'context_vars': self.context_vars}
-        new_kwargs.update(kwargs)
-        return await super()._execute_task(name, args, new_kwargs)
-    _execute_task.__doc__ = Bee._execute_task.__doc__
-
-
     async def _run_initialise(self):
         await super()._run_initialise()
         import asyncio
@@ -575,7 +632,6 @@ class QueenBee(Bee):
 
     async def _run_finalise(self):
         import asyncio
-        from ..aio import yield_control
 
         # ask every worker bee to die gracefully
         for worker_id in self.worker_map:
@@ -587,7 +643,7 @@ class QueenBee(Bee):
 
         # await until every worker bee has died
         while self.worker_map:
-            await yield_control()
+            await asyncio.sleep(0)
 
         self.stop_managing = True
         await asyncio.wait([self.managing_task])
@@ -660,6 +716,17 @@ async def beehive_run(queenbee_class, workerbee_class, task_name: str, task_args
     # get the result
     msg = u2q_conn.recv()
 
+    if msg['msg_type'] == 'acknowledged':
+        if not msg['accepted']:
+            raise RuntimeError("The queen bee rejected the task.")
+
+        # wait for the task to be done
+        while not u2q_conn.poll(0):
+            await asyncio.sleep(1)
+
+        # get the result
+        msg = u2q_conn.recv()
+
     # tell the queen to die
     u2q_conn.send({'msg_type': 'die'})
 
@@ -667,13 +734,14 @@ async def beehive_run(queenbee_class, workerbee_class, task_name: str, task_args
     await asyncio.wait([queen_life])
 
     # intepret the result
+    #print("msg to heaven", msg)
     if msg['status'] == 'cancelled':
         raise RuntimeError("The queen bee cancelled the task. Reason: {}".format(msg['reason']))
 
     if msg['status'] == 'raised':
       with logger.scoped_debug("Exception raised by the queen bee", curly=False) if logger else nullcontext():
-        with logger.scoped_debug("Callstack", curly=False) if logger else nullcontext():
-            logger.debug(msg['callstack'])
+        with logger.scoped_debug("Traceback", curly=False) if logger else nullcontext():
+            logger.debug(msg['traceback'])
         with logger.scoped_debug("Other details", curly=False) if logger else nullcontext():
             logger.debug(msg['other_details'])
         raise msg['exception']
