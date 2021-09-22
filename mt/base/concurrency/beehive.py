@@ -1,17 +1,15 @@
-'''QueenBee concurrency using asyncio and multiprocessing.
+'''BeeHive concurrency using asyncio and multiprocessing.
 
-This is a concurrency model made up by Minh-Tri. In this model, there is one queen bee main
-process and multiple worker bee subprocesses. The queen bee is responsible for spawning and
-destroying worker bees herself. She is also responsible for organisation-level tasks. The
-queen bee communicates with every worker bee using a full-duplex pipe, via a message-passing
-mechanism. She does not do individual-level tasks but instead assigns those tasks to worker
-bees.
+This is a concurrency model made up by Minh-Tri. In this model, there is main process called the
+queen bee and multiple subprocesses called worker bees. The queen bee is responsible for spawning
+and destroying worker bees herself. She is also responsible for organisation-level tasks. The queen
+bee communicates with every worker bee using a full-duplex pipe, in a message-passing fasion. She
+does not do individual-level tasks but instead assigns those tasks to worker bees.
 
-The queenbee model can be useful for applications like making ML model predictions from a
-dataframe. In this case, the queen bee owns access to the ML model and the dataframe, delegates
-the potentially IO-related preprocessing and postprocessing tasks of every row of the dataframe
-to worker bees, and deals with making batch predictions from the model.
-
+The BeeHive model can be useful for applications like making ML model predictions from a dataframe.
+In this case, the queen bee owns access to the ML model and the dataframe, delegates the
+potentially IO-related preprocessing and postprocessing tasks of every row of the dataframe to
+worker bees, and deals with making batch predictions from the model.
 '''
 
 import multiprocessing as mp
@@ -27,10 +25,11 @@ __all__ = ['Bee', 'WorkerBee', 'QueenBee']
 class Bee:
     '''The base class of a bee.
 
-    A bee is an asynchronous concurrent worker that can communicate with one or more bees via
+    A bee is an asynchronous multi-tasking worker that can communicate with one or more bees via
     message passing. Communication means requesting another bee do to a task and waiting for some
     result, or doing a task for another bee. While doing a task, the bee can request yet another
-    bee to do yet another task for it. And so on. All tasks are asynchronous.
+    bee to do yet another task for it. And so on, as long as there is no task cycle. All tasks are
+    asynchronous.
 
     Each message is a key-value dictionary. A task that is delegated from one bee to another bee is
     communicated via 2 or 3 messages. The first message
@@ -43,9 +42,9 @@ class Bee:
     it must send `{'msg_type': 'result', 'msg_id': int, 'status': str, ...}` back to the sender.
     `status` can be one of 3 values: 'cancelled', 'raised' and 'done', depending on whether the
     task was cancelled, raised an exception, or completed without any exception. If `status` is
-    'cancelled', then optionally key `reason` tells  why it was cancelled. If `status` is 'raised',
-    then key `exception` contains an Exception instance and key `callstack` contains a list of text
-    lines describing the call stack, and key `other_details` contains other supporting information.
+    'cancelled', key `reason` tells the reason if it is not None. If `status` is 'raised', key
+    `exception` contains an Exception instance and key `callstack` contains a list of text lines
+    describing the call stack, and key `other_details` contains other supporting information.
     Finally, if `status` is 'done', key `returning_value` holds the returning value.
 
     The bee posesses a number of connections to communicate with other bees. There are some special
@@ -58,7 +57,7 @@ class Bee:
     has finished up tasks and its worker process is about to terminate. The second one is
     `{'msg_type': 'die'}` which represents the sender's wish for the receiver to finish its life
     gracecfully. Bees are very sensitive, if someone says 'die' they will be very sad, stop
-    accepting new tasks, and die as soon as all existing tasks have been completed.
+    accepting new tasks, and die as soon as all existing tasks have been done.
 
     Each bee comes with its own life cycle, implemented in the async :func:`run`. The user should
     instead override :func:`handle_task_message` to customise the bee's behaviour.
@@ -114,7 +113,7 @@ class Bee:
         conn.send({'msg_type': 'request', 'msg_id': msg_id, 'task_info': task_info})
         self.requesting_delegated_task_map[msg_id] = conn_id
 
-        # await for the task to be completed
+        # yield control until the task is done
         from ..aio import yield_control
         while msg_id not in self.done_delegated_task_map:
             await yield_control()
@@ -173,7 +172,7 @@ class Bee:
 
         # tasks delegated to other bees
         self.requesting_delegated_task_map = {} # msg_id -> conn_id
-        self.pending_delegated_task_map = {} # msg_id -> conn_id
+        self.started_delegated_task_map = {} # msg_id -> conn_id
         self.done_delegated_task_map = {} # msg_id -> {'status': str, ...}
 
         # tasks handled by the bee itself
@@ -187,13 +186,13 @@ class Bee:
             task_list = list(self.working_task_map)
             if self.await_new_msg_task is not None:
                 task_list.append(self.await_new_msg_task)
-            done_task_list, _ = await asyncio.wait(task_list, return_when=asyncio.FIRST_COMPLETED)
+            done_task_set, _ = await asyncio.wait(task_list, return_when=asyncio.FIRST_COMPLETED)
 
             # process each of the tasks done by the bee
-            for task in done_task_list:
+            for task in done_task_set:
                 if task == self.await_new_msg_task: # got something from a sender?
                     self.process_done_await_new_msg(task)
-                else: # one of existing tasks has completed
+                else: # one of existing tasks has been done
                     self.process_done_task(task)
 
             # should we await for a new message?
@@ -231,10 +230,10 @@ class Bee:
                     'last_word_msg': msg,
                 },
             }
-        for msg_id, other_conn_id in self.pending_delegated_task_map.items():
+        for msg_id, other_conn_id in self.started_delegated_task_map.items():
             if other_conn_id != conn_id:
                 continue
-            del self.pending_delegated_task_map[msg_id] # pop it
+            del self.started_delegated_task_map[msg_id] # pop it
             self.done_delegated_task_map[msg_id] = {
                 'status': 'raised',
                 'exception': RuntimeError('Delegated task cancelled as the delegated bee had been killed.'),
@@ -277,7 +276,7 @@ class Bee:
             conn_id = self.requesting_delegated_task_map[msg_id]
             del self.requesting_delegated_task_map[msg_id] # pop it
             if msg['accepted']:
-                self.pending_delegated_task_map[msg_id] = conn_id
+                self.started_delegated_task_map[msg_id] = conn_id
             else:
                 self.done_delegated_task_map[msg_id] = {
                     'status': 'raised',
@@ -285,11 +284,11 @@ class Bee:
                     'callstack': extract_stack_compact(),
                     'other_details': {'conn_id': conn_id},
                 }
-        elif msg_type == 'result': # delegated task completed
+        elif msg_type == 'result': # delegated task done
             msg_id = msg['msg_id']
             status = msg['status']
-            conn_id = self.pending_delegated_task_map[msg_id]
-            del self.pending_delegated_task_map[msg_id] # pop it
+            conn_id = self.started_delegated_task_map[msg_id]
+            del self.started_delegated_task_map[msg_id] # pop it
             if status == 'cancelled':
                 self.done_delegated_task_map[msg_id] = {
                     'status': 'raised',
@@ -388,7 +387,7 @@ class Bee:
 
 
 class WorkerBee(Bee):
-    '''A worker bee in the queenbee concurrency model.
+    '''A worker bee in the BeeHive concurrency model.
 
     The user should implement :func:`handle_task_message` to customise the worker bee.
 
@@ -438,13 +437,13 @@ class WorkerBee(Bee):
 
 
 class QueenBee(Bee):
-    '''The queen bee in the queenbee concurrency model.
+    '''The queen bee in the BeeHive concurrency model.
 
     The queen bee and her worker bees work in asynchronous mode. Each worker bee operates within a
     context returned from :func:`mt.base.s3.create_context_vars`, with a given profile. It is asked
     to upper-limit number of concurrent asyncio tasks to a given threshold.
 
-    Upon initialising a queenbee, the user must provide a subclass of :class:`WorkerBee` to
+    Upon initialising a queen bee, the user must provide a subclass of :class:`WorkerBee` to
     represent the worker bee class, from which the queen can spawn worker bees. It is expected
     that the user override :func:`handle_task_message` to customise the queen bee's behaviour in
     dealing with tasks.
