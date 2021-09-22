@@ -12,9 +12,7 @@ potentially IO-related preprocessing and postprocessing tasks of every row of th
 worker bees, and deals with making batch predictions from the model.
 '''
 
-import multiprocessing as mp
 import multiprocessing.connection as mc
-
 
 from .base import used_cpu_too_much, used_memory_too_much
 
@@ -139,8 +137,8 @@ class Bee:
 
         import asyncio
 
-        self.msg_id = 0
-        self.to_terminate = False
+        self.msg_id = 0 # internal message counter
+        self.to_terminate = False # let other futures decide when to terminate
 
         # tasks delegated to other bees
         self.requesting_delegated_task_map = {} # msg_id -> conn_id
@@ -151,37 +149,29 @@ class Bee:
         self.pending_request_list = [] # (conn_id, msg_id, {'task': str, ...})
         self.working_task_map = {} # task -> (conn_id, msg_id)
 
-        self.await_new_msg_task = asyncio.ensure_future(self._await_new_msg())
+        listening_task = asyncio.ensure_future(self._listen_and_dispatch_new_msgs())
 
-        while (self.await_new_msg_task is not None) or self.pending_request_list or self.working_task_map:
+        while (not self.to_terminate) or self.pending_request_list or self.working_task_map:
             # form the list of current tasks performed by the bee
-            task_list = list(self.working_task_map)
-            if self.await_new_msg_task is not None:
-                task_list.append(self.await_new_msg_task)
-            done_task_set, _ = await asyncio.wait(task_list, return_when=asyncio.FIRST_COMPLETED)
+            done_task_set, _ = await asyncio.wait(self.working_task_map.keys(), return_when=asyncio.FIRST_COMPLETED)
 
             # process each of the tasks done by the bee
             for task in done_task_set:
-                if task == self.await_new_msg_task: # got something from a sender?
-                    self._process_done_await_new_msg(task)
-                else: # one of existing tasks has been done
-                    self._process_done_task(task)
-
-            # should we await for a new message?
-            if self.await_new_msg_task is None and not self.to_terminate:
-                self.await_new_msg_task = asyncio.ensure_future(self._await_new_msg())
+                self._deliver_done_task(task)
 
             # transform some pending requests into working tasks
             num_requests = min(self.max_concurrency - len(self.working_task_map), len(self.pending_request_list))
             for i in range(num_requests):
                 conn_id, msg_id, task_info = self.pending_request_list.pop(0) # pop it
-                task = asyncio.ensure_future(self._process_task_message(conn_id, msg_id, task_info))
+                task = asyncio.ensure_future(self._execute_task(**task_info))
                 self.working_task_map[task] = (conn_id, msg_id)
 
+        self.stop_listening = True
+        await asyncio.wait([listening_task])
         self._inform_death({'death_type': 'normal', 'exit_code': self.exit_code})
 
 
-    async def _process_task_message(self, conn_id: int, msg_id: int, task_info: dict):
+    async def _execute_task(self, name: str, args: list = [], kwargs: dict = {}):
         '''Processes a request message coming from one of the connecting bees.
 
         The default behaviour implemented here is to invoke the member asyn function with name
@@ -189,13 +179,13 @@ class Bee:
 
         Parameters
         ----------
-        conn_id : int
-            the index pointing to the connection from which the message comes
-        msg_id : int
-            the message id provided by the sender
-        task_info : dict
-            a dictionary `{'name': str, 'args': list, 'kwargs': dict}` containing information about
-            the task.
+        name : str
+            name of the task, or in the default behaviour, name of the member function to be
+            invoked
+        args : list
+            positional arguments to be passed to the task as-is
+        kwargs : dict
+            keyword arguments to be passed to the task as-is
 
         Returns
         -------
@@ -207,11 +197,11 @@ class Bee:
         Exception
             user-defined
         '''
-        func = getattr(self, task_info['name'])
-        return await func(*task_info['args'], **task_info['kwargs'])
+        func = getattr(self, name)
+        return await func(*args, **kwargs)
 
 
-    def _process_death_wish(self, conn_id, msg): # msg = {'death_type': str, ...}
+    def _mourn_death(self, conn_id, msg): # msg = {'death_type': str, ...}
         '''Processes the death wish of another bee.'''
 
         from ..traceback import extract_stack_compact
@@ -247,24 +237,49 @@ class Bee:
             }
 
 
-    def _process_done_await_new_msg(self, task):
-        '''Processes the new message from any of the other alive bees.'''
+    def _deliver_done_task(self, task):
+        '''Sends the result of a task that has been done by the bee back to its sender.'''
+
+        import io
+
+        conn_id, msg_id = self.working_task_map[task]
+        del self.working_task_map[task] # pop it
+        conn = self.conn_list[conn_id]
+
+        if task.cancelled():
+            conn.send({'msg_type': 'result', 'msg_id': msg_id, 'status': 'cancelled', 'reason': None})
+        elif task.exception() is not None:
+            tracestack = io.StringIO()
+            task.print_stack(file=tracestack)
+
+            conn.send({
+                'msg_type': 'result',
+                'msg_id': msg_id,
+                'status': 'raised',
+                'exception': task.exception(),
+                'callstack': tracestack.getvalue(),
+                'other_details': None,
+            })
+        else:
+            conn.send({
+                'msg_type': 'result',
+                'msg_id': msg_id,
+                'status': 'done',
+                'returning_value': task.result(),
+            })
+
+
+    def _dispatch_new_msg(self, conn_id, msg):
+        '''Dispatches a new message.'''
 
         from ..traceback import extract_stack_compact
 
-        self.await_msg_task = None
-        if task.cancelled() or task.exception() is not None: # abrupted communication
-            self.to_terminate = True
-            self.exit_code = 'Abrupted communication.'
-            return
-
-        conn_id, msg = task.result() # got a message from a sender
         msg_type = msg['msg_type']
         if msg_type == 'die': # request to die?
             self.to_terminate = True
             self.exit_code = "A bee with conn_id={} said 'die'.".format(conn_id)
         elif msg_type == 'dead':
-            self._process_death_wish(conn_id, msg)
+            self._mourn_death(conn_id, msg)
         elif msg_type == 'request': # new task
             msg_id = msg['msg_id']
             conn = self.conn_list[conn_id]
@@ -315,60 +330,24 @@ class Bee:
             self.exit_code = "Unknown message with type '{}'.".format(msg_type)
 
 
-    def _process_done_task(self, task):
-        '''Processes a task that has been completed by the bee itself.'''
-
-        import io
-
-        conn_id, msg_id = self.working_task_map[task]
-        del self.working_task_map[task] # pop it
-        conn = self.conn_list[conn_id]
-
-        if task.cancelled():
-            conn.send({'msg_type': 'result', 'msg_id': msg_id, 'status': 'cancelled', 'reason': None})
-        elif task.exception() is not None:
-            tracestack = io.StringIO()
-            task.print_stack(file=tracestack)
-
-            conn.send({
-                'msg_type': 'result',
-                'msg_id': msg_id,
-                'status': 'raised',
-                'exception': task.exception(),
-                'callstack': tracestack.getvalue(),
-                'other_details': None,
-            })
-        else:
-            conn.send({
-                'msg_type': 'result',
-                'msg_id': msg_id,
-                'status': 'done',
-                'returning_value': task.result(),
-            })
-
-
-    async def _await_new_msg(self):
-        '''Awaits for a new message from one of the alive connections.
-
-        Returns
-        -------
-        conn_id : int
-            the index of the connection in the 'conn_list' attribute
-        msg : object
-            the message received from the connection. It must be a tuple `(str, msg_id, ...)`.
-        '''
+    async def _listen_and_dispatch_new_msgs(self):
+        '''Listens to new messages regularly and dispatches them.'''
 
         import asyncio
 
-        while True:
+        self.stop_listening = False # let other futures decide when to stop listening
+        while not self.stop_listening:
+            dispatched = False
             for conn_id, conn in self.conn_list:
                 if not self.conn_alive_list[conn_id]:
                     continue
                 if conn.poll(0): # has data?
                     msg = conn.recv()
-                    return conn_id, msg
+                    self._dispatch_new_msg(conn_id, msg)
+                    dispatched = True
 
-            await asyncio.sleep(0.1)
+            if not dispatched: # has not dispatched anything?
+                await asyncio.sleep(0.1) # sleep a bit
 
 
     def _inform_death(self, msg):
@@ -405,13 +384,20 @@ class WorkerBee(Bee):
     '''
 
     def __init__(self, profile, max_concurrency: int = 1024):
+
+        import multiprocessing as mp
+        
         super().__init__(max_concurrency=max_concurrency)
         self.profile = profile
         self.q2w_conn, self.w2q_conn = mp.Pipe()
-        self.process = mp.Process(target=self.worker_process, daemon=True)
+        self.process = mp.Process(target=self._worker_process, daemon=True)
+        self.process.start()
 
 
-    async def worker_process_async(self):
+    # ----- private -----
+
+
+    async def _worker_process_async(self):
         from ..s3 import create_context_vars
 
         async with create_context_vars(profile=self.profile, asyn=True) as context_vars:
@@ -421,13 +407,13 @@ class WorkerBee(Bee):
             await self._run()
 
 
-    def worker_process(self):
+    def _worker_process(self):
         import asyncio
         from ..traceback import extract_stack_compact
 
         try:
-            asyncio.run(self.worker_process_async())
-        except Exception as e: # tell queen bee that it has been killed by an unexpected exception
+            asyncio.run(self._worker_process_async())
+        except Exception as e: # tell the queen bee that the worker bee has been killed by an unexpected exception
             self.w2q_conn.send({
                 'msg_type': 'dead',
                 'death_type': 'killed',
@@ -436,12 +422,11 @@ class WorkerBee(Bee):
             })
 
 
-    async def _process_task_message(self, conn_id: int, msg_id: int, task_info: dict):
-        kwargs = {'context_vars': self.context_vars}
-        kwargs.update(task_info['kwargs'])
-        new_task_info = {'name': task_info['name'], 'args': task_info['args'], 'kwargs': kwargs}
-        return await super()._process_task_message(conn_id, msg_id, new_task_info)
-    _process_task_message.__doc__ = Bee._process_task_message.__doc__
+    async def _execute_task(self, name: str, args: list = [], kwargs: dict = {}):
+        new_kwargs = {'context_vars': self.context_vars}
+        new_kwargs.update(kwargs)
+        return await super()._execute_task(name, args, new_kwargs)
+    _execute_task.__doc__ = Bee._execute_task.__doc__
 
 
 class QueenBee(Bee):
@@ -472,13 +457,31 @@ class QueenBee(Bee):
         if not isinstance(max_concurrency, int):
             raise ValueError("Argument 'max_concurrency' is not an integer: {}.".format(max_concurrency))
         self.max_concurrency = max_concurrency
-        self.worker_list = []
+        self.worker_map = {} # worker_id -> WorkerBee
+        self.worker_id = 0
 
-    # MT-TODO: remove a dead bee, launch the main task, concurrently manage bee spawning and removal
+    # MT-TODO: launch the main task, concurrently manage bee spawning and removal
 
 
-    def spawn_new_worker_bee(self):
+    # ----- private -----
+
+
+    async def manage_population(self):
+        pass # MT-TODO: what do we do?
+
+
+    def _remove_dead_worker_bee(self, worker_id):
+        self.conn_alive_list[worker_id] = False # mark the connection dead
+        del self.worker_map[worker_id]
+
+
+    def _spawn_new_worker_bee(self):
+        # get a new worker id
+        worker_id = self.worker_id
+        self.worker_id += 1
+
         worker_bee = self.worker_bee_class(profile=self.profile, max_concurrency=self.max_concurrency)
-        self.worker_list.append(worker_bee)
+        self.worker_map[worker_id] = worker_bee
         self.add_new_connection(worker_bee.q2c_conn)
-        return len(self.worker_list)-1 # worker_id
+
+        return worker_id
