@@ -131,10 +131,10 @@ class Bee:
 
     async def run(self):
         '''Implements the life-cycle of the bee. Invoke this function only once.'''
-        self._run_initialise()
+        await self._run_initialise()
         while (not self.to_terminate) or self.pending_request_list or self.working_task_map:
-            self._run_inloop()
-        self._run_finalise()
+            await self._run_inloop()
+        await self._run_finalise()
 
 
     # ----- private -----
