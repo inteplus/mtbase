@@ -543,9 +543,9 @@ class QueenBee(WorkerBee):
         connection to the user, where the user delegates tasks to the queen bee
     worker_bee_class : class
         a subclass of :class:`WorkerBee`
-    init_args : list
+    worker_init_args : list
         additional positional arguments to be passed as-is to each new worker bee's constructor
-    init_kwargs : dict
+    worker_init_kwargs : dict
         additional keyword arguments to be passed as-is to each new worker bee's constructor
     s3_profile : str, optional
         the S3 profile from which the context vars are created. See :func:`mt.base.s3.create_context_vars`.
@@ -559,12 +559,12 @@ class QueenBee(WorkerBee):
         statement invoking :func:`mt.base.s3.create_s3_client`.
     '''
 
-    def __init__(self, conn, worker_bee_class, init_args: list = [], init_kwargs: dict = {}, s3_profile: Optional[str] = None, max_concurrency: int = 1024, context_vars: dict = {}):
+    def __init__(self, conn, worker_bee_class, worker_init_args: list = [], worker_init_kwargs: dict = {}, s3_profile: Optional[str] = None, max_concurrency: int = 1024, context_vars: dict = {}):
         super().__init__(conn, max_concurrency=max_concurrency, context_vars=context_vars)
 
         self.worker_bee_class = worker_bee_class
-        self.worker_init_args = init_args
-        self.worker_init_kwargs = init_kwargs
+        self.worker_init_args = worker_init_args
+        self.worker_init_kwargs = worker_init_kwargs
         self.s3_profile = s3_profile
         self.worker_map = {} # worker_id -> (conn: mc.Connection, respected: bool, process: mp.Process)
         self.worker_id = 1 # 0 is for the parent
