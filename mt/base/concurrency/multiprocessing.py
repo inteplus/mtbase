@@ -7,6 +7,7 @@ import threading as _t
 import queue as _q
 
 from ..bg_invoke import BgInvoke, BgThread, BgException
+from .base import used_memory_too_much
 
 
 __all__ = ['ProcessParalleliser', 'WorkIterator']
