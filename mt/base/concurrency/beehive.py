@@ -462,7 +462,7 @@ class WorkerBee(Bee):
     _execute_task.__doc__ = Bee._execute_task.__doc__
 
 
-def subprocess_worker_bee(workerbee_class, profile: Optional[str] = None, max_concurrency: int = 1024):
+def subprocess_worker_bee(workerbee_class, s3_profile: Optional[str] = None, max_concurrency: int = 1024):
     '''Creates a daemon subprocess that holds a worker bee and runs the bee in the subprocess.
 
     Parameters
@@ -470,7 +470,7 @@ def subprocess_worker_bee(workerbee_class, profile: Optional[str] = None, max_co
     workerbee_class : class
         subclass of :class:`WorkerBee` that shares the same constructor arguments as the super
         class
-    profile : str, optional
+    s3_profile : str, optional
         the S3 profile from which the context vars are created.
         See :func:`mt.base.s3.create_context_vars`.
     max_concurrency : int
@@ -484,19 +484,19 @@ def subprocess_worker_bee(workerbee_class, profile: Optional[str] = None, max_co
         the connection to allow the parent to communicate with the worker bee
     '''
 
-    async def subprocess_asyn(workerbee_class, conn: mc.Connection, profile: Optional[str] = None, max_concurrency: int = 1024):
+    async def subprocess_asyn(workerbee_class, conn: mc.Connection, s3_profile: Optional[str] = None, max_concurrency: int = 1024):
         from ..s3 import create_context_vars
 
-        async with create_context_vars(profile=profile, asyn=True) as context_vars:
+        async with create_context_vars(profile=s3_profile, asyn=True) as context_vars:
             bee = workerbee_class(conn, max_concurrency=max_concurrency, context_vars=context_vars)
             await bee.run()
 
-    def subprocess(workerbee_class, conn: mc.Connection, profile: Optional[str] = None, max_concurrency: int = 1024):
+    def subprocess(workerbee_class, conn: mc.Connection, s3_profile: Optional[str] = None, max_concurrency: int = 1024):
         import asyncio
         from ..traceback import extract_stack_compact
 
         try:
-            asyncio.run(subprocess_asyn(workerbee_class, conn, profile=profile, max_concurrency=max_concurrency))
+            asyncio.run(subprocess_asyn(workerbee_class, conn, s3_profile=s3_profile, max_concurrency=max_concurrency))
         except Exception as e: # tell the queen bee that the worker bee has been killed by an unexpected exception
             msg = {
                 'msg_type': 'dead',
@@ -513,7 +513,7 @@ def subprocess_worker_bee(workerbee_class, profile: Optional[str] = None, max_co
     process = mp.Process(
         target=subprocess,
         args=(workerbee_class, w2q_conn),
-        kwargs={'profile': profile, 'max_concurrency': max_concurrency},
+        kwargs={'s3_profile': s3_profile, 'max_concurrency': max_concurrency},
         daemon=True)
     process.start()
 
@@ -538,7 +538,7 @@ class QueenBee(WorkerBee):
         connection to the user, where the user delegates tasks to the queen bee
     worker_bee_class : class
         a subclass of :class:`WorkerBee`
-    profile : str, optional
+    s3_profile : str, optional
         the S3 profile from which the context vars are created. See :func:`mt.base.s3.create_context_vars`.
     max_concurrency : int
         the maximum number of concurrent tasks at any time for a worker bee, good for managing
@@ -550,11 +550,11 @@ class QueenBee(WorkerBee):
         statement invoking :func:`mt.base.s3.create_s3_client`.
     '''
 
-    def __init__(self, conn, worker_bee_class, profile: Optional[str] = None = None, max_concurrency: int = 1024, context_vars: dict = {}):
+    def __init__(self, conn, worker_bee_class, s3_profile: Optional[str] = None, max_concurrency: int = 1024, context_vars: dict = {}):
         super().__init__(conn, max_concurrency=max_concurrency, context_vars=context_vars)
 
         self.worker_bee_class = worker_bee_class
-        self.profile = profile
+        self.s3_profile = s3_profile
         self.worker_map = {} # worker_id -> (conn: mc.Connection, respected: bool, process: mp.Process)
         self.worker_id = 1 # 0 is for the parent
 
@@ -612,7 +612,7 @@ class QueenBee(WorkerBee):
         worker_id = self.worker_id
         self.worker_id += 1
 
-        process, q2w_conn = subprocess_worker_bee(self.worker_bee_class, profile=self.profile, max_concurrency=self.max_concurrency)
+        process, q2w_conn = subprocess_worker_bee(self.worker_bee_class, s3_profile=self.s3_profile, max_concurrency=self.max_concurrency)
         self.worker_map[worker_id] = [q2w_conn, True, process] # new worker and is respected
         self.add_new_connection(q2w_conn)
         #print("spawned", self.worker_map, self.conn_list, self.conn_alive_list)
@@ -653,7 +653,16 @@ class QueenBee(WorkerBee):
         await super()._run_finalise()
 
 
-async def beehive_run(queenbee_class, workerbee_class, task_name: str, task_args: list = [], task_kwargs: dict = {}, profile: Optional[str] = None = None, max_concurrency: int = 1024, context_vars: dict = {}, logger=None):
+async def beehive_run(
+        queenbee_class,
+        workerbee_class,
+        task_name: str,
+        task_args: list = [],
+        task_kwargs: dict = {},
+        s3_profile: Optional[str] = None,
+        max_concurrency: int = 1024,
+        context_vars: dict = {},
+        logger=None):
     '''An asyn function that runs a task in a BeeHive concurrency model.
 
     Parameters
@@ -669,7 +678,7 @@ async def beehive_run(queenbee_class, workerbee_class, task_name: str, task_args
         positional arguments to be passed to the member function as-is
     task_kwargs : dict
         keyword arguments to be passed to the member function as-is
-    profile : str, optional
+    s3_profile : str, optional
         the S3 profile from which the context vars are created. See :func:`mt.base.s3.create_context_vars`.
     max_concurrency : int
         maximum number of concurrent tasks that the bee handles at a time
@@ -700,7 +709,7 @@ async def beehive_run(queenbee_class, workerbee_class, task_name: str, task_args
     q2u_conn, u2q_conn = mp.Pipe()
 
     # create a queen bee and starts her life
-    queen = queenbee_class(q2u_conn, workerbee_class, profile=profile, max_concurrency=max_concurrency, context_vars=context_vars)
+    queen = queenbee_class(q2u_conn, workerbee_class, s3_profile=s3_profile, max_concurrency=max_concurrency, context_vars=context_vars)
     queen_life = asyncio.ensure_future(queen.run())
 
     # delegate the task
