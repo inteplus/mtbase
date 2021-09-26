@@ -9,6 +9,7 @@ setup(name='mtbase',
       author=["Minh-Tri Pham"],
       packages=find_namespace_packages(include=['mt.*']),
       install_requires=[
+          'packaging', # for comparing versions
           'psutil',
           'getmac',
           'netifaces',
