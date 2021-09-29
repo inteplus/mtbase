@@ -454,6 +454,6 @@ def put_files_boto3(bucket: str, filepath2key_map: dict, show_progress: bool = F
         for filepath, key in filepath2key_map.items():
             s3t.upload(
                 filepath, bucket, key,
-                subscribers = [s3transfer.ProgressCallbackInvoker(progress_bar.update)],
+                subscribers = [s3transfer.ProgressCallbackInvoker(progress_bar.update)] if show_progress else None,
             )
         s3t.shutdown() # wait for all the upload tasks to finish
