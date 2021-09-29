@@ -285,15 +285,19 @@ async def asyn_work_generator(func, func_args: list = [], func_kwargs: dict = {}
     num_running_buckets = num_buckets
     wait_cnt = 0
     keyboard_interrupted = False
+    num_works_done = 0
     while (num_running_buckets > 0) and wait_cnt < 300:
         try:
             msg = queue.get_nowait()
             wait_cnt = 0
-            if debug_logger:
-                debug_logger.debug("asyn_work_generator: {}".format(msg))
+            #if debug_logger:
+                #debug_logger.debug("asyn_work_generator: {}".format(msg))
             if msg[1] == 'context_destroyed':
                 num_running_buckets -= 1
             elif msg[1] in ('task_returned', 'task_cancelled', 'task_raised'):
+                num_works_done += 1
+                if debug_logger:
+                    debug_logger.debug("asyn_work_generator: {}/{} done".format(num_works_done, num_works))
                 yield msg[1:]
         except _q.Empty:
             try:
