@@ -450,7 +450,7 @@ def put_files_boto3(bucket: str, filepath2key_map: dict, show_progress: bool = F
     s3_client = context_vars['s3_client']
     s3t = s3transfer.create_transfer_manager(s3_client, transfer_config)
 
-    with tqdm(total=total_filesize, unit='byte') if show_progress else dummy_scope as progress_bar:
+    with tqdm(total=total_filesize, unit='B', unit_scale=True) if show_progress else dummy_scope as progress_bar:
         for filepath, key in filepath2key_map.items():
             s3t.upload(
                 filepath, bucket, key,
