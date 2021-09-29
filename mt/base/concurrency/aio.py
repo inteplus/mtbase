@@ -234,7 +234,7 @@ async def asyn_work_generator(func, func_args: list = [], func_kwargs: dict = {}
 
     def worker_process(progress_queue: _mp.Queue, func, func_args: list = [], func_kwargs: dict = {}, context_id = None, work_id_list: list = [], max_concurrency: int = 1024, profile = None):
         import asyncio
-        from .s3 import create_context_vars
+        from ..s3 import create_context_vars
 
         async def asyn_func():
             async with create_context_vars(asyn=True, profile=profile) as context_vars:
