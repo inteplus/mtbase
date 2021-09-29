@@ -296,8 +296,9 @@ async def asyn_work_generator(func, func_args: list = [], func_kwargs: dict = {}
                 num_running_buckets -= 1
             elif msg[1] in ('task_returned', 'task_cancelled', 'task_raised'):
                 num_works_done += 1
-                if debug_logger:
-                    debug_logger.debug("asyn_work_generator: {}/{} done".format(num_works_done, num_works))
+                if num_works_done % 1000 == 0:
+                    if debug_logger:
+                        debug_logger.debug("asyn_work_generator: {}/{} works done".format(num_works_done, num_works))
                 yield msg[1:]
         except _q.Empty:
             try:
