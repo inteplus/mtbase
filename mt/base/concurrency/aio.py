@@ -4,6 +4,8 @@ import asyncio
 import multiprocessing as _mp
 import queue as _q
 
+from .base import split_works
+
 
 __all__ = ['aio_work_generator', 'run_asyn_works_in_context', 'asyn_work_generator']
 
