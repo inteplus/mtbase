@@ -178,12 +178,16 @@ async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict =
             async for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
                 new_list = result.get('Contents', None)
                 if new_list is None:
+                    if not retval:
+                        return []
                     raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
                 retval.extend(new_list)
         else:
             for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
                 new_list = result.get('Contents', None)
                 if new_list is None:
+                    if not retval:
+                        return []
                     raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
                 retval.extend(new_list)
         if show_progress:
