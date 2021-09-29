@@ -253,7 +253,7 @@ async def asyn_work_generator(func, func_args: list = [], func_kwargs: dict = {}
         try:
             asyncio.run(asyn_func())
         except KeyboardInterrupt as e: # asyncio sucks
-            from .traceback import extract_stack_compact
+            from ..traceback import extract_stack_compact
             progress_queue.put_nowait((context_id, 'context_raised', e, extract_stack_compact()))
         progress_queue.put_nowait((context_id, 'context_destroyed'))
 
