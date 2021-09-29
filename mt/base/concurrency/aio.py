@@ -255,6 +255,12 @@ async def asyn_work_generator(func, func_args: list = [], func_kwargs: dict = {}
         except KeyboardInterrupt as e: # asyncio sucks
             from ..traceback import extract_stack_compact
             progress_queue.put_nowait((context_id, 'context_raised', e, extract_stack_compact()))
+        except Exception as e:
+            from ..traceback import extract_stack_compact
+            from ..logging import logger
+            logger.warn_last_exception()
+            logger.warn("Uncaught exception from a subprocess of mt.base.asyn_work_generator.")
+            progress_queue.put_nowait((context_id, 'context_raised', e, extract_stack_compact()))
         progress_queue.put_nowait((context_id, 'context_destroyed'))
 
     # launch the concurrency suite
@@ -270,7 +276,8 @@ async def asyn_work_generator(func, func_args: list = [], func_kwargs: dict = {}
                 'work_id_list': work_id_list_list[context_id],
                 'max_concurrency': max_concurrency,
                 'profile': profile,
-            })
+            },
+            daemon=True)
         p.start()
         process_list.append(p)
 
