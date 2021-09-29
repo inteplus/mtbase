@@ -179,6 +179,8 @@ async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict =
                 new_list = result.get('Contents', None)
                 if new_list is None:
                     if not retval:
+                        if show_progress:
+                            spinner.succeed('no object found')
                         return []
                     raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
                 retval.extend(new_list)
@@ -187,6 +189,8 @@ async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict =
                 new_list = result.get('Contents', None)
                 if new_list is None:
                     if not retval:
+                        if show_progress:
+                            spinner.succeed('no object found')
                         return []
                     raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
                 retval.extend(new_list)
@@ -194,6 +198,8 @@ async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict =
             spinner.succeed('{} objects found'.format(len(retval)))
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == 'NoSuchKey':
+            if show_progress:
+                spinner.succeed('no object found')
             return []
         raise
     return retval
