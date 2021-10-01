@@ -116,25 +116,7 @@ class Bee:
         await self._run_finalise()
 
 
-    # ----- private -----
-
-
-    def _add_new_connection(self, conn: mc.Connection):
-        '''Adds a new connection to the bee's list of connections.'''
-
-        child_id = len(self.conn_list)
-        self.conn_list.append(conn)
-        self.conn_alive_list.append(True) # the new connection is assumed alive
-        msg = {
-            'msg_type': 'setup',
-            'child_id': child_id,
-            'q_p2m': self.q_m2c,
-            'q_m2p': self.q_c2m,
-        }
-        conn.send(msg) # to setup the child
-
-
-    async def _delegate_task(self, task_info: dict):
+    async def delegate_task(self, task_info: dict):
         '''Delegates a task to one of child bees and awaits the result.
 
         Parameters
@@ -185,6 +167,24 @@ class Bee:
         msg = self.done_dtask_map.pop(task_id)
 
         return msg, child_id
+
+
+    # ----- private -----
+
+
+    def _add_new_connection(self, conn: mc.Connection):
+        '''Adds a new connection to the bee's list of connections.'''
+
+        child_id = len(self.conn_list)
+        self.conn_list.append(conn)
+        self.conn_alive_list.append(True) # the new connection is assumed alive
+        msg = {
+            'msg_type': 'setup',
+            'child_id': child_id,
+            'q_p2m': self.q_m2c,
+            'q_m2p': self.q_c2m,
+        }
+        conn.send(msg) # to setup the child
 
 
     async def _run_initialise(self):
@@ -627,7 +627,7 @@ class QueenBee(WorkerBee):
             elif (num_workers > min_num_workers) and ((num_workers > max_num_workers) or used_cpu_too_much() or used_memory_too_much()):
                 # kill the worker bee that responds to 'busy_status' task
                 task_info = {'name': 'busy_status', 'args': [], 'kwargs': {}}
-                task_result, worker_id = await self._delegate_task(worker_id, task_info)
+                task_result, worker_id = await self.delegate_task(task_info)
                 self.conn_list[worker_id].send({'msg_type': 'die'})
             elif num_workers < max_num_workers:
                 self._spawn_new_worker_bee()
