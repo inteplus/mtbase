@@ -71,7 +71,7 @@ async def aio_work_generator(func, num_work_ids, skip_null: bool = True, func_kw
                     yield result
 
 
-async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: list = [], func_kwargs: dict = {}, context_id = None, work_id_list: list = [], max_concurrency: int = 1024, context_vars: dict = {}):
+async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: tuple = (), func_kwargs: dict = {}, context_id = None, work_id_list: list = [], max_concurrency: int = 1024, context_vars: dict = {}):
     '''Invokes the same asyn function with different work ids concurrently and asynchronously, in a given context.
 
     Parameters
@@ -83,7 +83,7 @@ async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: 
         an asyn function that may return something and may raise an Exception. The function must
         have the first argument being the work id. The context variables provided to the function
         are automatically created via invoking :func:`mt.base.s3.create_context_vars`.
-    func_args : list
+    func_args : tuple
         additional positional arguments to be passed to the function as-is
     func_kwargs : dict
         additional keyword arguments to be passed to the function as-is
@@ -178,7 +178,7 @@ async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: 
                     keyboard_interrupted = True
 
 
-async def asyn_work_generator(func, func_args: list = [], func_kwargs: dict = {}, num_processes = None, num_works: int = 0, max_concurrency: int = 1024, profile = None, debug_logger = None, progress_queue = None):
+async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {}, num_processes = None, num_works: int = 0, max_concurrency: int = 1024, profile = None, debug_logger = None, progress_queue = None):
     '''An asyn generator that does a large number of works concurrently and yields the work results.
 
     Internally, it splits the list of work ids into blocks and invokes
@@ -192,7 +192,7 @@ async def asyn_work_generator(func, func_args: list = [], func_kwargs: dict = {}
         an asyn function that may return something and may raise an Exception. The function must
         have the first argument being the work id. The context variables provided to the function
         are automatically created via invoking :func:`mt.base.s3.create_context_vars`.
-    func_args : list
+    func_args : tuple
         additional positional arguments to be passed to the function as-is
     func_kwargs : dict
         additional keyword arguments to be passed to the function as-is
@@ -232,7 +232,7 @@ async def asyn_work_generator(func, func_args: list = [], func_kwargs: dict = {}
     work_id_list_list = split_works(num_works, num_buckets)
 
 
-    def worker_process(progress_queue: _mp.Queue, func, func_args: list = [], func_kwargs: dict = {}, context_id = None, work_id_list: list = [], max_concurrency: int = 1024, profile = None):
+    def worker_process(progress_queue: _mp.Queue, func, func_args: tuple = (), func_kwargs: dict = {}, context_id = None, work_id_list: list = [], max_concurrency: int = 1024, profile = None):
         import asyncio
         from ..s3 import create_context_vars
 

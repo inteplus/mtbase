@@ -231,7 +231,7 @@ class Bee:
         self._inform_death({'death_type': 'normal', 'exit_code': self.exit_code})
 
 
-    async def _execute_task(self, name: str, args: list = [], kwargs: dict = {}):
+    async def _execute_task(self, name: str, args: tuple = (), kwargs: dict = {}):
         '''Processes a request message coming from one of the parent bee.
 
         The default behaviour implemented here is to invoke the member asyn function with the same
@@ -242,7 +242,7 @@ class Bee:
         name : str
             name of the task, or in the default behaviour, name of the member function to be
             invoked
-        args : list
+        args : tuple
             positional arguments to be passed to the task as-is
         kwargs : dict
             keyword arguments to be passed to the task as-is
@@ -488,14 +488,14 @@ class WorkerBee(Bee):
     # ----- private -----
 
 
-    async def _execute_task(self, name: str, args: list = [], kwargs: dict = {}):
+    async def _execute_task(self, name: str, args: tuple = (), kwargs: dict = {}):
         new_kwargs = {'context_vars': self.context_vars}
         new_kwargs.update(kwargs)
         return await super()._execute_task(name, args, new_kwargs)
     _execute_task.__doc__ = Bee._execute_task.__doc__
 
 
-def subprocess_worker_bee(workerbee_class, init_args: list = [], init_kwargs: dict = {}, s3_profile: Optional[str] = None, max_concurrency: int = 1024):
+def subprocess_worker_bee(workerbee_class, init_args: tuple = (), init_kwargs: dict = {}, s3_profile: Optional[str] = None, max_concurrency: int = 1024):
     '''Creates a daemon subprocess that holds a worker bee and runs the bee in the subprocess.
 
     Parameters
@@ -504,7 +504,7 @@ def subprocess_worker_bee(workerbee_class, init_args: list = [], init_kwargs: di
         subclass of :class:`WorkerBee` whose constructor accepts all keyword arguments of the
         constructor of the super class, and the first argument of the constructor is the connection
         to the process invoking this function
-    init_args : list
+    init_args : tuple
         additional positional arguments to be passed as-is to the new bee's constructor
     init_kwargs : dict
         additional keyword arguments to be passed as-is to the new bee's constructor
@@ -522,14 +522,14 @@ def subprocess_worker_bee(workerbee_class, init_args: list = [], init_kwargs: di
         the connection to allow the parent to communicate with the worker bee
     '''
 
-    async def subprocess_asyn(workerbee_class, parent_conn: mc.Connection, init_args: list = [], init_kwargs: dict = {}, s3_profile: Optional[str] = None, max_concurrency: int = 1024):
+    async def subprocess_asyn(workerbee_class, parent_conn: mc.Connection, init_args: tuple = (), init_kwargs: dict = {}, s3_profile: Optional[str] = None, max_concurrency: int = 1024):
         from ..s3 import create_context_vars
 
         async with create_context_vars(profile=s3_profile, asyn=True) as context_vars:
             bee = workerbee_class(parent_conn, *init_args, max_concurrency=max_concurrency, context_vars=context_vars, **init_kwargs)
             await bee.run()
 
-    def subprocess(workerbee_class, parent_conn: mc.Connection, init_args: list = [], init_kwargs: dict = {}, s3_profile: Optional[str] = None, max_concurrency: int = 1024):
+    def subprocess(workerbee_class, parent_conn: mc.Connection, init_args: tuple = (), init_kwargs: dict = {}, s3_profile: Optional[str] = None, max_concurrency: int = 1024):
         import asyncio
         from ..traceback import extract_stack_compact
 
@@ -576,7 +576,7 @@ class QueenBee(WorkerBee):
         connection to the user, where the user delegates tasks to the queen bee
     worker_bee_class : class
         a subclass of :class:`WorkerBee`
-    worker_init_args : list
+    worker_init_args : tuple
         additional positional arguments to be passed as-is to each new worker bee's constructor
     worker_init_kwargs : dict
         additional keyword arguments to be passed as-is to each new worker bee's constructor
@@ -592,7 +592,7 @@ class QueenBee(WorkerBee):
         statement invoking :func:`mt.base.s3.create_s3_client`.
     '''
 
-    def __init__(self, parent_conn, worker_bee_class, worker_init_args: list = [], worker_init_kwargs: dict = {}, s3_profile: Optional[str] = None, max_concurrency: int = 1024, context_vars: dict = {}):
+    def __init__(self, parent_conn, worker_bee_class, worker_init_args: tuple = (), worker_init_kwargs: dict = {}, s3_profile: Optional[str] = None, max_concurrency: int = 1024, context_vars: dict = {}):
         super().__init__(parent_conn, max_concurrency=max_concurrency, context_vars=context_vars)
 
         self.worker_bee_class = worker_bee_class
@@ -681,7 +681,7 @@ async def beehive_run(
         queenbee_class,
         workerbee_class,
         task_name: str,
-        task_args: list = [],
+        task_args: tuple = (),
         task_kwargs: dict = {},
         s3_profile: Optional[str] = None,
         max_concurrency: int = 1024,
@@ -698,7 +698,7 @@ async def beehive_run(
     task_name : str
         name of a task assigned to the queen bee, or in the default behaviour, the queen bee's
         member asyn function handling the task
-    task_args : list
+    task_args : tuple
         positional arguments to be passed to the member function as-is
     task_kwargs : dict
         keyword arguments to be passed to the member function as-is
