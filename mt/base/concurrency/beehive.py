@@ -26,8 +26,8 @@ class Bee:
     '''The base class of a bee.
 
     A bee is an asynchronous multi-tasking worker that can communicate with its parent and zero or
-    more child bees via message passing. Communication means requesting child bees to do a task and
-    waiting for some result. All tasks are asynchronous.
+    more child bees via message passing. Communication means executing a task for the parent and
+    delegating child bees to do subtasks. All tasks are asynchronous.
 
     Each bee maintains a one-to-one communication channel with each of its children via a
     full-duplex pipe. It also has 2 queues for task scheduling, denoted as `q_m2c` and `q_c2m`,
@@ -35,8 +35,8 @@ class Bee:
     id. Its children fight against each other to grab a task from `q_m2c` and places
     '(task_id, child_id)' on `q_c2m` to let the parent bee know which child bee will process the
     task. The communication revolving the task will be conducted via the one-to-one channel between
-    the parent bee and the child bee, and is divided into 2 messages, each of which is a key-value
-    dictionary.
+    the parent bee and the child bee who has volunteered for the task. The communication is divided
+    into 2 messages, each of which is a key-value dictionary.
 
     The first message is sent from the parent bee describing the task to be delegated to the child
     `{'msg_type': 'task_info', 'task_id': int, 'name': str, 'args': list, 'kwargs': dict}`.
@@ -65,7 +65,7 @@ class Bee:
     describing the call stack. This message is sent only when the bee has finished up tasks and its
     worker process is about to terminate. The second one is `{'msg_type': 'die'}` sent from a
     parent bee to one of its children, telling the child bee to finish its life gracecfully. Bees
-    are very sensitive, if the parent says 'die' they will be very sad, stop accepting new tasks,
+    are very sensitive, if the parent says 'die' they become very sad, stop accepting new tasks,
     and die as soon as all existing tasks have been done. The third one, sent from the parent, is
     `{'msg_type': 'setup', 'child_id': int, 'q_p2m', 'q_m2p'}` which tells the child its id seen
     from the parent and the parent-to-me and me-to-parent queues for acquiring task orders.
@@ -109,7 +109,18 @@ class Bee:
     # ----- public -----
 
 
-    def add_new_connection(self, conn: mc.Connection):
+    async def run(self):
+        '''Implements the life-cycle of the bee. Invoke this function only once.'''
+        await self._run_initialise()
+        while (not self.to_terminate) or (self.pending_task_cnt > 0) or self.working_task_map:
+            await self._run_inloop()
+        await self._run_finalise()
+
+
+    # ----- private -----
+
+
+    def _add_new_connection(self, conn: mc.Connection):
         '''Adds a new connection to the bee's list of connections.'''
 
         child_id = len(self.conn_list)
@@ -124,15 +135,7 @@ class Bee:
         conn.send(msg) # to setup the child
 
 
-    async def run(self):
-        '''Implements the life-cycle of the bee. Invoke this function only once.'''
-        await self._run_initialise()
-        while (not self.to_terminate) or (self.pending_task_cnt > 0) or self.working_task_map:
-            await self._run_inloop()
-        await self._run_finalise()
-
-
-    async def delegate_task(self, task_info: dict):
+    async def _delegate_task(self, task_info: dict):
         '''Delegates a task to one of child bees and awaits the result.
 
         Parameters
@@ -185,11 +188,8 @@ class Bee:
         return msg, child_id
 
 
-    # ----- private -----
-
-
     async def _run_initialise(self):
-        '''TBD'''
+        '''Initialises the life cycle of the bee.'''
 
         import asyncio
 
@@ -207,7 +207,7 @@ class Bee:
 
 
     async def _run_inloop(self):
-        '''TBD'''
+        '''The thing that the bee does every day until it dies.'''
 
         import asyncio
 
@@ -223,7 +223,7 @@ class Bee:
 
 
     async def _run_finalise(self):
-        '''TBD'''
+        '''Finalises the life cycle of the bee.'''
 
         import asyncio
 
@@ -625,7 +625,7 @@ class QueenBee(WorkerBee):
             elif (num_workers > min_num_workers) and ((num_workers > max_num_workers) or used_cpu_too_much() or used_memory_too_much()):
                 # kill the worker bee that responds to 'busy_status' task
                 task_info = {'name': 'busy_status', 'args': [], 'kwargs': {}}
-                task_result, worker_id = await self.delegate_task(worker_id, task_info)
+                task_result, worker_id = await self._delegate_task(worker_id, task_info)
                 self.conn_list[worker_id].send({'msg_type': 'die'})
             elif num_workers < max_num_workers:
                 self._spawn_new_worker_bee()
@@ -638,6 +638,7 @@ class QueenBee(WorkerBee):
         self.process_map.pop(child_id)
     _mourn_death.__doc__ = WorkerBee._mourn_death.__doc__
 
+
     def _spawn_new_worker_bee(self):
         worker_id = len(self.conn_list) # get new worker id
         process, q2w_conn = subprocess_worker_bee(
@@ -646,7 +647,7 @@ class QueenBee(WorkerBee):
             init_kwargs=self.worker_init_kwargs,
             s3_profile=self.s3_profile,
             max_concurrency=self.max_concurrency)
-        self.add_new_connection(q2w_conn)
+        self._add_new_connection(q2w_conn)
         self.process_map[worker_id] = process
         return worker_id
 
