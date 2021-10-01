@@ -2,9 +2,8 @@
 
 This is a concurrency model made up by Minh-Tri. In this model, there is main process called the
 queen bee and multiple subprocesses called worker bees. The queen bee is responsible for spawning
-and destroying worker bees herself. She is also responsible for organisation-level tasks. The queen
-bee communicates with every worker bee using a full-duplex pipe, in a message-passing fasion. She
-does not do individual-level tasks but instead assigns those tasks to worker bees.
+and destroying worker bees herself. She is also responsible for organisation-level tasks. She does
+not do individual-level tasks but instead assigns those tasks to worker bees.
 
 The BeeHive model can be useful for applications like making ML model predictions from a dataframe.
 In this case, the queen bee owns access to the ML model and the dataframe, delegates the
@@ -464,6 +463,9 @@ class WorkerBee(Bee):
         self.context_vars = context_vars
 
 
+    # ----- public -----
+
+
     async def busy_status(self, context_vars: dict = {}):
         '''A task to check how busy the worker bee is.
 
@@ -480,7 +482,7 @@ class WorkerBee(Bee):
         float
             a scalar between 0 and 1 where 0 means completely free and 1 means completely busy
         '''
-        return len(self.working_task_map) / self.max_concurrency
+        return (len(self.working_task_map) + self.pending_task_cnt) / self.max_concurrency
 
 
     # ----- private -----
@@ -714,11 +716,15 @@ async def beehive_run(
 
     Returns
     -------
-    user-defined
+    object
+        anything returned by the task assigned to the queen bee
 
     Raises
     ------
-    TBD
+    RuntimeError
+        when the queen bee has cancelled her task
+    Exception
+        anything raised by the task assigned to the queen bee
     '''
 
     if not context_vars['async']:
