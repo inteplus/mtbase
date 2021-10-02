@@ -121,8 +121,8 @@ class Bee:
         Parameters
         ----------
         name : str
-            name of the task, or in the default behaviour, name of the asyn member function of the
-            child bee class responsible for handling the task
+            the name of the task/asyn member function of the child bee class responsible for
+            handling the task
         args : tuple
             positional arguments to be passed as-is to the task/asyn member function
         kwargs : dict
@@ -238,14 +238,10 @@ class Bee:
     async def _execute_task(self, name: str, args: tuple = (), kwargs: dict = {}):
         '''Processes a request message coming from one of the parent bee.
 
-        The default behaviour implemented here is to invoke the member asyn function with the same
-        name.
-
         Parameters
         ----------
         name : str
-            name of the task, or in the default behaviour, name of the member function to be
-            invoked
+            name of the task/asyn member function to be invoked
         args : tuple
             positional arguments to be passed to the task as-is
         kwargs : dict
@@ -699,14 +695,15 @@ async def beehive_run(
     workerbee_class : class
         a subclass of :class:WorkerBee`
     task_name : str
-        name of a task assigned to the queen bee, or in the default behaviour, the queen bee's
-        member asyn function handling the task
+        name of a task assigned to the queen bee, and equivalently the queen bee's member asyn
+        function handling the task
     task_args : tuple
         positional arguments to be passed to the member function as-is
     task_kwargs : dict
         keyword arguments to be passed to the member function as-is
     s3_profile : str, optional
-        the S3 profile from which the context vars are created. See :func:`mt.base.s3.create_context_vars`.
+        the S3 profile from which the context vars are created. See
+        :func:`mt.base.s3.create_context_vars`.
     max_concurrency : int
         maximum number of concurrent tasks that the bee handles at a time
     context_vars : dict
