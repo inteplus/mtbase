@@ -38,13 +38,12 @@ class Bee:
     into 2 messages, each of which is a key-value dictionary.
 
     The first message is sent from the parent bee describing the task to be delegated to the child
-    `{'msg_type': 'task_info', 'task_id': int, 'name': str, 'args': list, 'kwargs': dict}`.
-    Variables 'name', 'args', 'kwargs' respectively describe the task name, the positional
-    arguments and the keyword arguments, if any. The default behaviour is to invoke the
-    asynchronous member function of the class representing the child bee with the same name,
-    passing the positional arguments and the keyword arguments to the function. The parent assumes
-    that the child will process the task asynchronously at some point in time, and awaits for
-    response.
+    `{'msg_type': 'task_info', 'task_id': int, 'name': str, 'args': tuple, 'kwargs': dict}`.
+    Variables `name` is the task name. It is expected that the child bee class implements an asyn
+    member function of the same name as the task name to handle the task. Variables `args` and
+    `kwargs` will be passed as positional and keyword arguments respectively to the function. The
+    parent assumes that the child will process the task asynchronously at some point in time, and
+    awaits for response.
 
     Upon finishing processing the task, either successfully or not, the child bee must send
     `{'msg_type': 'task_done', 'task_id': int, 'status': str, ...}` back to the parent bee.
@@ -116,14 +115,18 @@ class Bee:
         await self._run_finalise()
 
 
-    async def delegate_task(self, task_info: dict):
+    async def delegate(self, name: str, *args, **kwargs):
         '''Delegates a task to one of child bees and awaits the result.
 
         Parameters
         ----------
-        task_info : dict
-            a dictionary `{'name': str, 'args': list, 'kwargs': dict}` containing information about
-            the task.
+        name : str
+            name of the task, or in the default behaviour, name of the asyn member function of the
+            child bee class responsible for handling the task
+        args : tuple
+            positional arguments to be passed as-is to the task/asyn member function
+        kwargs : dict
+            keyword arguments to be passed as-is to the task/asyn member function
 
         Returns
         -------
@@ -152,12 +155,13 @@ class Bee:
 
         # send the task info to the child
         conn = self.conn_list[child_id]
-        msg = {
+        conn.send({
             'msg_type': 'task_info',
             'task_id': task_id,
-        }
-        msg.update(task_info)
-        conn.send(msg)
+            'name': name,
+            'args': args,
+            'kwargs': kwargs,
+        })
         self.started_dtask_map[task_id] = child_id
 
         # wait for the child bee to finish the specified task (it can concurrently do other tasks)
@@ -626,8 +630,7 @@ class QueenBee(WorkerBee):
                 self._spawn_new_worker_bee()
             elif (num_workers > min_num_workers) and ((num_workers > max_num_workers) or used_cpu_too_much() or used_memory_too_much()):
                 # kill the worker bee that responds to 'busy_status' task
-                task_info = {'name': 'busy_status', 'args': [], 'kwargs': {}}
-                task_result, worker_id = await self.delegate_task(task_info)
+                task_result, worker_id = await self.delegate('busy_status')
                 self.conn_list[worker_id].send({'msg_type': 'die'})
             elif num_workers < max_num_workers:
                 self._spawn_new_worker_bee()
@@ -757,12 +760,13 @@ async def beehive_run(
     while q_q2u.empty():
         await asyncio.sleep(0.001)
     
-    # delegate the task to her
-    task_info = {'name': task_name, 'args': task_args, 'kwargs': task_kwargs}
+    # describe the task to her
     u2q_conn.send({
         'msg_type': 'task_info',
         'task_id': 0,
-        'task_info': task_info,
+        'name': task_name,
+        'args': task_args,
+        'kwargs': task_kwargs,
     })
 
     # wait for the task to be done
