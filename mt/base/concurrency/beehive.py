@@ -22,10 +22,6 @@ from ..contextlib import nullcontext
 __all__ = ['Bee', 'WorkerBee', 'subprocess_worker_bee', 'QueenBee', 'beehive_run']
 
 
-# MT-TODO: implement 2 queues instead of 1 pipe because we need to send big data and pipes lack
-# mechanisms to synchronise big data transfer
-
-
 class Bee:
     '''The base class of a bee.
 
@@ -110,8 +106,8 @@ class Bee:
         self.ts_p2m = ts_p2m # parent-to-me, task scheduling
         self.ts_m2p = ts_m2p # me-to-parent, task scheduling
 
-        self.conn_list = []
-        self.conn_alive_list = []
+        self.child_comm_list = []
+        self.child_alive_list = []
         if not isinstance(max_concurrency, int):
             raise ValueError("Argument 'max_concurrency' is not an integer: {}.".format(max_concurrency))
         self.max_concurrency = max_concurrency
@@ -173,7 +169,7 @@ class Bee:
         child_id = self.task2child_map.pop(task_id)
 
         # send the task info to the child
-        p_m2c, p_c2m = self.conn_list[child_id]
+        p_m2c, p_c2m = self.child_comm_list[child_id]
         p_m2c.put_nowait({
             'msg_type': 'task_info',
             'task_id': task_id,
@@ -196,11 +192,11 @@ class Bee:
 
 
     def _add_new_child(self, p_m2c: queue.Queue, p_c2m: queue.Queue):
-        '''Adds a new connection to the bee's list of connections.'''
+        '''Adds a new child to the bee.'''
 
-        child_id = len(self.conn_list)
-        self.conn_list.append((p_m2c, p_c2m))
-        self.conn_alive_list.append(True) # the new connection is assumed alive
+        child_id = len(self.child_comm_list)
+        self.child_comm_list.append((p_m2c, p_c2m))
+        self.child_alive_list.append(True) # the new child is assumed alive
 
 
     async def _run_initialise(self):
@@ -278,7 +274,7 @@ class Bee:
 
         from ..traceback import extract_stack_compact
 
-        self.conn_alive_list[child_id] = False # mark the connection as dead
+        self.child_alive_list[child_id] = False # mark the child as dead
 
         # process all pending tasks held up by the dead bee
         for task_id in self.started_dtask_map:
@@ -421,10 +417,10 @@ class Bee:
 
             # listen to each child's private comm
             #print("listening:", self)
-            for child_id, conn in enumerate(self.conn_list):
-                if not self.conn_alive_list[child_id]:
+            for child_id, comm in enumerate(self.child_comm_list):
+                if not self.child_alive_list[child_id]:
                     continue
-                p_m2c, p_c2m = conn
+                p_m2c, p_c2m = comm
                 if not p_c2m.empty(): # has data?
                     msg = p_c2m.get_nowait()
                     self._dispatch_new_child_msg(child_id, msg)
@@ -687,7 +683,7 @@ class QueenBee(WorkerBee):
         self.s3_profile = s3_profile
 
         # the processes of existing workers, excluding those that are dead
-        self.process_map = {} # worker_id/conn_id -> process
+        self.process_map = {} # worker_id/child_id -> process
 
 
     # ----- private -----
@@ -706,14 +702,14 @@ class QueenBee(WorkerBee):
 
         self.stop_managing = False # let other futures decide when to stop managing
         while not self.stop_managing:
-            num_workers = len(self.conn_list)
+            num_workers = len(self.child_comm_list)
 
             if num_workers < min_num_workers:
                 self._spawn_new_worker_bee()
             elif (num_workers > min_num_workers) and ((num_workers > max_num_workers) or used_cpu_too_much() or used_memory_too_much()):
                 # kill the worker bee that responds to 'busy_status' task
                 task_result, worker_id = await self.delegate('busy_status')
-                p_m2c, p_c2m = self.conn_list[worker_id]
+                p_m2c, p_c2m = self.child_comm_list[worker_id]
                 p_m2c.put_nowait({'msg_type': 'die'})
             elif num_workers < max_num_workers:
                 self._spawn_new_worker_bee()
@@ -728,7 +724,7 @@ class QueenBee(WorkerBee):
 
 
     def _spawn_new_worker_bee(self):
-        worker_id = len(self.conn_list) # get new worker id
+        worker_id = len(self.child_comm_list) # get new worker id
         process, p_m2c, p_c2m = subprocess_worker_bee(
             self.worker_bee_class,
             worker_id,
@@ -754,7 +750,7 @@ class QueenBee(WorkerBee):
 
         # ask every worker bee to die gracefully
         for worker_id in self.process_map:
-            p_m2c, p_c2m = self.conn_list[worker_id]
+            p_m2c, p_c2m = self.child_comm_list[worker_id]
             p_m2c.put_nowait({'msg_type': 'die'})
 
         # await until every worker bee has died
