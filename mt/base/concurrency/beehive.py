@@ -13,6 +13,7 @@ worker bees, and deals with making batch predictions from the model.
 
 from typing import Optional
 
+import queue
 import multiprocessing as mp
 import multiprocessing.connection as mc
 
@@ -20,6 +21,10 @@ from ..contextlib import nullcontext
 
 
 __all__ = ['Bee', 'WorkerBee', 'subprocess_worker_bee', 'QueenBee', 'beehive_run']
+
+
+# MT-TODO: implement 2 queues instead of 1 pipe because we need to send big data and pipes lack
+# mechanisms to synchronise big data transfer
 
 
 class Bee:
@@ -30,10 +35,10 @@ class Bee:
     delegating child bees to do subtasks. All tasks are asynchronous.
 
     Each bee maintains a one-to-one communication channel with each of its children via a
-    full-duplex pipe. It also has 2 queues for task scheduling, denoted as `q_m2c` and `q_c2m`,
-    which stand for me-to-child and child-to-me queues. The bee places on `q_m2c` a zero-based task
-    id. Its children fight against each other to grab a task from `q_m2c` and places
-    '(task_id, child_id)' on `q_c2m` to let the parent bee know which child bee will process the
+    full-duplex pipe. It also has 2 queues for task scheduling, denoted as `ts_m2c` and `ts_c2m`,
+    which stand for me-to-child and child-to-me queues. The bee places on `ts_m2c` a zero-based task
+    id. Its children fight against each other to grab a task from `ts_m2c` and places
+    '(task_id, child_id)' on `ts_c2m` to let the parent bee know which child bee will process the
     task. The communication revolving the task will be conducted via the one-to-one channel between
     the parent bee and the child bee who has volunteered for the task. The communication is divided
     into 2 messages, each of which is a key-value dictionary.
@@ -77,9 +82,9 @@ class Bee:
         connection to the parent who owns the bee
     child_id : int
         the bee's id seen in the eyes of its parent
-    q_p2m : multiprocessing.Queue
+    ts_p2m : queue.Queue
         the parent-to-me queue for task scheduling
-    q_m2p : multiprocessing.Queue
+    ts_m2p : queue.Queue
         the me-to-parent queue for task scheduling
     max_concurrency : int
         maximum number of concurrent tasks that the bee handles at a time
@@ -90,8 +95,8 @@ class Bee:
             self,
             parent_conn: mc.Connection,
             child_id: int,
-            q_p2m: mp.Queue,
-            q_m2p: mp.Queue,
+            ts_p2m: queue.Queue,
+            ts_m2p: queue.Queue,
             max_concurrency: int = 1024,
     ):
         import multiprocessing as mp
@@ -105,15 +110,15 @@ class Bee:
         self.max_concurrency = max_concurrency
 
         # task scheduling
-        self.q_m2c = mp.Queue()
-        self.q_c2m = mp.Queue()
+        self.ts_m2c = mp.Queue()
+        self.ts_c2m = mp.Queue()
         self.task2child_map = {} # task_id -> child_id, orders that have been acknowledged but not yet awaited by the parent bee
         self.task_id_cnt = 0 # task id counter
 
         # to be setup later by parent
         self.child_id = child_id
-        self.q_p2m = q_p2m # parent-to-me
-        self.q_m2p = q_m2p # me-to-parent
+        self.ts_p2m = ts_p2m # parent-to-me
+        self.ts_m2p = ts_m2p # me-to-parent
 
 
     # ----- public -----
@@ -157,7 +162,7 @@ class Bee:
         self.task_id_cnt += 1
 
         # place an order
-        self.q_m2c.put_nowait(task_id)
+        self.ts_m2c.put_nowait(task_id)
 
         # wait for a child bee to accept the order
         while task_id not in self.task2child_map:
@@ -401,15 +406,15 @@ class Bee:
             if (not self.to_terminate) and\
                len(self.working_task_map) + self.pending_task_cnt < self.max_concurrency:
                 try:
-                    task_id = self.q_p2m.get_nowait()
-                    self.m2p.put_nowait((task_id, self.child_id)) # notify the parent
+                    task_id = self.ts_p2m.get_nowait()
+                    self.ts_m2p.put_nowait((task_id, self.child_id)) # notify the parent
                     self.pending_task_cnt += 1 # awaiting further info
                 except queue.Empty:
                     pass
 
             # listen to the task scheduler
-            if not self.q_c2m.empty(): # has data?
-                task_id, child_id = self.q_c2m.get()
+            if not self.ts_c2m.empty(): # has data?
+                task_id, child_id = self.ts_c2m.get()
                 self.task2child_map[task_id] = child_id
                 dispatched = True
 
@@ -452,9 +457,9 @@ class WorkerBee(Bee):
         a connection to communicate with the queen bee
     child_id : int
         the bee's id seen in the eyes of its parent
-    q_p2m : multiprocessing.Queue
+    ts_p2m : multiprocessing.Queue
         the parent-to-me queue for task scheduling
-    q_m2p : multiprocessing.Queue
+    ts_m2p : multiprocessing.Queue
         the me-to-parent queue for task scheduling
     max_concurrency : int
         maximum number of concurrent tasks that the bee handles at a time
@@ -469,12 +474,12 @@ class WorkerBee(Bee):
             self,
             parent_conn: mc.Connection,
             child_id: int,
-            q_p2m: mp.Queue,
-            q_m2p: mp.Queue,
+            ts_p2m: mp.Queue,
+            ts_m2p: mp.Queue,
             max_concurrency: int = 1024,
             context_vars: dict = {},
     ):
-        super().__init__(parent_conn, child_id, q_p2m, q_m2p, max_concurrency=max_concurrency)
+        super().__init__(parent_conn, child_id, ts_p2m, ts_m2p, max_concurrency=max_concurrency)
         self.context_vars = context_vars
 
 
@@ -513,8 +518,8 @@ class WorkerBee(Bee):
 def subprocess_worker_bee(
         workerbee_class,
         child_id: int,
-        q_p2m: mp.Queue,
-        q_m2p: mp.Queue,
+        ts_p2m: mp.Queue,
+        ts_m2p: mp.Queue,
         init_args: tuple = (),
         init_kwargs: dict = {},
         s3_profile: Optional[str] = None,
@@ -530,9 +535,9 @@ def subprocess_worker_bee(
         to the process invoking this function
     child_id : int
         the bee's id seen in the eyes of its parent
-    q_p2m : multiprocessing.Queue
+    ts_p2m : multiprocessing.Queue
         the parent-to-me queue for task scheduling
-    q_m2p : multiprocessing.Queue
+    ts_m2p : multiprocessing.Queue
         the me-to-parent queue for task scheduling
     init_args : tuple
         additional positional arguments to be passed as-is to the new bee's constructor
@@ -556,8 +561,8 @@ def subprocess_worker_bee(
             workerbee_class,
             parent_conn: mc.Connection,
             child_id: int,
-            q_p2m: mp.Queue,
-            q_m2p: mp.Queue,
+            ts_p2m: mp.Queue,
+            ts_m2p: mp.Queue,
             init_args: tuple = (),
             init_kwargs: dict = {},
             s3_profile: Optional[str] = None,
@@ -566,7 +571,7 @@ def subprocess_worker_bee(
         from ..s3 import create_context_vars
 
         async with create_context_vars(profile=s3_profile, asyn=True) as context_vars:
-            bee = workerbee_class(parent_conn, child_id, q_p2m, q_m2p, *init_args, max_concurrency=max_concurrency, context_vars=context_vars, **init_kwargs)
+            bee = workerbee_class(parent_conn, child_id, ts_p2m, ts_m2p, *init_args, max_concurrency=max_concurrency, context_vars=context_vars, **init_kwargs)
             await bee.run()
 
     def subprocess(
@@ -574,8 +579,8 @@ def subprocess_worker_bee(
             parent_conn:
             mc.Connection,
             child_id: int,
-            q_p2m: mp.Queue,
-            q_m2p: mp.Queue,
+            ts_p2m: mp.Queue,
+            ts_m2p: mp.Queue,
             init_args: tuple = (),
             init_kwargs: dict = {},
             s3_profile: Optional[str] = None,
@@ -585,7 +590,7 @@ def subprocess_worker_bee(
         from ..traceback import extract_stack_compact
 
         try:
-            asyncio.run(subprocess_asyn(workerbee_class, parent_conn, child_id, q_p2m, q_m2p, init_args=init_args, init_kwargs=init_kwargs, s3_profile=s3_profile, max_concurrency=max_concurrency))
+            asyncio.run(subprocess_asyn(workerbee_class, parent_conn, child_id, ts_p2m, ts_m2p, init_args=init_args, init_kwargs=init_kwargs, s3_profile=s3_profile, max_concurrency=max_concurrency))
         except Exception as e: # tell the queen bee that the worker bee has been killed by an unexpected exception
             msg = {
                 'msg_type': 'dead',
@@ -601,7 +606,7 @@ def subprocess_worker_bee(
     w2q_conn, q2w_conn = mp.Pipe()
     process = mp.Process(
         target=subprocess,
-        args=(workerbee_class, w2q_conn, child_id, q_p2m, q_m2p),
+        args=(workerbee_class, w2q_conn, child_id, ts_p2m, ts_m2p),
         kwargs={'init_args': init_args, 'init_kwargs': init_kwargs, 's3_profile': s3_profile, 'max_concurrency': max_concurrency},
         daemon=True)
     process.start()
@@ -627,9 +632,9 @@ class QueenBee(WorkerBee):
         connection to the user, where the user delegates tasks to the queen bee
     child_id : int
         the queen bee's id seen in the eyes of the user
-    q_p2m : multiprocessing.Queue
+    ts_p2m : queue.Queue
         the parent-to-me queue for task scheduling
-    q_m2p : multiprocessing.Queue
+    ts_m2p : queue.Queue
         the me-to-parent queue for task scheduling
     worker_bee_class : class
         a subclass of :class:`WorkerBee`
@@ -653,8 +658,8 @@ class QueenBee(WorkerBee):
             self,
             parent_conn,
             child_id: int,
-            q_p2m: mp.Queue,
-            q_m2p: mp.Queue,
+            ts_p2m: queue.Queue,
+            ts_m2p: queue.Queue,
             worker_bee_class,
             worker_init_args: tuple = (),
             worker_init_kwargs: dict = {},
@@ -662,7 +667,7 @@ class QueenBee(WorkerBee):
             max_concurrency: int = 1024,
             context_vars: dict = {},
     ):
-        super().__init__(parent_conn, child_id, q_p2m, q_m2p, max_concurrency=max_concurrency, context_vars=context_vars)
+        super().__init__(parent_conn, child_id, ts_p2m, ts_m2p, max_concurrency=max_concurrency, context_vars=context_vars)
 
         self.worker_bee_class = worker_bee_class
         self.worker_init_args = worker_init_args
@@ -714,8 +719,8 @@ class QueenBee(WorkerBee):
         process, q2w_conn = subprocess_worker_bee(
             self.worker_bee_class,
             worker_id,
-            self.q_m2c,
-            self.q_c2m,
+            self.ts_m2c,
+            self.ts_c2m,
             init_args=self.worker_init_args,
             init_kwargs=self.worker_init_kwargs,
             s3_profile=self.s3_profile,
@@ -809,15 +814,15 @@ async def beehive_run(
     q2u_conn, u2q_conn = mp.Pipe()
 
     # task-scheduling queues to communicate with the queen bee
-    q_u2q = mp.Queue()
-    q_q2u = mp.Queue()
+    ts_u2q = queue.Queue()
+    ts_q2u = queue.Queue()
 
     # create a queen bee and start her life
     queen = queenbee_class(
         q2u_conn,
         0,
-        q_u2q,
-        q_q2u,
+        ts_u2q,
+        ts_q2u,
         workerbee_class,
         s3_profile=s3_profile,
         max_concurrency=max_concurrency,
@@ -827,8 +832,8 @@ async def beehive_run(
 
     # advertise a task to the queen bee and waits for her response
     task_id = 0
-    q_u2q.put_nowait(task_id)
-    while q_q2u.empty():
+    ts_u2q.put_nowait(task_id)
+    while ts_q2u.empty():
         await asyncio.sleep(0.001)
     
     # describe the task to her
