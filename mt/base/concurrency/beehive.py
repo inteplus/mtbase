@@ -561,6 +561,8 @@ def subprocess_worker_bee(
         the me-to-parent queue for private communication with the worker bee
     '''
 
+    import multiprocessing as mp
+
     async def subprocess_asyn(
             workerbee_class,
             p_p2m: mp.Queue,
@@ -605,8 +607,6 @@ def subprocess_worker_bee(
             }
             #print("WorkerBee exception msg", msg)
             p_m2p.put_nowait(msg)
-
-    import multiprocessing as mp
 
     p_p2m = mp.Queue()
     p_m2p = mp.Queue()
