@@ -367,6 +367,8 @@ class Bee:
     def _dispatch_new_parent_msg(self, msg):
         '''Dispatches a new message from the parent.'''
 
+        import asyncio
+
         from ..traceback import extract_stack_compact
 
         msg_type = msg['msg_type']
