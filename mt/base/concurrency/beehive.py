@@ -295,8 +295,6 @@ class Bee:
     def _deliver_done_task(self, task):
         '''Sends the result of a task that has been done by the bee back to its parent.'''
 
-        import io
-
         task_id = self.working_task_map.pop(task)
 
         if task.cancelled():
@@ -304,15 +302,12 @@ class Bee:
             #print("task_cancelled")
         elif task.exception() is not None:
             #print("task_raised")
-            tracestack = io.StringIO()
-            task.print_stack(file=tracestack)
-
             msg = {
                 'msg_type': 'task_done',
                 'task_id': task_id,
                 'status': 'raised',
                 'exception': task.exception(),
-                'traceback': tracestack.getvalue(),
+                'traceback': task.get_stack(),
                 'other_details': None,
             }
             #print("msg=",msg)
