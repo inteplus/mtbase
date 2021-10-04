@@ -25,7 +25,7 @@ __all__ = ['logger_debug_msg', 'Bee', 'WorkerBee', 'subprocess_worker_bee', 'Que
 
 def logger_debug_msg(msg, logger=None):
     '''Logs debugging statements extracted from a bee message. For internal use only.'''
-    if not logger:
+    if logger is None:
         return # only works if logger is available
 
     msg = copy(msg) # because we are going to modify it
@@ -908,7 +908,7 @@ async def beehive_run(
 
     if msg['status'] == 'raised':
         with logger.scoped_debug("Exception raised by the queen bee", curly=False) if logger else nullcontext():
-            logger_debug_msg(msg)
+            logger_debug_msg(msg, logger=logger)
             raise msg['exception']
 
     else: # msg['status'] == done'
