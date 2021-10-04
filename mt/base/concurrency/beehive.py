@@ -725,7 +725,9 @@ class QueenBee(WorkerBee):
             num_workers = len(self.child_comm_list)
 
             if num_workers < min_num_workers:
-                self._spawn_new_worker_bee()
+                cnt = min(min_num_workers, max_num_workers//2)
+                for i in range(cnt):
+                    self._spawn_new_worker_bee()
             elif (num_workers > min_num_workers) and ((num_workers > max_num_workers) or used_cpu_too_much() or used_memory_too_much()):
                 # kill the worker bee that responds to 'busy_status' task
                 task_result, worker_id = await self.delegate('busy_status')
