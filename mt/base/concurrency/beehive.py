@@ -164,7 +164,7 @@ class Bee:
 
         # wait for a child bee to accept the order
         while task_id not in self.task2child_map:
-            await asyncio.sleep(0.001) # await changes elsewhere
+            await asyncio.sleep(0) # await changes elsewhere
 
         child_id = self.task2child_map.pop(task_id)
 
@@ -181,7 +181,7 @@ class Bee:
 
         # wait for the child bee to finish the specified task (it can concurrently do other tasks)
         while task_id not in self.done_dtask_map:
-            await asyncio.sleep(0.001) # await changes elsewhere
+            await asyncio.sleep(0) # await changes elsewhere
 
         msg = self.done_dtask_map.pop(task_id)
 
@@ -205,6 +205,7 @@ class Bee:
         import asyncio
 
         self.to_terminate = False # let other futures decide when to terminate
+        self.is_idle = True # whether or not the bee is being idle
 
         # tasks delegated to child bees
         self.started_dtask_map = {} # task_id -> child_id
@@ -229,8 +230,12 @@ class Bee:
             # process each of the tasks done by the bee
             for task in done_task_set:
                 self._deliver_done_task(task)
-        else:
-            await asyncio.sleep(0.1)
+
+        # set the idle state
+        self.is_idle = (not self.started_dtask_map) and (not self.done_dtask_map) and (self.pending_task_cnt == 0) and (not self.working_task_map)
+
+        # yield control a bit
+        await asyncio.sleep(0.1 if self.is_idle else 0)
 
 
     async def _run_finalise(self):
@@ -305,6 +310,7 @@ class Bee:
             import io
             traceback = io.StringIO()
             task.print_stack(file=traceback)
+            traceback = traceback.getvalue().split('\n')
             msg = {
                 'msg_type': 'task_done',
                 'task_id': task_id,
@@ -391,13 +397,10 @@ class Bee:
 
         self.stop_listening = False # let other futures decide when to stop listening
         while not self.stop_listening:
-            dispatched = False
-
             # listen to the parent's private comm
             if not self.p_p2m.empty(): # has data?
                 msg = self.p_p2m.get_nowait()
                 self._dispatch_new_parent_msg(msg)
-                dispatched = True
 
             # listen to the parent's task queue if we are free
             if (not self.to_terminate) and\
@@ -413,7 +416,6 @@ class Bee:
             if not self.ts_c2m.empty(): # has data?
                 task_id, child_id = self.ts_c2m.get()
                 self.task2child_map[task_id] = child_id
-                dispatched = True
 
             # listen to each child's private comm
             #print("listening:", self)
@@ -424,10 +426,9 @@ class Bee:
                 if not p_c2m.empty(): # has data?
                     msg = p_c2m.get_nowait()
                     self._dispatch_new_child_msg(child_id, msg)
-                    dispatched = True
 
-            if not dispatched: # has not dispatched anything?
-                await asyncio.sleep(0.1) # sleep a bit
+            # yield control a bit
+            await asyncio.sleep(0.1 if self.is_idle else 0)
 
 
     def _inform_death(self, msg):
@@ -755,7 +756,7 @@ class QueenBee(WorkerBee):
 
         # await until every worker bee has died
         while self.process_map:
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0)
 
         self.stop_managing = True
         await asyncio.wait([self.managing_task])
@@ -878,12 +879,8 @@ async def beehive_run(
     if msg['status'] == 'raised':
       with logger.scoped_debug("Exception raised by the queen bee", curly=False) if logger else nullcontext():
         with logger.scoped_debug("Traceback", curly=False) if logger else nullcontext():
-            traceback = msg['traceback']
-            if isinstance(traceback, list):
-                for x in traceback:
-                    logger.debug(x)
-            else:
-                logger.debug(traceback)
+            for x in msg['traceback']:
+                logger.debug(x)
         with logger.scoped_debug("Other details", curly=False) if logger else nullcontext():
             logger.debug(msg['other_details'])
         raise msg['exception']
