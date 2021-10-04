@@ -302,15 +302,15 @@ class Bee:
             #print("task_cancelled")
         elif task.exception() is not None:
             #print("task_raised")
-            traceback = task.get_stack()
-            print("TB", traceback, "TB")
-            traceback = [str(x) for x in traceback]
+            import io
+            traceback = io.StringIO()
+            task.print_stack(file=traceback)
             msg = {
                 'msg_type': 'task_done',
                 'task_id': task_id,
                 'status': 'raised',
                 'exception': task.exception(),
-                'traceback': traceback,
+                'traceback': traceback.getvalue(),
                 'other_details': None,
             }
             #print("msg=",msg)
