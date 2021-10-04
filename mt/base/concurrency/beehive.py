@@ -235,7 +235,6 @@ class Bee:
         import asyncio
 
         self.to_terminate = False # let other futures decide when to terminate
-        self.is_idle = True # whether or not the bee is being idle
 
         # tasks delegated to child bees
         self.started_dtask_map = {} # task_id -> child_id
@@ -245,27 +244,52 @@ class Bee:
         self.pending_task_cnt = 0 # number of tasks awaiting further info
         self.working_task_map = {} # task -> task_id
 
-        self.listening_task = asyncio.ensure_future(self._listen_and_dispatch())
-
 
     async def _run_inloop(self):
-        '''The thing that the bee does every day until it dies.'''
+        '''The thing that the bee does every day until it dies, operating at 1kHz.'''
 
         import asyncio
+        import queue
 
-        # await for some tasks to be done
+        # listen to the parent's private comm
+        if not self.p_p2m.empty(): # has data?
+            msg = self.p_p2m.get_nowait()
+            self._dispatch_new_parent_msg(msg)
+
+        # listen to the parent's task queue if we are free
+        if (not self.to_terminate) and (not self.ts_p2m.empty()) and\
+           len(self.working_task_map) + self.pending_task_cnt < self.max_concurrency:
+            try:
+                task_id = self.ts_p2m.get_nowait()
+                self.ts_m2p.put_nowait((task_id, self.child_id)) # notify the parent
+                self.pending_task_cnt += 1 # awaiting further info
+            except queue.Empty:
+                pass
+
+        # listen to the task scheduler
+        if not self.ts_c2m.empty(): # has data?
+            task_id, child_id = self.ts_c2m.get()
+            self.task2child_map[task_id] = child_id
+
+        # listen to each child's private comm
+        for child_id, comm in enumerate(self.child_comm_list):
+            if not self.child_alive_list[child_id]:
+                continue
+            p_m2c, p_c2m = comm
+            if not p_c2m.empty(): # has data?
+                msg = p_c2m.get_nowait()
+                self._dispatch_new_child_msg(child_id, msg)
+
+        # scout for tasks done by the bee
         if self.working_task_map:
-            done_task_set, _ = await asyncio.wait(self.working_task_map.keys(), timeout=0.1, return_when=asyncio.FIRST_COMPLETED)
+            done_task_set, _ = await asyncio.wait(self.working_task_map.keys(), timeout=0, return_when=asyncio.FIRST_COMPLETED)
 
             # process each of the tasks done by the bee
             for task in done_task_set:
                 self._deliver_done_task(task)
 
-        # set the idle state
-        self.is_idle = (not self.started_dtask_map) and (not self.done_dtask_map) and (self.pending_task_cnt == 0) and (not self.working_task_map)
-
         # yield control a bit
-        await asyncio.sleep(0.1 if self.is_idle else 0)
+        await asyncio.sleep(0.001)
 
 
     async def _run_finalise(self):
@@ -273,8 +297,6 @@ class Bee:
 
         import asyncio
 
-        self.stop_listening = True
-        await asyncio.wait([self.listening_task])
         self._inform_death({'death_type': 'normal', 'exit_code': self.exit_code})
 
 
@@ -417,48 +439,6 @@ class Bee:
         else:
             self.to_terminate = True
             self.exit_code = "Unknown message with type '{}'.".format(msg_type)
-
-
-    async def _listen_and_dispatch(self):
-        '''Listens to new messages regularly and dispatches them.'''
-
-        import asyncio
-        import queue
-
-        self.stop_listening = False # let other futures decide when to stop listening
-        while not self.stop_listening:
-            # listen to the parent's private comm
-            if not self.p_p2m.empty(): # has data?
-                msg = self.p_p2m.get_nowait()
-                self._dispatch_new_parent_msg(msg)
-
-            # listen to the parent's task queue if we are free
-            if (not self.to_terminate) and\
-               len(self.working_task_map) + self.pending_task_cnt < self.max_concurrency:
-                try:
-                    task_id = self.ts_p2m.get_nowait()
-                    self.ts_m2p.put_nowait((task_id, self.child_id)) # notify the parent
-                    self.pending_task_cnt += 1 # awaiting further info
-                except queue.Empty:
-                    pass
-
-            # listen to the task scheduler
-            if not self.ts_c2m.empty(): # has data?
-                task_id, child_id = self.ts_c2m.get()
-                self.task2child_map[task_id] = child_id
-
-            # listen to each child's private comm
-            #print("listening:", self)
-            for child_id, comm in enumerate(self.child_comm_list):
-                if not self.child_alive_list[child_id]:
-                    continue
-                p_m2c, p_c2m = comm
-                if not p_c2m.empty(): # has data?
-                    msg = p_c2m.get_nowait()
-                    self._dispatch_new_child_msg(child_id, msg)
-
-            # yield control a bit
-            await asyncio.sleep(0.1 if self.is_idle else 0)
 
 
     def _inform_death(self, msg):
