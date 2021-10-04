@@ -880,7 +880,12 @@ async def beehive_run(
     if msg['status'] == 'raised':
       with logger.scoped_debug("Exception raised by the queen bee", curly=False) if logger else nullcontext():
         with logger.scoped_debug("Traceback", curly=False) if logger else nullcontext():
-            logger.debug(msg['traceback'])
+            traceback = msg['traceback']
+            if isinstance(traceback, list):
+                for x in traceback:
+                    logger.debug(x)
+            else:
+                logger.debug(traceback)
         with logger.scoped_debug("Other details", curly=False) if logger else nullcontext():
             logger.debug(msg['other_details'])
         raise msg['exception']
