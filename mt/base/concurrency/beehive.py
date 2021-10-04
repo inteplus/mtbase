@@ -15,11 +15,41 @@ from typing import Optional
 
 import queue
 import multiprocessing as mp
+from copy import copy
 
 from ..contextlib import nullcontext
 
 
-__all__ = ['Bee', 'WorkerBee', 'subprocess_worker_bee', 'QueenBee', 'beehive_run']
+__all__ = ['logger_debug_msg', 'Bee', 'WorkerBee', 'subprocess_worker_bee', 'QueenBee', 'beehive_run']
+
+
+def logger_debug_msg(msg, logger=None):
+    '''Logs debugging statements extracted from a bee message. For internal use only.'''
+    if not logger:
+        return # only works if logger is available
+
+    msg = copy(msg) # because we are going to modify it
+    exception = msg.pop('exception', None)
+    traceback = msg.pop('traceback', None)
+    other_details = msg.pop('other_details', None)
+
+    if traceback is not None:
+        with logger.scoped_debug("Traceback", curly=False):
+            for x in traceback:
+                logger.debug(x)
+    if msg:
+        with logger.scoped_debug("Message", curly=False):
+            logger.debug(msg)
+    if exception is not None:
+        with logger.scoped_debug("Exception", curly=False):
+            logger.debug(str(msg))
+    if isinstance(other_details, dict):
+        other_details = copy(other_details) # because we are going to modify it
+        msg1 = other_details.pop('msg', None)
+        with logger.scoped_debug("Other details", curly=False):
+            logger.debug("Data: {}".format(other_details))
+            if msg1 is not None:
+                logger_debug_msg(msg1, logger=logger)
 
 
 class Bee:
@@ -292,7 +322,7 @@ class Bee:
                 'traceback': extract_stack_compact(),
                 'other_details': {
                     'child_id': child_id,
-                    'last_word_msg': msg,
+                    'msg': msg,
                 },
             }
 
@@ -877,13 +907,9 @@ async def beehive_run(
         raise RuntimeError("The queen bee cancelled the task. Reason: {}".format(msg['reason']))
 
     if msg['status'] == 'raised':
-      with logger.scoped_debug("Exception raised by the queen bee", curly=False) if logger else nullcontext():
-        with logger.scoped_debug("Traceback", curly=False) if logger else nullcontext():
-            for x in msg['traceback']:
-                logger.debug(x)
-        with logger.scoped_debug("Other details", curly=False) if logger else nullcontext():
-            logger.debug(msg['other_details'])
-        raise msg['exception']
+        with logger.scoped_debug("Exception raised by the queen bee", curly=False) if logger else nullcontext():
+            logger_debug_msg(msg)
+            raise msg['exception']
 
     else: # msg['status'] == done'
         return msg['returning_value']
