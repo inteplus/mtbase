@@ -42,7 +42,7 @@ def logger_debug_msg(msg, logger=None):
             logger.debug(msg)
     if exception is not None:
         with logger.scoped_debug("Exception", curly=False):
-            logger.debug(str(msg))
+            logger.debug(repr(exception))
     if isinstance(other_details, dict):
         other_details = copy(other_details) # because we are going to modify it
         msg1 = other_details.pop('msg', None)
@@ -346,7 +346,7 @@ class Bee:
                 'task_id': task_id,
                 'status': 'raised',
                 'exception': task.exception(),
-                'traceback': traceback.getvalue(),
+                'traceback': traceback,
                 'other_details': None,
             }
             #print("msg=",msg)
