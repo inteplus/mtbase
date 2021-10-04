@@ -138,6 +138,7 @@ class Bee:
 
         self.child_comm_list = []
         self.child_alive_list = []
+        self.num_children = 0
         if not isinstance(max_concurrency, int):
             raise ValueError("Argument 'max_concurrency' is not an integer: {}.".format(max_concurrency))
         self.max_concurrency = max_concurrency
@@ -157,6 +158,15 @@ class Bee:
         await self._run_initialise()
         while (not self.to_terminate) or (self.pending_task_cnt > 0) or self.working_task_map:
             await self._run_inloop()
+
+        # ask every worker bee to die gracefully
+        for worker_id in self.process_map:
+            p_m2c, p_c2m = self.child_comm_list[worker_id]
+            p_m2c.put_nowait({'msg_type': 'die'})
+
+        while self.num_children > 0:
+            await self._run_inloop()
+
         await self._run_finalise()
 
 
@@ -227,6 +237,7 @@ class Bee:
         child_id = len(self.child_comm_list)
         self.child_comm_list.append((p_m2c, p_c2m))
         self.child_alive_list.append(True) # the new child is assumed alive
+        self.num_children += 1
 
 
     async def _run_initialise(self):
@@ -256,7 +267,7 @@ class Bee:
             msg = self.p_p2m.get_nowait()
             self._dispatch_new_parent_msg(msg)
 
-        # listen to the parent's task queue if we are free
+        # listen to the parent's task queue if we are free and allowed
         if (not self.to_terminate) and (not self.ts_p2m.empty()) and\
            len(self.working_task_map) + self.pending_task_cnt < self.max_concurrency:
             try:
@@ -294,9 +305,6 @@ class Bee:
 
     async def _run_finalise(self):
         '''Finalises the life cycle of the bee.'''
-
-        import asyncio
-
         self._inform_death({'death_type': 'normal', 'exit_code': self.exit_code})
 
 
@@ -347,6 +355,7 @@ class Bee:
                     'msg': msg,
                 },
             }
+        self.num_children -= 1
 
 
     def _deliver_done_task(self, task):
@@ -712,7 +721,7 @@ class QueenBee(WorkerBee):
         max_num_workers = max(mp.cpu_count()-1, min_num_workers)
 
         self.stop_managing = False # let other futures decide when to stop managing
-        while not self.stop_managing:
+        while not self.stop_managing and not self.to_terminate:
             num_workers = len(self.child_comm_list)
 
             if num_workers < min_num_workers:
@@ -758,15 +767,6 @@ class QueenBee(WorkerBee):
 
     async def _run_finalise(self):
         import asyncio
-
-        # ask every worker bee to die gracefully
-        for worker_id in self.process_map:
-            p_m2c, p_c2m = self.child_comm_list[worker_id]
-            p_m2c.put_nowait({'msg_type': 'die'})
-
-        # await until every worker bee has died
-        while self.process_map:
-            await asyncio.sleep(0)
 
         self.stop_managing = True
         await asyncio.wait([self.managing_task])
