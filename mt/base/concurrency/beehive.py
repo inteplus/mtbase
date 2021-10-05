@@ -108,8 +108,6 @@ class Bee:
         the parent-to-me connection for private communication
     p_m2p : queue.Queue
         the me-to-parent connection for private communication
-    child_id : int
-        the bee's id seen in the eyes of its parent
     ts_p2m : queue.Queue
         the parent-to-me queue for task scheduling
     max_concurrency : int
@@ -121,7 +119,6 @@ class Bee:
             self,
             p_p2m: queue.Queue,
             p_m2p: queue.Queue,
-            child_id: int,
             ts_p2m: queue.Queue,
             max_concurrency: int = 1024,
     ):
@@ -471,8 +468,6 @@ class WorkerBee(Bee):
         the parent-to-me connection for private communication
     p_m2p : queue.Queue
         the me-to-parent connection for private communication
-    child_id : int
-        the bee's id seen in the eyes of its parent
     ts_p2m : multiprocessing.Queue
         the parent-to-me queue for task scheduling
     max_concurrency : int
@@ -488,12 +483,11 @@ class WorkerBee(Bee):
             self,
             p_p2m: mp.Queue,
             p_m2p: mp.Queue,
-            child_id: int,
             ts_p2m: mp.Queue,
             max_concurrency: int = 1024,
             context_vars: dict = {},
     ):
-        super().__init__(p_p2m, p_m2p, child_id, ts_p2m, max_concurrency=max_concurrency)
+        super().__init__(p_p2m, p_m2p, ts_p2m, max_concurrency=max_concurrency)
         self.context_vars = context_vars
 
 
@@ -531,7 +525,6 @@ class WorkerBee(Bee):
 
 def subprocess_worker_bee(
         workerbee_class,
-        child_id: int,
         ts_p2m: mp.Queue,
         init_args: tuple = (),
         init_kwargs: dict = {},
@@ -545,8 +538,6 @@ def subprocess_worker_bee(
     workerbee_class : class
         subclass of :class:`WorkerBee` whose constructor accepts all positional and keyword
         arguments of the constructor of the super class
-    child_id : int
-        the bee's id seen in the eyes of its parent
     ts_p2m : multiprocessing.Queue
         the parent-to-me queue for task scheduling
     init_args : tuple
@@ -575,7 +566,6 @@ def subprocess_worker_bee(
             workerbee_class,
             p_p2m: mp.Queue,
             p_m2p: mp.Queue,
-            child_id: int,
             ts_p2m: mp.Queue,
             init_args: tuple = (),
             init_kwargs: dict = {},
@@ -585,14 +575,13 @@ def subprocess_worker_bee(
         from ..s3 import create_context_vars
 
         async with create_context_vars(profile=s3_profile, asyn=True) as context_vars:
-            bee = workerbee_class(p_p2m, p_m2p, child_id, ts_p2m, *init_args, max_concurrency=max_concurrency, context_vars=context_vars, **init_kwargs)
+            bee = workerbee_class(p_p2m, p_m2p, ts_p2m, *init_args, max_concurrency=max_concurrency, context_vars=context_vars, **init_kwargs)
             await bee.run()
 
     def subprocess(
             workerbee_class,
             p_p2m: mp.Queue,
             p_m2p: mp.Queue,
-            child_id: int,
             ts_p2m: mp.Queue,
             init_args: tuple = (),
             init_kwargs: dict = {},
@@ -603,7 +592,7 @@ def subprocess_worker_bee(
         from ..traceback import extract_stack_compact
 
         try:
-            asyncio.run(subprocess_asyn(workerbee_class, p_p2m, p_m2p, child_id, ts_p2m, init_args=init_args, init_kwargs=init_kwargs, s3_profile=s3_profile, max_concurrency=max_concurrency))
+            asyncio.run(subprocess_asyn(workerbee_class, p_p2m, p_m2p, ts_p2m, init_args=init_args, init_kwargs=init_kwargs, s3_profile=s3_profile, max_concurrency=max_concurrency))
         except Exception as e: # tell the queen bee that the worker bee has been killed by an unexpected exception
             msg = {
                 'msg_type': 'dead',
@@ -618,7 +607,7 @@ def subprocess_worker_bee(
     p_m2p = mp.Queue()
     process = mp.Process(
         target=subprocess,
-        args=(workerbee_class, p_p2m, p_m2p, child_id, ts_p2m),
+        args=(workerbee_class, p_p2m, p_m2p, ts_p2m),
         kwargs={'init_args': init_args, 'init_kwargs': init_kwargs, 's3_profile': s3_profile, 'max_concurrency': max_concurrency},
         daemon=True)
     process.start()
@@ -644,8 +633,6 @@ class QueenBee(WorkerBee):
         the parent-to-me connection for private communication between the user (parent) and the queen
     p_m2p : queue.Queue
         the me-to-parent connection for private communication between the user (parent) and the queen
-    child_id : int
-        the queen bee's id seen in the eyes of the user
     ts_p2m : queue.Queue
         the parent-to-me queue for task scheduling
     worker_bee_class : class
@@ -671,7 +658,6 @@ class QueenBee(WorkerBee):
             self,
             p_p2m: queue.Queue,
             p_m2p: queue.Queue,
-            child_id: int,
             ts_p2m: queue.Queue,
             worker_bee_class,
             worker_init_args: tuple = (),
@@ -680,7 +666,7 @@ class QueenBee(WorkerBee):
             max_concurrency: int = 1024,
             context_vars: dict = {},
     ):
-        super().__init__(p_p2m, p_m2p, child_id, ts_p2m, max_concurrency=max_concurrency, context_vars=context_vars)
+        super().__init__(p_p2m, p_m2p, ts_p2m, max_concurrency=max_concurrency, context_vars=context_vars)
 
         self.worker_bee_class = worker_bee_class
         self.worker_init_args = worker_init_args
@@ -828,7 +814,6 @@ async def beehive_run(
     queen = queenbee_class(
         p_u2q,
         p_q2u,
-        0,
         ts_u2q,
         workerbee_class,
         s3_profile=s3_profile,
