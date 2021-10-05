@@ -300,7 +300,7 @@ class Bee:
                 self._deliver_done_task(task)
 
         # yield control a bit
-        await asyncio.sleep(0.001)
+        await asyncio.sleep(0.01)
 
 
     async def _run_finalise(self):
@@ -859,7 +859,7 @@ async def beehive_run(
     task_id = 0
     ts_u2q.put_nowait(task_id)
     while ts_q2u.empty():
-        await asyncio.sleep(0.001)
+        await asyncio.sleep(0.01)
     
     # describe the task to her
     p_u2q.put_nowait({
