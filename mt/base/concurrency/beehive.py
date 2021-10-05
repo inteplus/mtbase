@@ -62,12 +62,12 @@ class Bee:
     Each bee maintains a private communication its parent via a full-duplex `(p_p2m, p_m2p)` pair
     of connections. `p2m` and `m2p` stand for parent-to-me and me-to-parent. For every new task to
     be delegated to a child, the bee broadcasts a zero-based task id by sending a message
-    `{'msg_type': 'new_task', 'task_id': int}` to every child. The children reply by placing a
-    message `{'msg_type': 'task_accepted', 'task_id': int}` back to the parent via `p_m2p`. The
-    parent would choose one of the responders for doing the task, via private communication, and
-    would send `{'msg_type': 'task_taken', 'task_id': int}` to the other children regarding the
-    task. The communication to the chosen child is conducted via 2 further 2 messages, each of
-    which is a key-value dictionary.
+    `{'msg_type': 'new_task', 'task_id': int}` to every child. If a child wishes to process the
+    order, it places a  message `{'msg_type': 'task_accepted', 'task_id': int}` back to the parent
+    via its `p_m2p`. The parent would choose one of the responders for doing the task and would
+    send `{'msg_type': 'task_taken', 'task_id': int}` to the other ones regarding the task. The
+    communication to the chosen child is conducted via 2 further messages, each of which is a
+    key-value dictionary.
 
     The first message is sent from the parent bee describing the task to be delegated to the child
     `{'msg_type': 'task_info', 'task_id': int, 'name': str, 'args': tuple, 'kwargs': dict}`.
