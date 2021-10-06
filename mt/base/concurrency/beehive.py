@@ -147,8 +147,9 @@ class Bee:
             await self._run_inloop()
 
         # ask every worker bee to die gracefully
-        for worker_id in self.process_map:
-            self._put_msg(worker_id, {'msg_type': 'die'})
+        for child_id in range(len(self.child_conn_list)):
+            if self.child_alive_list[child_id]:
+                self._put_msg(child_id, {'msg_type': 'die'})
 
         while self.num_children > 0:
             await self._run_inloop()
