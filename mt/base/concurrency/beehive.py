@@ -18,6 +18,7 @@ import multiprocessing.connection as mc
 from copy import copy
 
 from ..contextlib import nullcontext
+from ..logging import IndentedLoggerAdapter
 
 
 __all__ = ['logger_debug_msg', 'Bee', 'WorkerBee', 'subprocess_worker_bee', 'QueenBee', 'beehive_run']
@@ -108,6 +109,8 @@ class Bee:
         the me-to-parent connection for private communication
     max_concurrency : int
         maximum number of concurrent tasks that the bee handles at a time
+    logger : mt.base.logging.IndentedLoggerAdapter, optional
+        logger for debugging purposes
     '''
 
 
@@ -115,6 +118,7 @@ class Bee:
             self,
             p_m2p: mc.Connection,
             max_concurrency: int = 1024,
+            logger: Optional[IndentedLoggerAdapter] = None,
     ):
         self.p_m2p = p_m2p # me-to-parent, private
         self.q_msg = [] # message-in queue
@@ -125,6 +129,7 @@ class Bee:
         if not isinstance(max_concurrency, int):
             raise ValueError("Argument 'max_concurrency' is not an integer: {}.".format(max_concurrency))
         self.max_concurrency = max_concurrency
+        self.logger = logger
 
         # task scheduling
         self.pending_order_map = {} # task_id -> timestamp, orders that have been placed but not yet accepted
@@ -235,9 +240,9 @@ class Bee:
         try:
             conn.send(msg)
         except:
-            from mt.base import logger
-            logger.warn_last_exception()
-            logger.warn("Look at me")
+            if self.logger:
+                self.logger.warn_last_exception()
+                self.logger.warn("Unexpected exception above while sending a message.")
             raise
 
     def _add_new_child(self, p_m2c: mc.Connection):
@@ -300,7 +305,8 @@ class Bee:
 
     async def _run_finalise(self):
         '''Finalises the life cycle of the bee.'''
-        self._inform_death({'death_type': 'normal', 'exit_code': self.exit_code})
+        msg = {'msg_type': 'dead', 'death_type': 'normal', 'exit_code': self.exit_code}
+        self._put_msg(-1, msg) # tell the parent it has died normally
 
 
     async def _execute_task(self, name: str, args: tuple = (), kwargs: dict = {}):
@@ -332,9 +338,14 @@ class Bee:
     def _mourn_death(self, child_id, msg): # msg = {'death_type': str, ...}
         '''Processes the death wish of a child bee.'''
 
+        import asyncio
         from ..traceback import extract_stack_compact
 
         self.child_alive_list[child_id] = False # mark the child as dead
+
+        if msg['death_type'] == 'killed':
+            with self.logger.scoped_debug("Child bee {} was killed".format(child_id), curly=False) if self.logger else nullcontext():
+                logger_debug_msg(msg, logger=self.logger)
 
         # process all pending tasks held up by the dead bee
         for task_id in self.started_dtask_map:
@@ -343,7 +354,7 @@ class Bee:
             del self.started_dtask_map[task_id] # pop it
             self.done_dtask_map[task_id] = {
                 'status': 'raised',
-                'exception': RuntimeError('Delegated task cancelled as the delegated bee has been killed.'),
+                'exception': asyncio.CancelledError('Delegated task cancelled as the delegated bee has been killed.'),
                 'traceback': extract_stack_compact(),
                 'other_details': {
                     'child_id': child_id,
@@ -360,9 +371,7 @@ class Bee:
 
         if task.cancelled():
             self._put_msg(-1, {'msg_type': 'task_done', 'task_id': task_id, 'status': 'cancelled', 'reason': None})
-            #print("task_cancelled")
         elif task.exception() is not None:
-            #print("task_raised")
             import io
             traceback = io.StringIO()
             task.print_stack(file=traceback)
@@ -375,10 +384,8 @@ class Bee:
                 'traceback': traceback,
                 'other_details': None,
             }
-            #print("msg=",msg)
             self._put_msg(-1, msg)
         else:
-            #print("task_done")
             self._put_msg(-1, {
                 'msg_type': 'task_done',
                 'task_id': task_id,
@@ -390,6 +397,7 @@ class Bee:
     def _dispatch_new_child_msg(self, child_id, msg):
         '''Dispatches a new message from a child.'''
 
+        import asyncio
         from ..traceback import extract_stack_compact
 
         msg_type = msg['msg_type']
@@ -410,7 +418,7 @@ class Bee:
             if status == 'cancelled':
                 self.done_dtask_map[task_id] = {
                     'status': 'raised',
-                    'exception': RuntimeError('Delegated task cancelled.'),
+                    'exception': asyncio.CancelledError('Delegated task cancelled.'),
                     'traceback': extract_stack_compact(),
                     'other_details': {'child_id': child_id, 'reason': msg['reason']},
                 }
@@ -459,20 +467,6 @@ class Bee:
             self.exit_code = "Unknown message with type '{}'.".format(msg_type)
 
 
-    def _inform_death(self, msg):
-        '''Informs the parent bee that it has died.
-
-        Parameters
-        ----------
-        msg : dict
-            message in the form `{'death_type': str, ...}` where death type can be either 'normal' or 'killed'
-        '''
-
-        wrapped_msg = {'msg_type': 'dead'}
-        wrapped_msg.update(msg)
-        self._put_msg(-1, wrapped_msg)
-
-
 class WorkerBee(Bee):
     '''A worker bee in the BeeHive concurrency model.
 
@@ -489,6 +483,8 @@ class WorkerBee(Bee):
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
         statement invoking :func:`mt.base.s3.create_s3_client`.
+    logger : mt.base.logging.IndentedLoggerAdapter, optional
+        logger for debugging purposes
     '''
 
     def __init__(
@@ -496,8 +492,9 @@ class WorkerBee(Bee):
             p_m2p: mc.Connection,
             max_concurrency: int = 1024,
             context_vars: dict = {},
+            logger: Optional[IndentedLoggerAdapter] = None,
     ):
-        super().__init__(p_m2p, max_concurrency=max_concurrency)
+        super().__init__(p_m2p, max_concurrency=max_concurrency, logger=logger)
         self.context_vars = context_vars
 
 
@@ -539,6 +536,7 @@ def subprocess_worker_bee(
         init_kwargs: dict = {},
         s3_profile: Optional[str] = None,
         max_concurrency: int = 1024,
+        logger: Optional[IndentedLoggerAdapter] = None,
 ):
     '''Creates a daemon subprocess that holds a worker bee and runs the bee in the subprocess.
 
@@ -556,6 +554,8 @@ def subprocess_worker_bee(
         See :func:`mt.base.s3.create_context_vars`.
     max_concurrency : int
         maximum number of concurrent tasks that the bee handles at a time
+    logger : mt.base.logging.IndentedLoggerAdapter, optional
+        logger for debugging purposes
 
     Returns
     -------
@@ -574,11 +574,18 @@ def subprocess_worker_bee(
             init_kwargs: dict = {},
             s3_profile: Optional[str] = None,
             max_concurrency: int = 1024,
+            logger: Optional[IndentedLoggerAdapter] = None,
     ):
         from ..s3 import create_context_vars
 
         async with create_context_vars(profile=s3_profile, asyn=True) as context_vars:
-            bee = workerbee_class(p_m2p, *init_args, max_concurrency=max_concurrency, context_vars=context_vars, **init_kwargs)
+            bee = workerbee_class(
+                p_m2p,
+                *init_args,
+                max_concurrency=max_concurrency,
+                context_vars=context_vars,
+                logger=logger,
+                **init_kwargs)
             await bee.run()
 
     def subprocess(
@@ -588,12 +595,21 @@ def subprocess_worker_bee(
             init_kwargs: dict = {},
             s3_profile: Optional[str] = None,
             max_concurrency: int = 1024,
+            logger: Optional[IndentedLoggerAdapter] = None,
     ):
         import asyncio
         from ..traceback import extract_stack_compact
 
         try:
-            asyncio.run(subprocess_asyn(workerbee_class, p_m2p, init_args=init_args, init_kwargs=init_kwargs, s3_profile=s3_profile, max_concurrency=max_concurrency))
+            asyncio.run(subprocess_asyn(
+                workerbee_class,
+                p_m2p,
+                init_args=init_args,
+                init_kwargs=init_kwargs,
+                s3_profile=s3_profile,
+                max_concurrency=max_concurrency,
+                logger=logger,
+            ))
         except Exception as e: # tell the queen bee that the worker bee has been killed by an unexpected exception
             msg = {
                 'msg_type': 'dead',
@@ -648,6 +664,8 @@ class QueenBee(WorkerBee):
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
         statement invoking :func:`mt.base.s3.create_s3_client`.
+    logger : mt.base.logging.IndentedLoggerAdapter, optional
+        logger for debugging purposes
     '''
 
     def __init__(
@@ -659,8 +677,9 @@ class QueenBee(WorkerBee):
             s3_profile: Optional[str] = None,
             max_concurrency: int = 1024,
             context_vars: dict = {},
+            logger: Optional[IndentedLoggerAdapter] = None,
     ):
-        super().__init__(p_m2p, max_concurrency=max_concurrency, context_vars=context_vars)
+        super().__init__(p_m2p, max_concurrency=max_concurrency, context_vars=context_vars, logger=logger)
 
         self.worker_bee_class = worker_bee_class
         self.worker_init_args = worker_init_args
@@ -738,8 +757,9 @@ class QueenBee(WorkerBee):
 
 
 def local_pipe():
-    '''TBD'''
+    '''Mimicing :func:`multiprocessing.Pipe` but without multiprocessing.'''
     class LocalConnection:
+        '''Mimicing :class:`multiprocessing.connection.Connection` but without multiprocessing.'''
 
         def __init__(self, m2o, o2m):
             self.m2o = m2o
@@ -772,7 +792,8 @@ async def beehive_run(
         s3_profile: Optional[str] = None,
         max_concurrency: int = 1024,
         context_vars: dict = {},
-        logger=None):
+        logger: Optional[IndentedLoggerAdapter] = None,
+):
     '''An asyn function that runs a task in a BeeHive concurrency model.
 
     Parameters
@@ -798,7 +819,7 @@ async def beehive_run(
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
         statement invoking :func:`mt.base.s3.create_s3_client`.
-    logger : logging.Logger or equivalent
+    logger : mt.base.logging.IndentedLoggerAdapter, optional
         logger for debugging purposes
 
     Returns
@@ -829,7 +850,8 @@ async def beehive_run(
         workerbee_class,
         s3_profile=s3_profile,
         max_concurrency=max_concurrency,
-        context_vars=context_vars
+        context_vars=context_vars,
+        logger=logger,
     )
     queen_life = asyncio.ensure_future(queen.run())
 
@@ -866,7 +888,7 @@ async def beehive_run(
     # intepret the result
     #print("msg to heaven", msg)
     if msg['status'] == 'cancelled':
-        raise RuntimeError("The queen bee cancelled the task. Reason: {}".format(msg['reason']))
+        raise asyncio.CancelledError("The queen bee cancelled the task. Reason: {}".format(msg['reason']))
 
     if msg['status'] == 'raised':
         with logger.scoped_debug("Exception raised by the queen bee", curly=False) if logger else nullcontext():
