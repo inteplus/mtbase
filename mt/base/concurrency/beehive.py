@@ -272,11 +272,6 @@ class Bee:
         import asyncio
         import queue
 
-        # get all messages from all alive children
-        for child_id in range(len(self.child_conn_list)):
-            if self.child_alive_list[child_id]:
-                self._get_conn(child_id)
-
         # dispatch all messages from the parent
         while not self.p_m2p.empty():
             try:
@@ -337,8 +332,14 @@ class Bee:
         Exception
             user-defined
         '''
-        func = getattr(self, name)
-        return await func(*args, **kwargs)
+        try:
+            func = getattr(self, name)
+            return await func(*args, **kwargs)
+        except:
+            if self.logger:
+                self.logger.warn_last_exception()
+                self.logger.warn("Caught the exception above while executing a task.")
+            raise
 
 
     def _mourn_death(self, child_id, msg): # msg = {'death_type': str, ...}
