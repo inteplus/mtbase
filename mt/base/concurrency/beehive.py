@@ -581,8 +581,8 @@ def subprocess_worker_bee(
 
     async def subprocess_asyn(
             workerbee_class,
-            p_m2p: multiprocessing.Queue,
-            p_p2m: multiprocessing.Queue,
+            p_m2p: mp.Queue,
+            p_p2m: mp.Queue,
             init_args: tuple = (),
             init_kwargs: dict = {},
             s3_profile: Optional[str] = None,
@@ -604,8 +604,8 @@ def subprocess_worker_bee(
 
     def subprocess(
             workerbee_class,
-            p_m2p: multiprocessing.Queue,
-            p_p2m: multiprocessing.Queue,
+            p_m2p: mp.Queue,
+            p_p2m: mp.Queue,
             init_args: tuple = (),
             init_kwargs: dict = {},
             s3_profile: Optional[str] = None,
