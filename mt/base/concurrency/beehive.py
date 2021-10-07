@@ -878,7 +878,7 @@ async def beehive_run(
 
     # advertise a task to the queen bee and waits for her response
     p_u2q.put_nowait({'msg_type': 'new_task', 'task_id': 0})
-    while not p_u2q.poll(0):
+    while p_u2q.empty():
         await asyncio.sleep(0.001)
     
     # get her confirmation
@@ -894,7 +894,7 @@ async def beehive_run(
     })
 
     # wait for the task to be done
-    while not p_u2q.poll(0):
+    while p_u2q.empty():
         await asyncio.sleep(0.1)
 
     # get the result
