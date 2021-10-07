@@ -237,24 +237,16 @@ class Bee:
             lock = self.p_lock
         else:
             conn, lock = self.child_conn_list[child_id]
-        with lock:
-            while conn.poll(0): # connection has data?
-                msg2 = conn.recv()
-                self.q_msg.append((child_id, msg2))
-            return conn
+        while conn.poll(0): # connection has data?
+            msg2 = conn.recv()
+            self.q_msg.append((child_id, msg2))
+        return conn, lock
 
 
     def _put_msg(self, child_id, msg):
         '''Puts a message to another bee, making sure all incoming messages are heard.'''
-        if child_id < 0:
-            conn = self.p_m2p
-            lock = self.p_lock
-        else:
-            conn, lock = self.child_conn_list[child_id]
+        conn, lock = self._get_conn(child_id)
         with lock:
-            while conn.poll(0): # connection has data?
-                msg2 = conn.recv()
-                self.q_msg.append((child_id, msg2))
             try:
                 conn.send(msg)
             except:
