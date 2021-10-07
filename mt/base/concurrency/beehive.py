@@ -13,6 +13,7 @@ worker bees, and deals with making batch predictions from the model.
 
 from typing import Optional
 
+import queue
 import multiprocessing as mp
 import multiprocessing.connection as mc
 from copy import copy
@@ -61,7 +62,7 @@ class Bee:
     delegating child bees to do subtasks. All tasks are asynchronous.
 
     Each bee maintains a private communication its parent via a full-duplex `(p_p2m, p_m2p)` pair
-    of connections. `p2m` and `m2p` stand for parent-to-me and me-to-parent. For every new task to
+    of queues. `p2m` and `m2p` stand for parent-to-me and me-to-parent. For every new task to
     be delegated to a child, the bee broadcasts a zero-based task id by sending a message
     `{'msg_type': 'new_task', 'task_id': int}` to every child. If a child wishes to process the
     order, it places a  message `{'msg_type': 'task_accepted', 'task_id': int}` back to the parent
@@ -105,10 +106,10 @@ class Bee:
 
     Parameters
     ----------
-    p_m2p : multiprocessing.connection.Connection
-        the me-to-parent connection for private communication
-    p_lock : multiprocessing.Lock
-        to make sure maximum one side speaks at a time
+    p_m2p : queue.Queue
+        the me-to-parent queue for private communication
+    p_p2m : queue.Queue
+        the parent-to-me queue for private communication
     max_concurrency : int
         maximum number of concurrent tasks that the bee handles at a time
     logger : mt.base.logging.IndentedLoggerAdapter, optional
@@ -118,16 +119,15 @@ class Bee:
 
     def __init__(
             self,
-            p_m2p: mc.Connection,
-            p_lock: mp.Lock,
+            p_m2p: queue.Queue,
+            p_p2m: queue.Queue,
             max_concurrency: int = 1024,
             logger: Optional[IndentedLoggerAdapter] = None,
     ):
         self.p_m2p = p_m2p # me-to-parent, private
-        self.p_lock = p_lock # to make sure one bee speaks at a time in the private channel
-        self.q_msg = [] # message-in queue
+        self.p_p2m = p_p2m # parent-to-me, private
 
-        self.child_conn_list = [] # (conn, lock)
+        self.child_conn_list = [] # (p_c2m, p_m2c)
         self.child_alive_list = []
         self.num_children = 0
         if not isinstance(max_concurrency, int):
@@ -230,36 +230,22 @@ class Bee:
     # ----- private -----
 
 
-    def _get_conn(self, child_id):
-        '''Hears messages from another bee and queue them up until there is no more.'''
-        if child_id < 0:
-            conn = self.p_m2p
-            lock = self.p_lock
-        else:
-            conn, lock = self.child_conn_list[child_id]
-        while conn.poll(0): # connection has data?
-            msg2 = conn.recv()
-            self.q_msg.append((child_id, msg2))
-        return conn, lock
-
-
     def _put_msg(self, child_id, msg):
-        '''Puts a message to another bee, making sure all incoming messages are heard.'''
-        conn, lock = self._get_conn(child_id)
-        with lock:
-            try:
-                conn.send(msg)
-            except:
-                if self.logger:
-                    self.logger.warn_last_exception()
-                    self.logger.warn("Unexpected exception above while sending a message.")
-                raise
+        '''Puts a message to another bee.'''
+        conn = self.p_m2p if child_id < 0 else self.child_conn_list[child_id][1] # child case: m2c
+        try:
+            conn.put_nowait(msg)
+        except:
+            if self.logger:
+                self.logger.warn_last_exception()
+                self.logger.warn("Unexpected exception above while sending a message.")
+            raise
 
-    def _add_new_child(self, p_m2c: mc.Connection, p_lock: mp.Lock):
+    def _add_new_child(self, p_c2m: queue.Queue, p_m2c: queue.Queue):
         '''Adds a new child to the bee.'''
 
         child_id = len(self.child_conn_list)
-        self.child_conn_list.append((p_m2c, p_lock))
+        self.child_conn_list.append((p_c2m, p_m2c))
         self.child_alive_list.append(True) # the new child is assumed alive
         self.num_children += 1
 
@@ -284,22 +270,32 @@ class Bee:
         '''The thing that the bee does every day until it dies, operating at 1kHz.'''
 
         import asyncio
-
-        # get all messages from the parent
-        self._get_conn(-1)
+        import queue
 
         # get all messages from all alive children
         for child_id in range(len(self.child_conn_list)):
             if self.child_alive_list[child_id]:
                 self._get_conn(child_id)
 
-        # dispatch all messages
-        while self.q_msg:
-            child_id, msg = self.q_msg.pop(0)
-            if child_id < 0: # message from parent
+        # dispatch all messages from the parent
+        while not self.p_m2p.empty():
+            try:
+                msg = self.p_m2p.get_nowait()
                 self._dispatch_new_parent_msg(msg)
-            else:
+            except queue.Empty:
+                break
+
+        # dispatch all messages from all the children
+        for child_id in range(len(self.child_conn_list)):
+            if not self.child_alive_list[child_id]:
+                continue
+            conn = self.child_conn_list[child_id][0] # c2m
+            while not conn.empty():
+              try:
+                msg = conn.get_nowait()
                 self._dispatch_new_child_msg(child_id, msg)
+              except queue.Empty:
+                break
 
         # scout for tasks done by the bee
         if self.working_task_map:
@@ -484,10 +480,10 @@ class WorkerBee(Bee):
 
     Parameters
     ----------
-    p_m2p : multiprocessing.connection.Connection
+    p_m2p : multiprocessing.Queue
         the me-to-parent connection for private communication
-    p_lock : multiprocessing.Lock
-        to make sure maximum one side speaks at a time
+    p_p2m : multiprocessing.Queue
+        the parent-to-me connection for private communication
     max_concurrency : int
         maximum number of concurrent tasks that the bee handles at a time
     context_vars : dict
@@ -501,13 +497,13 @@ class WorkerBee(Bee):
 
     def __init__(
             self,
-            p_m2p: mc.Connection,
-            p_lock: mp.Lock,
+            p_m2p: mp.Queue,
+            p_p2m: mp.Queue,
             max_concurrency: int = 1024,
             context_vars: dict = {},
             logger: Optional[IndentedLoggerAdapter] = None,
     ):
-        super().__init__(p_m2p, p_lock, max_concurrency=max_concurrency, logger=logger)
+        super().__init__(p_m2p, p_p2m, max_concurrency=max_concurrency, logger=logger)
         self.context_vars = context_vars
 
 
@@ -574,18 +570,18 @@ def subprocess_worker_bee(
     -------
     process : multiprocessing.Process
         the created subprocess
-    p_p2m : multiprocessing.connection.Connection
+    p_m2p : multiprocessing.Queue
+        the me-to-parent connection for private communication with the worker bee
+    p_p2m : multiprocessing.Queue
         the parent-to-me connection for private communication with the worker bee
-    p_lock : multiprocessing.Lock
-        to make sure maximum one side speaks at a time
     '''
 
     import multiprocessing as mp
 
     async def subprocess_asyn(
             workerbee_class,
-            p_m2p: mc.Connection,
-            p_lock: mp.Lock,
+            p_m2p: multiprocessing.Queue,
+            p_p2m: multiprocessing.Queue,
             init_args: tuple = (),
             init_kwargs: dict = {},
             s3_profile: Optional[str] = None,
@@ -597,7 +593,7 @@ def subprocess_worker_bee(
         async with create_context_vars(profile=s3_profile, asyn=True) as context_vars:
             bee = workerbee_class(
                 p_m2p,
-                p_lock,
+                p_p2m,
                 *init_args,
                 max_concurrency=max_concurrency,
                 context_vars=context_vars,
@@ -607,8 +603,8 @@ def subprocess_worker_bee(
 
     def subprocess(
             workerbee_class,
-            p_m2p: mc.Connection,
-            p_lock: mp.Lock,
+            p_m2p: multiprocessing.Queue,
+            p_p2m: multiprocessing.Queue,
             init_args: tuple = (),
             init_kwargs: dict = {},
             s3_profile: Optional[str] = None,
@@ -622,7 +618,7 @@ def subprocess_worker_bee(
             asyncio.run(subprocess_asyn(
                 workerbee_class,
                 p_m2p,
-                p_lock,
+                p_p2m,
                 init_args=init_args,
                 init_kwargs=init_kwargs,
                 s3_profile=s3_profile,
@@ -637,19 +633,18 @@ def subprocess_worker_bee(
                 'traceback': extract_stack_compact(),
             }
             #print("WorkerBee exception msg", msg)
-            with p_lock:
-                p_m2p.send(msg)
+            p_m2p.put_nowait(msg)
 
-    p_p2m, p_m2p = mp.Pipe()
-    p_lock = mp.Lock()
+    p_p2m = mp.Queue()
+    p_m2p = mp.Queue()
     process = mp.Process(
         target=subprocess,
-        args=(workerbee_class, p_m2p, p_lock),
+        args=(workerbee_class, p_m2p, p_p2m),
         kwargs={'init_args': init_args, 'init_kwargs': init_kwargs, 's3_profile': s3_profile, 'max_concurrency': max_concurrency},
         daemon=True)
     process.start()
 
-    return process, p_p2m, p_lock
+    return process, p_m2p, p_p2m
 
 
 class QueenBee(WorkerBee):
@@ -666,10 +661,10 @@ class QueenBee(WorkerBee):
 
     Parameters
     ----------
-    p_m2p : multiprocessing.connection.Connection
+    p_m2p : queue.Queue
         the me-to-parent connection for private communication between the user (parent) and the queen
-    p_lock : multiprocessing.Lock
-        to make sure maximum one side speaks at a time
+    p_p2m : queue.Queue
+        the parent-to-me connection for private communication with the worker bee
     worker_bee_class : class
         subclass of :class:`WorkerBee` whose constructor accepts all positional and keyword
         arguments of the constructor of the super class
@@ -693,8 +688,8 @@ class QueenBee(WorkerBee):
 
     def __init__(
             self,
-            p_m2p: mc.Connection,
-            p_lock: mp.Lock,
+            p_m2p: queue.Queue,
+            p_p2m: queue.Queue,
             worker_bee_class,
             worker_init_args: tuple = (),
             worker_init_kwargs: dict = {},
@@ -703,7 +698,7 @@ class QueenBee(WorkerBee):
             context_vars: dict = {},
             logger: Optional[IndentedLoggerAdapter] = None,
     ):
-        super().__init__(p_m2p, p_lock, max_concurrency=max_concurrency, context_vars=context_vars, logger=logger)
+        super().__init__(p_m2p, p_p2m, max_concurrency=max_concurrency, context_vars=context_vars, logger=logger)
 
         self.worker_bee_class = worker_bee_class
         self.worker_init_args = worker_init_args
@@ -754,13 +749,13 @@ class QueenBee(WorkerBee):
 
     def _spawn_new_worker_bee(self):
         worker_id = len(self.child_conn_list) # get new worker id
-        process, p_m2c, p_lock = subprocess_worker_bee(
+        process, p_c2m, p_m2c = subprocess_worker_bee(
             self.worker_bee_class,
             init_args=self.worker_init_args,
             init_kwargs=self.worker_init_kwargs,
             s3_profile=self.s3_profile,
             max_concurrency=self.max_concurrency)
-        self._add_new_child(p_m2c, p_lock)
+        self._add_new_child(p_c2m, p_m2c)
         self.process_map[worker_id] = process
         return worker_id
 
@@ -783,7 +778,7 @@ class QueenBee(WorkerBee):
 def local_pipe():
     '''Mimicing :func:`multiprocessing.Pipe` but without multiprocessing.'''
     class LocalConnection:
-        '''Mimicing :class:`multiprocessing.connection.Connection` but without multiprocessing.'''
+        '''Mimicing :class:`queue.Queue` but without multiprocessing.'''
 
         def __init__(self, m2o, o2m):
             self.m2o = m2o
@@ -866,13 +861,13 @@ async def beehive_run(
     import asyncio
 
     # create a private communication channel with the queen bee
-    p_u2q, p_q2u = local_pipe()
-    p_lock = nullcontext() # fake lock
+    p_u2q = queue.Queue()
+    p_q2u = queue.Queue()
 
     # create a queen bee and start her life
     queen = queenbee_class(
         p_q2u,
-        p_lock,
+        p_u2q,
         workerbee_class,
         s3_profile=s3_profile,
         max_concurrency=max_concurrency,
@@ -882,15 +877,15 @@ async def beehive_run(
     queen_life = asyncio.ensure_future(queen.run())
 
     # advertise a task to the queen bee and waits for her response
-    p_u2q.send({'msg_type': 'new_task', 'task_id': 0})
+    p_u2q.put_nowait({'msg_type': 'new_task', 'task_id': 0})
     while not p_u2q.poll(0):
         await asyncio.sleep(0.001)
     
     # get her confirmation
-    msg = p_u2q.recv()
+    msg = p_u2q.get_nowait()
 
     # describe the task to her
-    p_u2q.send({
+    p_u2q.put_nowait({
         'msg_type': 'task_info',
         'task_id': 0,
         'name': task_name,
@@ -903,10 +898,10 @@ async def beehive_run(
         await asyncio.sleep(0.1)
 
     # get the result
-    msg = p_u2q.recv()
+    msg = p_u2q.get_nowait()
 
     # tell the queen to die
-    p_u2q.send({'msg_type': 'die'})
+    p_u2q.put_nowait({'msg_type': 'die'})
 
     # wait for her to die, hopefully gracefully
     await asyncio.wait([queen_life])
