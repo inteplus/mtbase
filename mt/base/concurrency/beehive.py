@@ -273,9 +273,9 @@ class Bee:
         import queue
 
         # dispatch all messages from the parent
-        while not self.p_m2p.empty():
+        while not self.p_p2m.empty():
             try:
-                msg = self.p_m2p.get_nowait()
+                msg = self.p_p2m.get_nowait()
                 self._dispatch_new_parent_msg(msg)
             except queue.Empty:
                 break
@@ -421,7 +421,6 @@ class Bee:
             task_id = msg['task_id']
             status = msg['status']
             child_id = self.started_dtask_map.pop(task_id)
-            #print("result: child_id={}, task_id={} for {}".format(child_id, task_id, self))
             if status == 'cancelled':
                 self.done_dtask_map[task_id] = {
                     'status': 'raised',
@@ -633,7 +632,6 @@ def subprocess_worker_bee(
                 'exception': e,
                 'traceback': extract_stack_compact(),
             }
-            #print("WorkerBee exception msg", msg)
             p_m2p.put_nowait(msg)
 
     p_p2m = mp.Queue()
@@ -879,11 +877,11 @@ async def beehive_run(
 
     # advertise a task to the queen bee and waits for her response
     p_u2q.put_nowait({'msg_type': 'new_task', 'task_id': 0})
-    while p_u2q.empty():
+    while p_q2u.empty():
         await asyncio.sleep(0.001)
-    
+
     # get her confirmation
-    msg = p_u2q.get_nowait()
+    msg = p_q2u.get_nowait()
 
     # describe the task to her
     p_u2q.put_nowait({
@@ -895,11 +893,11 @@ async def beehive_run(
     })
 
     # wait for the task to be done
-    while p_u2q.empty():
+    while p_q2u.empty():
         await asyncio.sleep(0.1)
 
     # get the result
-    msg = p_u2q.get_nowait()
+    msg = p_q2u.get_nowait()
 
     # tell the queen to die
     p_u2q.put_nowait({'msg_type': 'die'})
@@ -908,7 +906,6 @@ async def beehive_run(
     await asyncio.wait([queen_life])
 
     # intepret the result
-    #print("msg to heaven", msg)
     if msg['status'] == 'cancelled':
         raise asyncio.CancelledError("The queen bee cancelled the task. Reason: {}".format(msg['reason']))
 
