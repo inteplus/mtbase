@@ -8,6 +8,7 @@ import asyncio
 import aiofiles
 
 from ..contextlib import asynccontextmanager
+from .path import rename_asyn, rename
 
 
 __all__ = ['read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'mkdtemp']
@@ -65,22 +66,31 @@ async def write_binary(filepath, buf: bytes, file_mode: int = 0o664, context_var
     asyncio.Future or int
         either a future or the number of bytes written, depending on whether the file write
         task is delayed or not
+
+    Notes
+    -----
+    The content is written to a file with '.mttmp' extension first before the file is renamed to
+    the right file.
     '''
 
     if context_vars['async']:
         async def func(filepath, buf, file_mode):
-            async with aiofiles.open(filepath, mode='wb') as f:
+            filepath2 = filepath+'.mttmp'
+            async with aiofiles.open(filepath2, mode='wb') as f:
                 retval = await f.write(buf)
             if file_mode is not None:  # chmod
-                os.chmod(filepath, file_mode)
+                os.chmod(filepath2, file_mode)
+            await rename_asyn(filepath2, filepath, overwrite=True)
             return retval
         coro = func(filepath, buf, file_mode)
         return asyncio.ensure_future(coro) if file_write_delayed else (await coro)
 
-    with open(filepath, mode='wb') as f:
+    filepath2 = filepath+'.mttmp'
+    with open(filepath2, mode='wb') as f:
         retval = f.write(buf)
     if file_mode is not None:  # chmod
-        os.chmod(filepath, file_mode)
+        os.chmod(filepath2, file_mode)
+    rename(filepath2, filepath, overwrite=True)
     return retval
 
 
@@ -136,22 +146,31 @@ async def write_text(filepath, buf: str, file_mode: int = 0o664, context_vars : 
     asyncio.Future or int
         either a future or the number of bytes written, depending on whether the file write
         task is delayed or not
+
+    Notes
+    -----
+    The content is written to a file with '.mttmp' extension first before the file is renamed to
+    the right file.
     '''
 
     if context_vars['async']:
         async def func(filepath, buf, file_mode):
-            async with aiofiles.open(filepath, mode='wt') as f:
+            filepath2 = filepath+'.mttmp'
+            async with aiofiles.open(filepath2, mode='wt') as f:
                 retval = await f.write(buf)
             if file_mode is not None:  # chmod
-                os.chmod(filepath, file_mode)
+                os.chmod(filepath2, file_mode)
+            await rename_asyn(filepath2, filepath, context_vars=context_vars, overwrite=True)
             return retval
         coro = func(filepath, buf, file_mode)
         return asyncio.ensure_future(coro) if file_write_delayed else (await coro)
 
-    with open(filepath, mode='wt') as f:
+    filepath2 = filepath+'.mttmp'
+    with open(filepath2, mode='wt') as f:
         retval = f.write(buf)
     if file_mode is not None:  # chmod
-        os.chmod(filepath, file_mode)
+        os.chmod(filepath2, file_mode)
+    rename(filepath2, filepath, overwrite=True)
     return retval
 
 
