@@ -825,6 +825,10 @@ async def beehive_run(
         task_name: str,
         task_args: tuple = (),
         task_kwargs: dict = {},
+        queenbee_init_args: tuple = (),
+        queenbee_init_kwargs: dict = {},
+        workerbee_init_args: tuple = (),
+        workerbee_init_kwargs: dict = {},
         s3_profile: Optional[str] = None,
         max_concurrency: int = 1024,
         context_vars: dict = {},
@@ -845,6 +849,14 @@ async def beehive_run(
         positional arguments to be passed to the member function as-is
     task_kwargs : dict
         keyword arguments to be passed to the member function as-is
+    queenbee_init_args : tuple
+        additional positional arguments to be passed as-is to the new queen bee's constructor
+    queenbee_init_kwargs : dict
+        additional keyword arguments to be passed as-is to the new queen bee's constructor
+    workerbee_init_args : tuple
+        additional positional arguments to be passed as-is to each new worker bee's constructor
+    workerbee_init_kwargs : dict
+        additional keyword arguments to be passed as-is to each new worker bee's constructor
     s3_profile : str, optional
         the S3 profile from which the context vars are created. See
         :func:`mt.base.s3.create_context_vars`.
@@ -886,10 +898,14 @@ async def beehive_run(
         p_q2u,
         p_u2q,
         workerbee_class,
+        *queenbee_init_args,
+        worker_init_args=workerbee_init_args,
+        worker_init_kwargs=workerbee_init_kwargs,
         s3_profile=s3_profile,
         max_concurrency=max_concurrency,
         context_vars=context_vars,
         logger=logger,
+        **queenbee_init_kwargs,
     )
     queen_life = asyncio.ensure_future(queen.run())
 

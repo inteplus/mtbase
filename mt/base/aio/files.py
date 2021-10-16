@@ -80,7 +80,7 @@ async def write_binary(filepath, buf: bytes, file_mode: int = 0o664, context_var
                 retval = await f.write(buf)
             if file_mode is not None:  # chmod
                 os.chmod(filepath2, file_mode)
-            await rename_asyn(filepath2, filepath, overwrite=True)
+            await rename_asyn(filepath2, filepath, context_vars=context_vars, overwrite=True)
             return retval
         coro = func(filepath, buf, file_mode)
         return asyncio.ensure_future(coro) if file_write_delayed else (await coro)
