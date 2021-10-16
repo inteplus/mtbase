@@ -723,13 +723,18 @@ class QueenBee(WorkerBee):
         max_num_workers = max(mp.cpu_count()-1, min_num_workers)
 
         self.stop_managing = False # let other futures decide when to stop managing
+        inited = False
         while not self.stop_managing and not self.to_terminate:
-            num_workers = len(self.child_conn_list)
+            num_workers = len(self.process_map)
 
             if num_workers < min_num_workers:
-                cnt = min(min_num_workers, max_num_workers//2)
-                for i in range(cnt):
-                    self._spawn_new_worker_bee()
+                if not inited:
+                    cnt = min(min_num_workers, max_num_workers//2)
+                    for i in range(cnt):
+                        self._spawn_new_worker_bee()
+                    inited = True
+                else:
+                    raise RuntimeError("All children bee have been killed.")
             elif (num_workers > min_num_workers) and ((num_workers > max_num_workers) or used_cpu_too_much() or used_memory_too_much()):
                 # kill the worker bee that responds to 'busy_status' task
                 task_result, worker_id = await self.delegate('busy_status')
@@ -738,6 +743,19 @@ class QueenBee(WorkerBee):
                 self._spawn_new_worker_bee()
 
             await asyncio.sleep(10) # sleep for 10 seconds
+
+            # check the children that have been killed without sending the last wish
+            for child_id in range(len(self.child_conn_list)):
+                if not self.child_alive_list[child_id]:
+                    continue
+                if not self.process_map[child_id].is_alive(): # killed without sending the last wish?
+                    msg = {
+                        'msg_type': 'dead',
+                        'death_type': 'killed',
+                        'exception': RuntimeError("Child bee id {} has died without sending a last wish.".format(child_id)),
+                        'traceback': extract_stack_compact(),
+                    }
+                    self._mourn_death(child_id, msg)
 
 
     def _mourn_death(self, child_id, msg): # msg = {'death_type': str, ...}
