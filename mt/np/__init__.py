@@ -1,5 +1,7 @@
 '''Alias module. Instead of 'import numpy as np' you can do 'from mt import np'.'''
 
+from .ndarray import *
+from .sparse import *
 from .matrix import *
 
 from numpy import *

@@ -375,6 +375,7 @@ def _pf_tunnel_server(listen_config, ssh_tunnel_forwarder, timeout=30, logger=No
             except OSError:
                 if logger:
                     logger.warn_last_exception()
+                    logger.warn("Exception caught while trying to listen to {}".format(listen_params))
                 dock_socket.close()
                 sleep(5)
 

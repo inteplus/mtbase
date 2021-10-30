@@ -1,7 +1,7 @@
 '''Useful functions dealing with numpy array.'''
 
 
-import numpy as _np
+import numpy as np
 
 
 __all__ = ['ndarray_repr']
@@ -20,7 +20,7 @@ def ndarray_repr(a):
     str
         a short representation string for the array
     '''
-    if not isinstance(a, _np.ndarray):
+    if not isinstance(a, np.ndarray):
         raise TypeError("An ndarray expected. Got '{}'.".format(type(a)))
 
     if a.size > 20:
