@@ -4,6 +4,7 @@
 from typing import Optional, Union
 import asyncio
 import aiobotocore
+import aiobotocore.session
 import botocore
 import botocore.session
 import botocore.exceptions
@@ -70,7 +71,7 @@ def split(s3cmd_url: str):
     return bucket, prefix
 
 
-def get_session(profile = None, asyn: bool = True) -> Union[aiobotocore.AioSession, botocore.session.Session]:
+def get_session(profile = None, asyn: bool = True) -> Union[aiobotocore.session.AioSession, botocore.session.Session]:
     '''Gets a botocore session, for either asynchronous mode or synchronous mode.
 
     Parameters
@@ -82,8 +83,8 @@ def get_session(profile = None, asyn: bool = True) -> Union[aiobotocore.AioSessi
 
     Returns
     -------
-    botocore_session: aiobotocore.AioSession or botocore.session.Session
-        In asynchronous mode, an aiobotocore.AioSession instance is returned. In synchronous mode,
+    botocore_session: aiobotocore.session.AioSession or botocore.session.Session
+        In asynchronous mode, an aiobotocore.session.AioSession instance is returned. In synchronous mode,
         a botocore.session.Session instance is returned.
 
     Notes
@@ -91,7 +92,7 @@ def get_session(profile = None, asyn: bool = True) -> Union[aiobotocore.AioSessi
     This function is used as part of :func:`create_s3_client` to create an s3 client.
     '''
 
-    klass = aiobotocore.AioSession if asyn else botocore.session.Session
+    klass = aiobotocore.session.AioSession if asyn else botocore.session.Session
     return klass(profile=profile)
 
 
