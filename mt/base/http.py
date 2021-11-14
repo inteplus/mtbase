@@ -67,10 +67,16 @@ async def download(url, context_vars: dict = {}):
     if http_session is None:
         raise ValueError("In asynchronous mode, an open client session is needed. But None has been provided.")
 
-    async with http_session.get(url) as response:
-        if response.status < 200 or response.status >= 300:
-            raise IOError("Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(url, response.status, response.headers['content-type']))
-        content = await response.read()
+    try:
+        async with http_session.get(url) as response:
+            if response.status < 200 or response.status >= 300:
+                raise IOError("Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(url, response.status, response.headers['content-type']))
+            content = await response.read()
+    except aiohttp.client_exceptions.ServerDisconnectedError:
+        async with http_session.get(url) as response:
+            if response.status < 200 or response.status >= 300:
+                raise IOError("Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(url, response.status, response.headers['content-type']))
+            content = await response.read()
     return content
 
 
