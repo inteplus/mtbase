@@ -718,6 +718,7 @@ class QueenBee(WorkerBee):
         import multiprocessing as mp
 
         from .base import used_cpu_too_much, used_memory_too_much
+        from ..traceback import extract_stack_compact
 
         min_num_workers = 1
         max_num_workers = max(mp.cpu_count()-1, min_num_workers)
