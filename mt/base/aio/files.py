@@ -14,6 +14,14 @@ from .path import rename_asyn, rename
 __all__ = ['read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'mkdtemp']
 
 
+async def safe_chmod(filepath: str, file_mode: int = 0o664):
+    try:
+        return os.chmod(filepath, file_mode)
+    except FileNotFoundError:
+        await asyncio.sleep(1)
+        return os.chmod(filepath, file_mode)
+
+
 async def read_binary(filepath, size: int = None, context_vars : dict = {}) -> bytes:
     '''An asyn function that opens a binary file and reads the content.
 
@@ -79,7 +87,7 @@ async def write_binary(filepath, buf: bytes, file_mode: int = 0o664, context_var
             async with aiofiles.open(filepath2, mode='wb') as f:
                 retval = await f.write(buf)
             if file_mode is not None:  # chmod
-                os.chmod(filepath2, file_mode)
+                await safe_chmod(filepath2, file_mode=file_mode)
             await rename_asyn(filepath2, filepath, context_vars=context_vars, overwrite=True)
             return retval
         coro = func(filepath, buf, file_mode)
@@ -159,7 +167,7 @@ async def write_text(filepath, buf: str, file_mode: int = 0o664, context_vars : 
             async with aiofiles.open(filepath2, mode='wt') as f:
                 retval = await f.write(buf)
             if file_mode is not None:  # chmod
-                os.chmod(filepath2, file_mode)
+                await safe_chmod(filepath2, file_mode=file_mode)
             await rename_asyn(filepath2, filepath, context_vars=context_vars, overwrite=True)
             return retval
         coro = func(filepath, buf, file_mode)
