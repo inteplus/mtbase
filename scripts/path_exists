@@ -7,9 +7,11 @@ from mt.base import path
 
 
 async def main(args):
-    res = await path.exists_timeout(args.path, timeout=args.timeout)
-    return int(not res)
-
+    try:
+        res = await path.exists_timeout(args.path, timeout=args.timeout)
+        return int(not res)
+    except asyncio.TimeoutError:
+        return 2
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Checks if a path exists, with timeout.")
