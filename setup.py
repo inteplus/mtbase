@@ -8,6 +8,9 @@ setup(name='mtbase',
       description="The most fundamental Python modules for Minh-Tri Pham",
       author=["Minh-Tri Pham"],
       packages=find_namespace_packages(include=['mt.*']),
+      scripts=[
+          'scripts/path_exists',
+      ],
       install_requires=[
           'packaging', # for comparing versions
           'psutil',

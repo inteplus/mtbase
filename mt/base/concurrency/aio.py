@@ -178,7 +178,7 @@ async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: 
                     keyboard_interrupted = True
 
 
-async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {}, num_processes = None, num_works: int = 0, max_concurrency: int = 1024, profile = None, debug_logger = None, progress_queue = None):
+async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {}, num_processes = None, num_works: int = 0, max_concurrency: int = 1024, profile = None, debug_logger = None, progress_queue = None, timeout:int = 300):
     '''An asyn generator that does a large number of works concurrently and yields the work results.
 
     Internally, it splits the list of work ids into blocks and invokes
@@ -211,6 +211,8 @@ async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {
     progress_queue: multiprocessing.Queue
         a shared queue so that the main process can observe the progress inside the context. If not
         provided, one will be created internally.
+    timeout: int, optional
+        timeout, in `(0.1*second)` unit
 
     Notes
     -----
@@ -286,7 +288,7 @@ async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {
     wait_cnt = 0
     keyboard_interrupted = False
     num_works_done = 0
-    while (num_running_buckets > 0) and wait_cnt < 300:
+    while (num_running_buckets > 0) and wait_cnt < timeout:
         try:
             msg = queue.get_nowait()
             wait_cnt = 0
@@ -310,12 +312,12 @@ async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {
             wait_cnt += 1
 
     # clean up
-    if wait_cnt < 300: # healthy
+    if wait_cnt < timeout: # healthy
         for p in process_list:
             p.join()
     else: # something wrong
         if debug_logger:
-            debug_logger.debug("asyn_work_generator: 30s timeout reached.")
+            debug_logger.debug("asyn_work_generator: {:.1f}s timeout reached.".format(0.1*timeout))
         for p in process_list:
             p.terminate() # ouch!
 
