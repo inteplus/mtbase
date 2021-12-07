@@ -308,7 +308,7 @@ def make_logger(logger_name, max_indent=10):
         std_handler.addFilter(std_filter)
 
         # determine some max string lengths
-        column_length = stty_size()[1]-20
+        column_length = stty_size()[1]-16
         log_lvl_length = min(max(int(column_length*0.03), 1), 8)
         s1 = '{}.{}s '.format(log_lvl_length, log_lvl_length)
         column_length -= log_lvl_length
@@ -316,7 +316,7 @@ def make_logger(logger_name, max_indent=10):
 
         fmt_str = Fore.CYAN+'%(asctime)s '+Fore.LIGHTGREEN_EX+'%(levelname)'+s1+\
             Fore.LIGHTWHITE_EX+'%(message)'+s5+Fore.RESET
-        std_handler.setFormatter(Formatter(fmt_str))
+        std_handler.setFormatter(Formatter(fmt_str, datefmt="%b-%d %H:%M:%S,%03d"))
 
         logger.logger.addHandler(std_handler)
 
