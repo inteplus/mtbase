@@ -316,7 +316,9 @@ def make_logger(logger_name, max_indent=10):
 
         fmt_str = Fore.CYAN+'%(asctime)s '+Fore.LIGHTGREEN_EX+'%(levelname)'+s1+\
             Fore.LIGHTWHITE_EX+'%(message)'+s5+Fore.RESET
-        std_handler.setFormatter(Formatter(fmt_str, datefmt="%a %H:%M:%S,%03d"))
+        formatter = Formatter(fmt_str)
+        formatter.default_time_format = "%a %H:%M:%S" # stupid Python 3.8 implementation of Formatter
+        std_handler.setFormatter(formatter)
 
         logger.logger.addHandler(std_handler)
 
