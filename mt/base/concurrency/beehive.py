@@ -708,6 +708,16 @@ class QueenBee(WorkerBee):
         self.process_map = {} # worker_id/child_id -> process
 
 
+    def __del__(self):
+        for process in self.process_map:
+            if not process.is_alive():
+                continue
+            process.join(10) # give maximum 10 seconds for each process to terminate
+            if process.exit_code is not None:
+                if self.logger:
+                    self.logger.warn("Subprocess {} has terminated with exit code {}.".format(process.pid, process.exit_code))
+
+
     # ----- private -----
 
 
