@@ -872,7 +872,7 @@ async def beehive_run(
         the S3 profile from which the context vars are created. See
         :func:`mt.base.s3.create_context_vars`.
     max_concurrency : int
-        maximum number of concurrent tasks that the bee handles at a time
+        maximum number of concurrent tasks that each worker bee handles at a time
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.

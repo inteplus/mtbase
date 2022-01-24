@@ -74,11 +74,18 @@ async def download(url, context_vars: dict = {}):
                 raise IOError("Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(url, response.status, response.headers['content-type']))
             content = await response.read()
     except aiohttp.client_exceptions.ServerDisconnectedError:
-        await asyncio.sleep(1)
-        async with http_session.get(url) as response:
-            if response.status < 200 or response.status >= 300:
-                raise IOError("Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(url, response.status, response.headers['content-type']))
-            content = await response.read()
+        try:
+            await asyncio.sleep(1) # wait 1s
+            async with http_session.get(url) as response:
+                if response.status < 200 or response.status >= 300:
+                    raise IOError("Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(url, response.status, response.headers['content-type']))
+                content = await response.read()
+        except aiohttp.client_exceptions.ServerDisconnectedError:
+            await asyncio.sleep(10) # wait 10s
+            async with http_session.get(url) as response:
+                if response.status < 200 or response.status >= 300:
+                    raise IOError("Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(url, response.status, response.headers['content-type']))
+                content = await response.read()
     return content
 
 

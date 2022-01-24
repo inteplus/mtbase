@@ -178,7 +178,7 @@ async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: 
                     keyboard_interrupted = True
 
 
-async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {}, num_processes = None, num_works: int = 0, max_concurrency: int = 1024, profile = None, debug_logger = None, progress_queue = None, timeout:int = 300):
+async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {}, num_processes = None, num_works: int = 0, max_concurrency: int = 1024, profile = None, debug_logger = None, progress_queue = None, timeout: int = 300):
     '''An asyn generator that does a large number of works concurrently and yields the work results.
 
     Internally, it splits the list of work ids into blocks and invokes
