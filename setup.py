@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import platform
-from packaging import version
+from packaging import version as V
 from setuptools import setup, find_namespace_packages
 from mt.base.version import version
 
@@ -23,7 +23,7 @@ install_requires = [
     #'matplotlib', # for drawing stuff, optional
 ]
 
-if version.parse(platform.python_version()) < version.parse("3.7"):
+if V.parse(platform.python_version()) < V.parse("3.7"):
     install_requires.append('contextlib2') # to have nullcontext
 
 setup(name='mtbase',
