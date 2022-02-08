@@ -3,8 +3,7 @@
 from packaging import version
 import platform
 
-from contextlib import *
-
 if version.parse(platform.python_version()) < version.parse('3.7'):
-    from async_generator import asynccontextmanager
-    from contextlib2 import nullcontext
+    from contextlib2 import *
+else:
+    from contextlib import *
