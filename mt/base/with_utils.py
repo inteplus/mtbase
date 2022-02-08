@@ -1,7 +1,7 @@
 """Utilities to work with the with statement."""
 
 
-import contextlib
+from .contextlib import nullcontext
 
 from .deprecated import deprecated_func
 
@@ -26,7 +26,7 @@ class DummyScopeForWithStatement(object):
     def __exit__(self, type, value, traceback):
         pass
 
-dummy_scope = contextlib.nullcontext()
+dummy_scope = nullcontext()
 
 
 @deprecated_func(deprecated_version="2021.1", suggested_func="(use built-in compound with)", docstring_prefix="    ")
