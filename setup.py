@@ -20,6 +20,7 @@ install_requires = [
     'filetype', # to determine the type of a file
     'halo', # for nice spinners
     'tqdm', # for nice progress bars
+    'sshtunnel', # for ssh tunnelling
     #'matplotlib', # for drawing stuff, optional
 ]
 

@@ -10,7 +10,7 @@ import atexit as _ex
 import time as _t
 import platform as _pl
 import aiofiles.os
-from pathlib import Path, _ignore_error as pathlib_ignore_error
+from pathlib import Path
 
 from os.path import *
 
@@ -51,7 +51,8 @@ async def exists_asyn(path: Union[Path, str], context_vars: dict = {}):
     try:
         await aiofiles.os.stat(str(path))
     except OSError as e:
-        if not pathlib_ignore_error(e):
+        from pathlib import _ignore_error
+        if not _ignore_error(e):
             raise
         return False
     except ValueError:
