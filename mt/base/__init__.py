@@ -8,13 +8,13 @@ gradually updated since then. The convention is described in the following parag
 
 Variables can have a prefix in the form of a letter followed by an underscore. 'l_' stands for a
 list of things. 't_' stands for a tuple of things. 'a_' stands for a :class:`numpy.ndarray` which
-is an array of things. 'b_' stands for a :class:`tensorflow.Tensor` which is a batch of things. A
-special case 'i_' stands for an image of things, which represents a 2D grid with shape (H,W) of
-things.
+is an array of things. 'b_' stands for a :class:`tensorflow.Tensor` which is a batch of things.
 
 Nested collections can be prefixed with multiple letters followed by an underscore, using the same
-convention as above. For example, 'll_' stands for a list of lists of things. Prefix 'bi_' stands
-for a tensorflow batch of images of things.
+convention as above. For example, 'll_' stands for a list of lists of things. In addition, letters
+that are not the first letter in the prefix accept further values 'i', 'm', and 'v' which stand for
+image, matrix and vector respectively. For example, Prefix 'biv_' stands for a tensorflow batch of
+images of vectors of things.
 
 '''
 
