@@ -22,7 +22,7 @@ from ..contextlib import nullcontext
 from ..logging import IndentedLoggerAdapter
 
 
-__all__ = ['logger_debug_msg', 'Bee', 'WorkerBee', 'subprocess_worker_bee', 'QueenBee', 'beehive_run']
+__all__ = ['logger_debug_msg', 'Bee', 'WorkerBee', 'subprocess_workerbee', 'QueenBee', 'beehive_run']
 
 
 def logger_debug_msg(msg, logger=None):
@@ -543,7 +543,7 @@ class WorkerBee(Bee):
     _execute_task.__doc__ = Bee._execute_task.__doc__
 
 
-def subprocess_worker_bee(
+def subprocess_workerbee(
         workerbee_class,
         init_args: tuple = (),
         init_kwargs: dict = {},
@@ -668,7 +668,7 @@ class QueenBee(WorkerBee):
         the me-to-parent connection for private communication between the user (parent) and the queen
     p_p2m : queue.Queue
         the parent-to-me connection for private communication with the worker bee
-    worker_bee_class : class
+    workerbee_class : class
         subclass of :class:`WorkerBee` whose constructor accepts all positional and keyword
         arguments of the constructor of the super class
     worker_init_args : tuple
@@ -677,7 +677,11 @@ class QueenBee(WorkerBee):
         additional keyword arguments to be passed as-is to each new worker bee's constructor
     s3_profile : str, optional
         the S3 profile from which the context vars are created. See :func:`mt.base.s3.create_context_vars`.
-    worker_bee_max_concurrency : int
+    max_concurrency : int, optional
+        the maximum number of concurrent tasks at any time for the bee, good for managing
+        memory allocations. Should be default to None to allow the queen bee to deal with all
+        requests.
+    workerbee_max_concurrency : int
         the maximum number of concurrent tasks at any time for a worker bee, good for managing
         memory allocations. Non-integer values are not accepted.
     context_vars : dict
@@ -693,20 +697,23 @@ class QueenBee(WorkerBee):
             self,
             p_m2p: queue.Queue,
             p_p2m: queue.Queue,
-            worker_bee_class,
+            workerbee_class,
             worker_init_args: tuple = (),
             worker_init_kwargs: dict = {},
             s3_profile: Optional[str] = None,
-            worker_bee_max_concurrency: int = 1024,
+            max_concurrency: Optional[int] = None,
+            workerbee_max_concurrency: Optional[int] = 1024,
             context_vars: dict = {},
             logger: Optional[IndentedLoggerAdapter] = None,
     ):
-        super().__init__(p_m2p, p_p2m, max_concurrency=None, context_vars=context_vars, logger=logger)
+        super().__init__(
+            p_m2p, p_p2m, max_concurrency=max_concurrency, context_vars=context_vars,
+            logger=logger)
 
-        self.worker_bee_class = worker_bee_class
+        self.workerbee_class = workerbee_class
         self.worker_init_args = worker_init_args
         self.worker_init_kwargs = worker_init_kwargs
-        self.worker_bee_max_concurrency = worker_bee_max_concurrency
+        self.workerbee_max_concurrency = workerbee_max_concurrency
         self.s3_profile = s3_profile
 
         # the processes of existing workers, excluding those that are dead
@@ -747,7 +754,7 @@ class QueenBee(WorkerBee):
                 if not inited:
                     cnt = min(min_num_workers, max_num_workers//2)
                     for i in range(cnt):
-                        self._spawn_new_worker_bee()
+                        self._spawn_new_workerbee()
                     inited = True
                 else:
                     raise RuntimeError("All children bee have been killed.")
@@ -756,7 +763,7 @@ class QueenBee(WorkerBee):
                 task_result, worker_id = await self.delegate('busy_status')
                 self._put_msg(worker_id, {'msg_type': 'die'})
             elif num_workers < max_num_workers:
-                self._spawn_new_worker_bee()
+                self._spawn_new_workerbee()
 
             await asyncio.sleep(10) # sleep for 10 seconds
 
@@ -780,14 +787,14 @@ class QueenBee(WorkerBee):
     _mourn_death.__doc__ = WorkerBee._mourn_death.__doc__
 
 
-    def _spawn_new_worker_bee(self):
+    def _spawn_new_workerbee(self):
         worker_id = len(self.child_conn_list) # get new worker id
-        process, p_c2m, p_m2c = subprocess_worker_bee(
-            self.worker_bee_class,
+        process, p_c2m, p_m2c = subprocess_workerbee(
+            self.workerbee_class,
             init_args=self.worker_init_args,
             init_kwargs=self.worker_init_kwargs,
             s3_profile=self.s3_profile,
-            max_concurrency=self.worker_bee_max_concurrency)
+            max_concurrency=self.workerbee_max_concurrency)
         self._add_new_child(p_c2m, p_m2c)
         self.process_map[worker_id] = process
         return worker_id
@@ -808,33 +815,6 @@ class QueenBee(WorkerBee):
         await super()._run_finalise()
 
 
-def local_pipe():
-    '''Mimicing :func:`multiprocessing.Pipe` but without multiprocessing.'''
-    class LocalConnection:
-        '''Mimicing :class:`queue.Queue` but without multiprocessing.'''
-
-        def __init__(self, m2o, o2m):
-            self.m2o = m2o
-            self.o2m = o2m
-
-        def poll(self, timeout=0):
-            return bool(self.o2m)
-
-        def send(self, msg):
-            self.m2o.append(msg)
-
-        def recv(self):
-            return self.o2m.pop(0)
-
-    q_m2o = []
-    q_o2m = []
-
-    c_m2o = LocalConnection(q_m2o, q_o2m)
-    c_o2m = LocalConnection(q_o2m, q_m2o)
-
-    return c_m2o, c_o2m
-
-
 async def beehive_run(
         queenbee_class,
         workerbee_class,
@@ -847,6 +827,7 @@ async def beehive_run(
         workerbee_init_kwargs: dict = {},
         s3_profile: Optional[str] = None,
         max_concurrency: int = 1024,
+        queenbee_max_concurrency: Optional[int] = None,
         context_vars: dict = {},
         logger: Optional[IndentedLoggerAdapter] = None,
 ):
@@ -878,6 +859,9 @@ async def beehive_run(
         :func:`mt.base.s3.create_context_vars`.
     max_concurrency : int
         maximum number of concurrent tasks that each worker bee handles at a time
+    queenbee_max_concurrency : int, optional
+        maximum number of concurrent tasks that the queen bee handles at a time. Default is no
+        limit.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
@@ -918,7 +902,8 @@ async def beehive_run(
         worker_init_args=workerbee_init_args,
         worker_init_kwargs=workerbee_init_kwargs,
         s3_profile=s3_profile,
-        worker_bee_max_concurrency=max_concurrency,
+        max_concurrency=queenbee_max_concurrency,
+        workerbee_max_concurrency=max_concurrency,
         context_vars=context_vars,
         logger=logger,
         **queenbee_init_kwargs,
