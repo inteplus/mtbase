@@ -9,6 +9,7 @@ gradually updated since then. The convention is described in the following parag
 Variables can have a prefix in the form of a letter followed by an underscore. 'l_' stands for a
 list of things. 't_' stands for a tuple of things. 'a_' stands for a :class:`numpy.ndarray` which
 is an array of things. 'b_' stands for a :class:`tensorflow.Tensor` which is a batch of things.
+'n_' stands for a number of things.
 
 Nested collections can be prefixed with multiple letters followed by an underscore, using the same
 convention as above. For example, 'll_' stands for a list of lists of things. In addition, letters
@@ -36,4 +37,3 @@ from .const import *
 # backdoor to debug the process
 from .debug_process import listen as _listen
 _listen()
-

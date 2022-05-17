@@ -110,8 +110,9 @@ class Bee:
         the me-to-parent queue for private communication
     p_p2m : queue.Queue
         the parent-to-me queue for private communication
-    max_concurrency : int
-        maximum number of concurrent tasks that the bee handles at a time
+    max_concurrency : int, optional
+        maximum number of concurrent tasks that the bee handles at a time. If None is provided,
+        there is no constraint in maximum number of concurrent tasks.
     logger : mt.base.logging.IndentedLoggerAdapter, optional
         logger for debugging purposes
     '''
@@ -121,7 +122,7 @@ class Bee:
             self,
             p_m2p: queue.Queue,
             p_p2m: queue.Queue,
-            max_concurrency: int = 1024,
+            max_concurrency: Optional[int] = 1024,
             logger: Optional[IndentedLoggerAdapter] = None,
     ):
         self.p_m2p = p_m2p # me-to-parent, private
@@ -130,7 +131,7 @@ class Bee:
         self.child_conn_list = [] # (p_c2m, p_m2c)
         self.child_alive_list = []
         self.num_children = 0
-        if not isinstance(max_concurrency, int):
+        if not isinstance(max_concurrency, int) and max_concurrency is not None:
             raise ValueError("Argument 'max_concurrency' is not an integer: {}.".format(max_concurrency))
         self.max_concurrency = max_concurrency
         self.logger = logger
@@ -457,7 +458,10 @@ class Bee:
             self.to_terminate = True
             self.exit_code = "The parent bee ordered to die gracefully."
         elif msg_type == 'new_task':
-            if (not self.to_terminate) and len(self.working_task_map) + self.pending_task_cnt < self.max_concurrency: # volunteer only if we can
+            # volunteer only if we can
+            if (not self.to_terminate) and \
+                ((self.max_concurrency is None) or \
+                 (len(self.working_task_map) + self.pending_task_cnt < self.max_concurrency)):
                 task_id = msg['task_id']
                 self._put_msg(-1, {'msg_type': 'task_accepted', 'task_id': task_id}) # notify the parent
                 self.pending_task_cnt += 1 # awaiting further info
@@ -673,7 +677,7 @@ class QueenBee(WorkerBee):
         additional keyword arguments to be passed as-is to each new worker bee's constructor
     s3_profile : str, optional
         the S3 profile from which the context vars are created. See :func:`mt.base.s3.create_context_vars`.
-    max_concurrency : int
+    worker_bee_max_concurrency : int
         the maximum number of concurrent tasks at any time for a worker bee, good for managing
         memory allocations. Non-integer values are not accepted.
     context_vars : dict
@@ -693,15 +697,16 @@ class QueenBee(WorkerBee):
             worker_init_args: tuple = (),
             worker_init_kwargs: dict = {},
             s3_profile: Optional[str] = None,
-            max_concurrency: int = 1024,
+            worker_bee_max_concurrency: int = 1024,
             context_vars: dict = {},
             logger: Optional[IndentedLoggerAdapter] = None,
     ):
-        super().__init__(p_m2p, p_p2m, max_concurrency=max_concurrency, context_vars=context_vars, logger=logger)
+        super().__init__(p_m2p, p_p2m, max_concurrency=None, context_vars=context_vars, logger=logger)
 
         self.worker_bee_class = worker_bee_class
         self.worker_init_args = worker_init_args
         self.worker_init_kwargs = worker_init_kwargs
+        self.worker_bee_max_concurrency = worker_bee_max_concurrency
         self.s3_profile = s3_profile
 
         # the processes of existing workers, excluding those that are dead
@@ -782,7 +787,7 @@ class QueenBee(WorkerBee):
             init_args=self.worker_init_args,
             init_kwargs=self.worker_init_kwargs,
             s3_profile=self.s3_profile,
-            max_concurrency=self.max_concurrency)
+            max_concurrency=self.worker_bee_max_concurrency)
         self._add_new_child(p_c2m, p_m2c)
         self.process_map[worker_id] = process
         return worker_id
@@ -913,7 +918,7 @@ async def beehive_run(
         worker_init_args=workerbee_init_args,
         worker_init_kwargs=workerbee_init_kwargs,
         s3_profile=s3_profile,
-        max_concurrency=max_concurrency,
+        worker_bee_max_concurrency=max_concurrency,
         context_vars=context_vars,
         logger=logger,
         **queenbee_init_kwargs,
