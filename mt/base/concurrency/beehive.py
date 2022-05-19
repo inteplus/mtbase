@@ -479,10 +479,10 @@ class Bee:
             self.exit_code = "The parent bee ordered to die gracefully."
         elif msg_type == 'new_task':
             # volunteer only if we can
+            task_id = msg['task_id']
             if (not self.to_terminate) and \
                 ((self.max_concurrency is None) or \
                  (len(self.working_task_map) + self.pending_task_cnt < self.max_concurrency)):
-                task_id = msg['task_id']
                 self._put_msg(-1, {'msg_type': 'task_accepted', 'task_id': task_id}) # notify the parent
                 self.pending_task_cnt += 1 # awaiting further info
             else:
