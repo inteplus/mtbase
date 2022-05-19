@@ -13,6 +13,7 @@ worker bees, and deals with making batch predictions from the model.
 
 from typing import Optional
 
+import random
 import queue
 import multiprocessing as mp
 import multiprocessing.connection as mc
@@ -293,7 +294,9 @@ class Bee:
                 break
 
         # dispatch all messages from all the children
-        for child_id in range(len(self.child_conn_list)):
+        child_id_list = list(range(len(self.child_conn_list)))
+        random.shuffle(child_id_list)
+        for child_id in child_id_list:
             if not self.child_alive_list[child_id]:
                 continue
             conn = self.child_conn_list[child_id][0] # c2m
