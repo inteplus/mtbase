@@ -152,7 +152,7 @@ class Bee:
     async def run(self):
         '''Implements the life-cycle of the bee. Invoke this function only once.'''
         await self._run_initialise()
-        while (not self.to_terminate) or (self.pending_task_cnt > 0) or self.working_task_map:
+        while (not self.to_terminate) or (self.pending_task_cnt > 0) or self.towork_task_list or self.working_task_map:
             await self._run_inloop()
 
         # ask every worker bee to die gracefully
@@ -274,7 +274,8 @@ class Bee:
 
         # tasks handled by the bee itself
         self.pending_task_cnt = 0 # number of tasks awaiting further info
-        self.working_task_map = {} # task -> task_id
+        self.towork_task_list = [] # list of (task, task_id)'s, tasks that have got full info but awaiting to be worked on
+        self.working_task_map = {} # task -> task_id, tasks that are being worked on
 
 
     async def _run_inloop(self):
@@ -302,6 +303,12 @@ class Bee:
                 self._dispatch_new_child_msg(child_id, msg)
               except queue.Empty:
                 break
+
+        # grab some tasks for work
+        while self.towork_task_list and \
+              ((self.max_concurrency is None) or (len(self.working_task_map) < self.max_concurrency)):
+            task, task_id = self.towork_task_list.pop(0)
+            self.working_task_map[task] = task_id
 
         # scout for tasks done by the bee
         if self.working_task_map:
@@ -481,8 +488,7 @@ class Bee:
             # volunteer only if we can
             task_id = msg['task_id']
             if (not self.to_terminate) and \
-                ((self.max_concurrency is None) or \
-                 (len(self.working_task_map) + self.pending_task_cnt < self.max_concurrency)):
+                ((self.max_concurrency is None) or (len(self.working_task_map) < self.max_concurrency)):
                 self._put_msg(-1, {'msg_type': 'task_accepted', 'task_id': task_id}) # notify the parent
                 self.pending_task_cnt += 1 # awaiting further info
             else:
@@ -493,7 +499,7 @@ class Bee:
             self.pending_task_cnt -= 1
             task_id = msg['task_id']
             task = asyncio.ensure_future(self._execute_task(name=msg['name'], args=msg['args'], kwargs=msg['kwargs']))
-            self.working_task_map[task] = task_id
+            self.towork_task_list.append((task,task_id))
         else:
             self.to_terminate = True
             self.exit_code = "Unknown message with type '{}'.".format(msg_type)
@@ -554,7 +560,7 @@ class WorkerBee(Bee):
         float
             a scalar between 0 and 1 where 0 means completely free and 1 means completely busy
         '''
-        return (len(self.working_task_map) + self.pending_task_cnt) / self.max_concurrency
+        return 0.0 if self.max_concurrency is None else len(self.working_task_map)/self.max_concurrency
 
 
     # ----- private -----
