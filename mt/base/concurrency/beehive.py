@@ -66,10 +66,11 @@ class Bee:
     be delegated to a child, the bee broadcasts a zero-based task id by sending a message
     `{'msg_type': 'new_task', 'task_id': int}` to every child. If a child wishes to process the
     order, it places a  message `{'msg_type': 'task_accepted', 'task_id': int}` back to the parent
-    via its `p_m2p`. The parent would choose one of the responders for doing the task and would
-    send `{'msg_type': 'task_taken', 'task_id': int}` to the other ones regarding the task. The
-    communication to the chosen child is conducted via 2 further messages, each of which is a
-    key-value dictionary.
+    via its `p_m2p`. If it does not wish to process the order, it should place a different message
+    `{'msg_type': 'task_denied', 'task_id': int}`. The parent would choose one of the responders
+    for doing the task and would send `{'msg_type': 'task_taken', 'task_id': int}` to all late
+    accepters regarding the task. The communication to the chosen child is conducted via 2 further
+    messages, each of which is a key-value dictionary.
 
     The first message is sent from the parent bee describing the task to be delegated to the child
     `{'msg_type': 'task_info', 'task_id': int, 'name': str, 'args': tuple, 'kwargs': dict}`.
@@ -140,7 +141,7 @@ class Bee:
         self.logger = logger
 
         # task scheduling
-        self.pending_order_map = {} # task_id -> timestamp, orders that have been placed but not yet accepted
+        self.pending_order_map = {} # task_id -> (timestamp, candidate_children_set), orders that have been placed but not yet accepted
         self.assigned_order_map = {} # task_id -> child_id, orders that have been accepted but not yet awaited by the parent bee
         self.task_id_cnt = 0 # task id counter
 
@@ -197,16 +198,30 @@ class Bee:
 
         # broadcast an order across all children
         msg = {'msg_type': 'new_task', 'task_id': task_id}
-        self.pending_order_map[task_id] = pd.Timestamp.now()
+        ts = pd.Timestamp.now()
+        candidate_children_set = set()
+        self.pending_order_map[task_id] = (ts, candidate_children_set)
         for child_id in range(len(self.child_conn_list)):
             if self.child_alive_list[child_id]:
                 self._put_msg(child_id, msg)
+                candidate_children_set.add(child_id)
 
         # wait for some child to respond
         while task_id in self.pending_order_map:
-            delay = pd.Timestamp.now() - self.pending_order_map[task_id]
+            if not candidate_children_set: # no more candidate
+                task_result = {
+                    'status': 'cancelled',
+                    'reason': 'Every child bee has denied the task.',
+                }
+                self.pending_order_map.pop(task_id)
+                return task_result, -1
+            delay = pd.Timestamp.now() - ts
             if delay.total_seconds() >= 600: # 10 minutes
-                task_result = {'status': 'cancelled', 'reason': 'No child bee has picked up the task for 10 minutes.'}
+                task_result = {
+                    'status': 'cancelled',
+                    'reason': 'No child bee has picked up the task for 10 minutes.',
+                }
+                self.pending_order_map.pop(task_id)
                 return task_result, -1
             await asyncio.sleep(0) # await changes elsewhere
 
@@ -413,6 +428,16 @@ class Bee:
                 self.pending_order_map.pop(task_id)
             else:
                 self._put_msg(child_id, {'msg_type': 'task_taken', 'task_id': task_id}) # tell the child the task has been taken
+        elif msg_type == 'task_denied':
+            task_id = msg['task_id']
+            if task_id in self.pending_order_map:
+                candidate_children_set = self.pending_order_map[task_id][1]
+                if child_id in candidate_children_set:
+                    candidate_children_set.remove(child_id)
+                elif self.logger: # log a warning
+                    self.logger.warn("Bee {}: Child bee {} has denied task {}.".format(
+                        self.my_id, child_id, task_id))
+                    self.logger.warn("But the child is no longer a candidate for the task.")
         elif msg_type == 'task_done': # delegated task done
             task_id = msg['task_id']
             status = msg['status']
@@ -460,6 +485,8 @@ class Bee:
                 task_id = msg['task_id']
                 self._put_msg(-1, {'msg_type': 'task_accepted', 'task_id': task_id}) # notify the parent
                 self.pending_task_cnt += 1 # awaiting further info
+            else:
+                self._put_msg(-1, {'msg_type': 'task_denied', 'task_id': task_id}) # notify the parent
         elif msg_type == 'task_taken':
             self.pending_task_cnt -= 1
         elif msg_type == 'task_info': # task info -> new task
