@@ -106,6 +106,8 @@ class Bee:
 
     Parameters
     ----------
+    my_id : int
+        the id that the creator has assigned to the bee
     p_m2p : queue.Queue
         the me-to-parent queue for private communication
     p_p2m : queue.Queue
@@ -119,12 +121,13 @@ class Bee:
 
 
     def __init__(
-            self,
+            self, my_id: int,
             p_m2p: queue.Queue,
             p_p2m: queue.Queue,
             max_concurrency: Optional[int] = 1024,
             logger: Optional[IndentedLoggerAdapter] = None,
     ):
+        self.my_id = my_id
         self.p_m2p = p_m2p # me-to-parent, private
         self.p_p2m = p_p2m # parent-to-me, private
 
@@ -241,14 +244,6 @@ class Bee:
                 self.logger.warn_last_exception()
                 self.logger.warn("Unexpected exception above while sending a message.")
             raise
-
-    def _add_new_child(self, p_c2m: queue.Queue, p_m2c: queue.Queue):
-        '''Adds a new child to the bee.'''
-
-        child_id = len(self.child_conn_list)
-        self.child_conn_list.append((p_c2m, p_m2c))
-        self.child_alive_list.append(True) # the new child is assumed alive
-        self.num_children += 1
 
 
     async def _run_initialise(self):
@@ -484,6 +479,8 @@ class WorkerBee(Bee):
 
     Parameters
     ----------
+    my_id : int
+        the id that the queen bee has assigned to the worker bee
     p_m2p : multiprocessing.Queue
         the me-to-parent connection for private communication
     p_p2m : multiprocessing.Queue
@@ -500,14 +497,14 @@ class WorkerBee(Bee):
     '''
 
     def __init__(
-            self,
+            self, my_id: int,
             p_m2p: mp.Queue,
             p_p2m: mp.Queue,
             max_concurrency: int = 1024,
             context_vars: dict = {},
             logger: Optional[IndentedLoggerAdapter] = None,
     ):
-        super().__init__(p_m2p, p_p2m, max_concurrency=max_concurrency, logger=logger)
+        super().__init__(my_id, p_m2p, p_p2m, max_concurrency=max_concurrency, logger=logger)
         self.context_vars = context_vars
 
 
@@ -544,7 +541,7 @@ class WorkerBee(Bee):
 
 
 def subprocess_workerbee(
-        workerbee_class,
+        workerbee_class, workerbee_id: int,
         init_args: tuple = (),
         init_kwargs: dict = {},
         s3_profile: Optional[str] = None,
@@ -558,6 +555,8 @@ def subprocess_workerbee(
     workerbee_class : class
         subclass of :class:`WorkerBee` whose constructor accepts all positional and keyword
         arguments of the constructor of the super class
+    workerbee_id : int
+        the id that the queen bee has assigned to the worker bee
     init_args : tuple
         additional positional arguments to be passed as-is to the new bee's constructor
     init_kwargs : dict
@@ -584,6 +583,7 @@ def subprocess_workerbee(
 
     async def subprocess_asyn(
             workerbee_class,
+            workerbee_id,
             p_m2p: mp.Queue,
             p_p2m: mp.Queue,
             init_args: tuple = (),
@@ -596,6 +596,7 @@ def subprocess_workerbee(
 
         async with create_context_vars(profile=s3_profile, asyn=True) as context_vars:
             bee = workerbee_class(
+                workerbee_id,
                 p_m2p,
                 p_p2m,
                 *init_args,
@@ -607,6 +608,7 @@ def subprocess_workerbee(
 
     def subprocess(
             workerbee_class,
+            workerbee_id,
             p_m2p: mp.Queue,
             p_p2m: mp.Queue,
             init_args: tuple = (),
@@ -621,6 +623,7 @@ def subprocess_workerbee(
         try:
             asyncio.run(subprocess_asyn(
                 workerbee_class,
+                workerbee_id,
                 p_m2p,
                 p_p2m,
                 init_args=init_args,
@@ -642,7 +645,7 @@ def subprocess_workerbee(
     p_m2p = mp.Queue()
     process = mp.Process(
         target=subprocess,
-        args=(workerbee_class, p_m2p, p_p2m),
+        args=(workerbee_class, workerbee_id, p_m2p, p_p2m),
         kwargs={'init_args': init_args, 'init_kwargs': init_kwargs, 's3_profile': s3_profile, 'max_concurrency': max_concurrency},
         daemon=True)
     process.start()
@@ -664,6 +667,8 @@ class QueenBee(WorkerBee):
 
     Parameters
     ----------
+    my_id : int
+        the id that the creator has assigned to the queen bee
     p_m2p : queue.Queue
         the me-to-parent connection for private communication between the user (parent) and the queen
     p_p2m : queue.Queue
@@ -694,7 +699,7 @@ class QueenBee(WorkerBee):
     '''
 
     def __init__(
-            self,
+            self, my_id: int,
             p_m2p: queue.Queue,
             p_p2m: queue.Queue,
             workerbee_class,
@@ -707,7 +712,7 @@ class QueenBee(WorkerBee):
             logger: Optional[IndentedLoggerAdapter] = None,
     ):
         super().__init__(
-            p_m2p, p_p2m, max_concurrency=max_concurrency, context_vars=context_vars,
+            my_id, p_m2p, p_p2m, max_concurrency=max_concurrency, context_vars=context_vars,
             logger=logger)
 
         self.workerbee_class = workerbee_class
@@ -789,13 +794,17 @@ class QueenBee(WorkerBee):
 
     def _spawn_new_workerbee(self):
         worker_id = len(self.child_conn_list) # get new worker id
+        child_id = len(self.child_conn_list) # get new child id
         process, p_c2m, p_m2c = subprocess_workerbee(
             self.workerbee_class,
+            child_id,
             init_args=self.worker_init_args,
             init_kwargs=self.worker_init_kwargs,
             s3_profile=self.s3_profile,
             max_concurrency=self.workerbee_max_concurrency)
-        self._add_new_child(p_c2m, p_m2c)
+        self.child_conn_list.append((p_c2m, p_m2c))
+        self.child_alive_list.append(True) # the new child is assumed alive
+        self.num_children += 1
         self.process_map[worker_id] = process
         return worker_id
 
@@ -895,6 +904,7 @@ async def beehive_run(
 
     # create a queen bee and start her life
     queen = queenbee_class(
+        10000, # queen bee has id 10000
         p_q2u,
         p_u2q,
         workerbee_class,
