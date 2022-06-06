@@ -430,7 +430,10 @@ async def put_files(bucket: str, filepath2key_map: dict, show_progress: bool = F
                 srun(process_item, filepath, bucket, key, progress_bar, extra_context_vars=context_vars)
 
 
-def put_files_boto3(bucket: str, filepath2key_map: dict, show_progress: bool = False, total_filesize: Optional[int] = None, context_vars: dict = {}):
+def put_files_boto3(
+        bucket: str, filepath2key_map: dict, show_progress: bool = False,
+        total_filesize: Optional[int] = None, set_acl_public_read: bool = False,
+        context_vars: dict = {}):
     '''Uploads many files to the same S3 bucket using boto3.
 
     This function implements the code in the url below. It does not use asyncio but it uses
@@ -449,6 +452,8 @@ def put_files_boto3(bucket: str, filepath2key_map: dict, show_progress: bool = F
         show a progress bar in the terminal
     total_filesize : int
         total size of all files in bytes, if you know. Useful for drawing a progress bar.
+    set_acl_public_read : bool
+        whether or not to set ACL public-read policy on the uploaded object(s)
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
@@ -460,11 +465,13 @@ def put_files_boto3(bucket: str, filepath2key_map: dict, show_progress: bool = F
     transfer_config = s3transfer.TransferConfig(use_threads=True, max_concurrency=20)
     s3_client = context_vars['s3_client']
     s3t = s3transfer.create_transfer_manager(s3_client, transfer_config)
+    extra_args = {'ACL': 'public-read'} if set_acl_public_read else None
 
     with tqdm(total=total_filesize, unit='B', unit_scale=True) if show_progress else dummy_scope as progress_bar:
         for filepath, key in filepath2key_map.items():
             s3t.upload(
                 filepath, bucket, key,
+                extra_args=extra_args,
                 subscribers = [s3transfer.ProgressCallbackInvoker(progress_bar.update)] if show_progress else None,
             )
         s3t.shutdown() # wait for all the upload tasks to finish
