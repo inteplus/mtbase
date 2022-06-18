@@ -11,7 +11,8 @@ from ..contextlib import asynccontextmanager
 from .path import rename_asyn, rename
 
 
-__all__ = ['read_binary', 'write_binary', 'read_text', 'write_text', 'json_load', 'json_save', 'mkdtemp']
+__all__ = ['safe_chmod', 'safe_rename', 'read_binary', 'write_binary',
+           'read_text', 'write_text', 'json_load', 'json_save', 'mkdtemp']
 
 
 async def safe_chmod(filepath: str, file_mode: int = 0o664):
@@ -30,7 +31,7 @@ async def safe_rename(filepath: str, new_filepath: str, context_vars: dict = {})
         return await rename_asyn(filepath, new_filepath, context_vars=context_vars, overwrite=True)
 
 
-async def read_binary(filepath, size: int = None, context_vars : dict = {}) -> bytes:
+async def read_binary(filepath, size: int = None, context_vars: dict = {}) -> bytes:
     '''An asyn function that opens a binary file and reads the content.
 
     Parameters
@@ -58,7 +59,7 @@ async def read_binary(filepath, size: int = None, context_vars : dict = {}) -> b
             return f.read(size)
 
 
-async def write_binary(filepath, buf: bytes, file_mode: int = 0o664, context_vars : dict = {}, file_write_delayed: bool = False):
+async def write_binary(filepath, buf: bytes, file_mode: int = 0o664, context_vars: dict = {}, file_write_delayed: bool = False):
     '''An asyn function that creates a binary file and writes the content.
 
     Parameters
@@ -110,7 +111,7 @@ async def write_binary(filepath, buf: bytes, file_mode: int = 0o664, context_var
     return retval
 
 
-async def read_text(filepath, size: int = None, context_vars : dict = {}) -> str:
+async def read_text(filepath, size: int = None, context_vars: dict = {}) -> str:
     '''An asyn function that opens a text file and reads the content.
 
     Parameters
@@ -138,7 +139,7 @@ async def read_text(filepath, size: int = None, context_vars : dict = {}) -> str
             return f.read(size)
 
 
-async def write_text(filepath, buf: str, file_mode: int = 0o664, context_vars : dict = {}, file_write_delayed: bool = False):
+async def write_text(filepath, buf: str, file_mode: int = 0o664, context_vars: dict = {}, file_write_delayed: bool = False):
     '''An asyn function that creates a text file and writes the content.
 
     Parameters
@@ -190,7 +191,7 @@ async def write_text(filepath, buf: str, file_mode: int = 0o664, context_vars : 
     return retval
 
 
-async def json_load(filepath, context_vars : dict = {}, **kwargs):
+async def json_load(filepath, context_vars: dict = {}, **kwargs):
     '''An asyn function that loads the json-like object of a file.
 
     Parameters
@@ -213,7 +214,7 @@ async def json_load(filepath, context_vars : dict = {}, **kwargs):
     return json.loads(content, **kwargs)
 
 
-async def json_save(filepath, obj, file_mode: int = 0o664, context_vars : dict = {}, file_write_delayed: bool = False, **kwargs):
+async def json_save(filepath, obj, file_mode: int = 0o664, context_vars: dict = {}, file_write_delayed: bool = False, **kwargs):
     '''An asyn function that saves a json-like object to a file.
 
     Parameters
@@ -246,7 +247,7 @@ async def json_save(filepath, obj, file_mode: int = 0o664, context_vars : dict =
 
 
 @asynccontextmanager
-async def mkdtemp(context_vars : dict = {}):
+async def mkdtemp(context_vars: dict = {}):
     '''An asyn context manager that opens and creates a temporary directory.
 
     Parameters
