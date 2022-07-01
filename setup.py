@@ -21,6 +21,7 @@ install_requires = [
     'halo', # for nice spinners
     'tqdm', # for nice progress bars
     'sshtunnel', # for ssh tunnelling
+    'func-timeout', # for mt.base.path.exists with timeout
     #'matplotlib', # for drawing stuff, optional
 ]
 

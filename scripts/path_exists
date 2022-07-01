@@ -8,7 +8,7 @@ from mt.base import path
 
 async def main(args):
     try:
-        res = await path.exists_timeout(args.path, timeout=args.timeout)
+        res = path.exists_timeout(args.path, timeout=args.timeout)
         return int(not res)
     except asyncio.TimeoutError:
         return 2

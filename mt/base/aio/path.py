@@ -16,25 +16,22 @@ from os.path import *
 
 from .. import logger
 from ..threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
-from ..deprecated import deprecated_func
 from .base import srun
 
 
-__all__ = ['exists_asyn', 'exists_timeout', 'remove_asyn', 'remove', 'make_dirs', 'lock', 'rename_asyn', 'rename', 'stat_asyn', 'stat']
+__all__ = ['exists_asyn', 'remove_asyn', 'remove', 'make_dirs', 'lock', 'rename_asyn', 'rename', 'stat_asyn', 'stat']
 
 
 _path_lock = Lock()
 
 
-async def exists_asyn(path: Union[Path, str], timeout: float = 1.0, context_vars: dict = {}):
+async def exists_asyn(path: Union[Path, str], context_vars: dict = {}):
     '''An asyn function that checks if a path exists, regardless of it being a file or a folder.
 
     Parameters
     ----------
     path : str
         a path to a link, a file or a directory
-    timeout : float
-        number of seconds to wait before timeout. Only valid in asyn mode.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
@@ -63,28 +60,6 @@ async def exists_asyn(path: Union[Path, str], timeout: float = 1.0, context_vars
         # Non-encodable path
         return False
     return retval
-
-
-async def exists_timeout(path: Union[Path, str], timeout: float = 1.0):
-    '''Checks if a path exists for a number of seconds, raising an :class:`asyncio.TimeoutError` if timeout.
-
-    Call this function rarely as the wrapping is expensive.
-
-    Parameters
-    ----------
-    path : str
-        a path to a link, a file or a directory
-
-    Returns
-    -------
-    bool
-        whether or not the path exists
-
-    Notes
-    -----
-    Just like :func:`os.path.exists`. The function returns False for broken symbolic links.
-    '''
-    return await exists_asyn(path, context_vars={'async': True})
 
 
 async def remove_asyn(path: Union[Path, str], context_vars: dict = {}):
