@@ -16,6 +16,7 @@ from os.path import *
 
 from .. import logger
 from ..threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
+from ..deprecated import deprecated_func
 from .base import srun
 
 
@@ -25,13 +26,15 @@ __all__ = ['exists_asyn', 'exists_timeout', 'remove_asyn', 'remove', 'make_dirs'
 _path_lock = Lock()
 
 
-async def exists_asyn(path: Union[Path, str], context_vars: dict = {}):
+async def exists_asyn(path: Union[Path, str], timeout: float = 1.0, context_vars: dict = {}):
     '''An asyn function that checks if a path exists, regardless of it being a file or a folder.
 
     Parameters
     ----------
     path : str
         a path to a link, a file or a directory
+    timeout : float
+        number of seconds to wait before timeout. Only valid in asyn mode.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
@@ -49,7 +52,8 @@ async def exists_asyn(path: Union[Path, str], context_vars: dict = {}):
         return exists(path)
 
     try:
-        await aiofiles.os.stat(str(path))
+        task = asyncio.ensure_future(aiofiles.os.path.exists(path))
+        retval = await asyncio.wait_for(task, timeout=timeout)
     except OSError as e:
         from pathlib import _ignore_error
         if not _ignore_error(e):
@@ -58,7 +62,7 @@ async def exists_asyn(path: Union[Path, str], context_vars: dict = {}):
     except ValueError:
         # Non-encodable path
         return False
-    return True
+    return retval
 
 
 async def exists_timeout(path: Union[Path, str], timeout: float = 1.0):
@@ -80,9 +84,7 @@ async def exists_timeout(path: Union[Path, str], timeout: float = 1.0):
     -----
     Just like :func:`os.path.exists`. The function returns False for broken symbolic links.
     '''
-    task = asyncio.ensure_future(exists_asyn(path, context_vars={'async': True}))
-    retval = await asyncio.wait_for(task, timeout=timeout)
-    return retval
+    return await exists_asyn(path, context_vars={'async': True})
 
 
 async def remove_asyn(path: Union[Path, str], context_vars: dict = {}):
