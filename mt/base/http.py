@@ -1,6 +1,7 @@
-'''Useful subroutines dealing with downloading http files.'''
+"""Useful subroutines dealing with downloading http files."""
 
 
+import re
 import asyncio
 import aiohttp
 import requests
@@ -11,12 +12,12 @@ from .aio import sleep, write_binary
 from .path import chmod
 
 
-__all__ = ['download', 'download_and_chmod']
+__all__ = ["download", "download_and_chmod"]
 
 
 @asynccontextmanager
 async def create_http_session(asyn: bool = True):
-    '''An asyn context manager that creates a http session.
+    """An asyn context manager that creates a http session.
 
     Parameters
     ----------
@@ -27,7 +28,7 @@ async def create_http_session(asyn: bool = True):
     -------
     http_session : aiohttp.ClientSession, optional
         an open client session in asynchronous mode. Otherwise, None.
-    '''
+    """
     if asyn:
         async with aiohttp.ClientSession() as http_session:
             yield http_session
@@ -35,8 +36,16 @@ async def create_http_session(asyn: bool = True):
         yield None
 
 
+def check_content(content):
+    """Checks the content for word b"Access Denied" and raises ValueError if so."""
+    if re.search(b"Access ?Denied", content):
+        raise ValueError(
+            'Forbidden word "Access Denied" or "AccessDenied" detected in the content.'
+        )
+
+
 async def download(url, context_vars: dict = {}):
-    '''An asyn function that opens a binary file and reads the content.
+    """An asyn function that opens a binary file and reads the content.
 
     Parameters
     ----------
@@ -59,38 +68,63 @@ async def download(url, context_vars: dict = {}):
     ------
     IOError
         if there is a problem downloading
-    '''
+    """
 
-    if not context_vars['async']:
-        return requests.get(url).content
+    if not context_vars["async"]:
+        response = requests.get(url)
+        if not response.ok:
+            response.raise_for_status()
+        return check_content(response.content)
 
-    http_session = context_vars['http_session']
+    http_session = context_vars["http_session"]
     if http_session is None:
-        raise ValueError("In asynchronous mode, an open client session is needed. But None has been provided.")
+        raise ValueError(
+            "In asynchronous mode, an open client session is needed. But None has been provided."
+        )
 
     try:
         async with http_session.get(url) as response:
             if response.status < 200 or response.status >= 300:
-                raise IOError("Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(url, response.status, response.headers['content-type']))
+                raise IOError(
+                    "Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(
+                        url, response.status, response.headers["content-type"]
+                    )
+                )
             content = await response.read()
-    except (aiohttp.client_exceptions.ServerDisconnectedError, asyncio.exceptions.TimeoutError):
+    except (
+        aiohttp.client_exceptions.ServerDisconnectedError,
+        asyncio.exceptions.TimeoutError,
+    ):
         try:
-            await asyncio.sleep(1) # wait 1s
+            await asyncio.sleep(1)  # wait 1s
             async with http_session.get(url) as response:
                 if response.status < 200 or response.status >= 300:
-                    raise IOError("Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(url, response.status, response.headers['content-type']))
+                    raise IOError(
+                        "Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(
+                            url, response.status, response.headers["content-type"]
+                        )
+                    )
                 content = await response.read()
-        except (aiohttp.client_exceptions.ServerDisconnectedError, asyncio.exceptions.TimeoutError):
-            await asyncio.sleep(10) # wait 10s
+        except (
+            aiohttp.client_exceptions.ServerDisconnectedError,
+            asyncio.exceptions.TimeoutError,
+        ):
+            await asyncio.sleep(10)  # wait 10s
             async with http_session.get(url) as response:
                 if response.status < 200 or response.status >= 300:
-                    raise IOError("Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(url, response.status, response.headers['content-type']))
+                    raise IOError(
+                        "Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(
+                            url, response.status, response.headers["content-type"]
+                        )
+                    )
                 content = await response.read()
-    return content
+    if not response.ok:
+        response.raise_for_status()
+    return check_content(content)
 
 
 async def download_and_chmod(url, filepath, file_mode=0o664, context_vars: dict = {}):
-    '''An asyn function that downloads an http or https url as binary to a file with predefined permissions.
+    """An asyn function that downloads an http or https url as binary to a file with predefined permissions.
 
     Parameters
     ----------
@@ -105,7 +139,7 @@ async def download_and_chmod(url, filepath, file_mode=0o664, context_vars: dict 
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In asynchronous mode, variable 'http_session' must exist and hold an enter-result of an
         async with statement invoking :func:`create_http_session`.
-    '''
+    """
 
     content = await download(url, context_vars=context_vars)
 
@@ -114,14 +148,14 @@ async def download_and_chmod(url, filepath, file_mode=0o664, context_vars: dict 
     if file_mode:  # chmod, attempt 1
         try:
             chmod(filepath, file_mode)
-        except FileNotFoundError: # attempt 2
+        except FileNotFoundError:  # attempt 2
             try:
                 await sleep(0.1, context_vars=context_vars)
                 chmod(filepath, file_mode)
-            except FileNotFoundError: # attempt 3
+            except FileNotFoundError:  # attempt 3
                 try:
                     await sleep(1, context_vars=context_vars)
                     chmod(filepath, file_mode)
-                except FileNotFoundError: # attemp 4
+                except FileNotFoundError:  # attemp 4
                     await sleep(10, context_vars=context_vars)
                     chmod(filepath, file_mode)
