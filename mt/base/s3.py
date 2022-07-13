@@ -1,7 +1,9 @@
-'''Useful subroutines dealing with S3 files via botocore and aiobotocore.'''
+"""Useful subroutines dealing with S3 files via botocore and aiobotocore."""
 
 
 from typing import Optional, Union
+
+import errno
 import asyncio
 import aiobotocore
 import aiobotocore.session
@@ -17,11 +19,25 @@ from .contextlib import asynccontextmanager
 from .http import create_http_session
 
 
-__all__ = ['split', 'join', 'get_session', 'create_s3_client', 'create_context_vars', 'list_objects', 'list_object_info', 'get_object', 'get_object_acl', 'put_object', 'delete_object', 'put_files', 'put_files_boto3']
+__all__ = [
+    "split",
+    "join",
+    "get_session",
+    "create_s3_client",
+    "create_context_vars",
+    "list_objects",
+    "list_object_info",
+    "get_object",
+    "get_object_acl",
+    "put_object",
+    "delete_object",
+    "put_files",
+    "put_files_boto3",
+]
 
 
 def join(bucket: str, prefix: Optional[str] = None):
-    '''Joins a bucket and a prefix into an s3cmd url.
+    """Joins a bucket and a prefix into an s3cmd url.
 
     Parameters
     ----------
@@ -34,15 +50,15 @@ def join(bucket: str, prefix: Optional[str] = None):
     -------
     str
         an s3cmd url in the form 's3://bucket_name[/prefix]'
-    '''
+    """
 
     if prefix is None:
-        return 's3://'+bucket
-    return 's3://'+bucket+'/'+prefix
+        return "s3://" + bucket
+    return "s3://" + bucket + "/" + prefix
 
 
 def split(s3cmd_url: str):
-    '''Splits an s3cmd url into bucket and prefix.
+    """Splits an s3cmd url into bucket and prefix.
 
     Parameters
     ----------
@@ -55,24 +71,29 @@ def split(s3cmd_url: str):
         bucket name, always exists
     prefix : str
         prefix. Can be None.
-    '''
+    """
 
-    if not s3cmd_url.startswith('s3://'):
+    if not s3cmd_url.startswith("s3://"):
         raise ValueError(
-            "Expected an s3cmd url in the form 's3://bucket[/prefix]', but received '{}' instead.".format(s3cmd_url))
+            "Expected an s3cmd url in the form 's3://bucket[/prefix]', but received '{}' instead.".format(
+                s3cmd_url
+            )
+        )
     url = s3cmd_url[5:]
-    pos = url.find('/')
-    if pos < 0: # '/' not found
+    pos = url.find("/")
+    if pos < 0:  # '/' not found
         bucket = url
         prefix = None
     else:
         bucket = url[:pos]
-        prefix = url[pos+1:]
+        prefix = url[pos + 1 :]
     return bucket, prefix
 
 
-def get_session(profile = None, asyn: bool = True) -> Union[aiobotocore.session.AioSession, botocore.session.Session]:
-    '''Gets a botocore session, for either asynchronous mode or synchronous mode.
+def get_session(
+    profile=None, asyn: bool = True
+) -> Union[aiobotocore.session.AioSession, botocore.session.Session]:
+    """Gets a botocore session, for either asynchronous mode or synchronous mode.
 
     Parameters
     ----------
@@ -90,15 +111,17 @@ def get_session(profile = None, asyn: bool = True) -> Union[aiobotocore.session.
     Notes
     -----
     This function is used as part of :func:`create_s3_client` to create an s3 client.
-    '''
+    """
 
     klass = aiobotocore.session.AioSession if asyn else botocore.session.Session
     return klass(profile=profile)
 
 
 @asynccontextmanager
-async def create_s3_client(profile = None, asyn: bool = True) -> Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
-    '''An asyn context manager that creates an s3 client for a given profile, maximizing the number of connections.
+async def create_s3_client(
+    profile=None, asyn: bool = True
+) -> Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
+    """An asyn context manager that creates an s3 client for a given profile, maximizing the number of connections.
 
     Parameters
     ----------
@@ -111,19 +134,19 @@ async def create_s3_client(profile = None, asyn: bool = True) -> Union[aiobotoco
     -------
     s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
         the s3 client that matches with the 'asyn' keyword argument below
-    '''
+    """
     session = get_session(profile=profile, asyn=asyn)
     config = botocore.config.Config(max_pool_connections=20)
     if asyn:
-        async with session.create_client('s3', config=config) as s3_client:
+        async with session.create_client("s3", config=config) as s3_client:
             yield s3_client
     else:
-        yield session.create_client('s3', config=config)
+        yield session.create_client("s3", config=config)
 
 
 @asynccontextmanager
-async def create_context_vars(profile = None, asyn: bool = False):
-    '''Creates a dictionary of context variables for running functions in this package.
+async def create_context_vars(profile=None, asyn: bool = False):
+    """Creates a dictionary of context variables for running functions in this package.
 
     Parameters
     ----------
@@ -137,16 +160,21 @@ async def create_context_vars(profile = None, asyn: bool = False):
     context_vars : dict
         dictionary of context variables to run the functions in this package. These include
         's3_client' and 'http_session'.
-    '''
+    """
 
-    async with create_s3_client(profile=profile, asyn=asyn) as s3_client,\
-               create_http_session() as http_session:
-        context_vars = {'async': asyn, 's3_client': s3_client, 'http_session': http_session}
+    async with create_s3_client(
+        profile=profile, asyn=asyn
+    ) as s3_client, create_http_session() as http_session:
+        context_vars = {
+            "async": asyn,
+            "s3_client": s3_client,
+            "http_session": http_session,
+        }
         yield context_vars
 
 
 async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict = {}):
-    '''An asyn function that lists all objects prefixed with a given s3cmd url.
+    """An asyn function that lists all objects prefixed with a given s3cmd url.
 
     Parameters
     ----------
@@ -165,49 +193,57 @@ async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict =
     list
         list of records, each of which corresponds to an object prefixed with the given s3cmd url.
         The record has multiple attributes.
-    '''
+    """
 
-    s3_client = context_vars['s3_client']
+    s3_client = context_vars["s3_client"]
     try:
         bucket, prefix = split(s3cmd_url)
-        paginator = s3_client.get_paginator('list_objects_v2')
+        paginator = s3_client.get_paginator("list_objects_v2")
         retval = []
         if show_progress:
-            spinner = Halo("listing objects at '{}'".format(s3cmd_url), spinner='dots')
+            spinner = Halo("listing objects at '{}'".format(s3cmd_url), spinner="dots")
             spinner.start()
-        if context_vars['async']:
+        if context_vars["async"]:
             async for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
-                new_list = result.get('Contents', None)
+                new_list = result.get("Contents", None)
                 if new_list is None:
                     if not retval:
                         if show_progress:
-                            spinner.succeed('no object found')
+                            spinner.succeed("no object found")
                         return []
-                    raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
+                    raise ConnectionResetError(
+                        errno.ECONNRESET,
+                        "Unable to get all the records while listing objects.",
+                        s3cmd_url,
+                    )
                 retval.extend(new_list)
         else:
             for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
-                new_list = result.get('Contents', None)
+                new_list = result.get("Contents", None)
                 if new_list is None:
                     if not retval:
                         if show_progress:
-                            spinner.succeed('no object found')
+                            spinner.succeed("no object found")
                         return []
-                    raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
+                    raise ConnectionResetError(
+                        errno.ECONNRESET,
+                        "Unable to get all the records while listing objects.",
+                        s3cmd_url,
+                    )
                 retval.extend(new_list)
         if show_progress:
-            spinner.succeed('{} objects found'.format(len(retval)))
+            spinner.succeed("{} objects found".format(len(retval)))
     except botocore.exceptions.ClientError as e:
-        if e.response['Error']['Code'] == 'NoSuchKey':
+        if e.response["Error"]["Code"] == "NoSuchKey":
             if show_progress:
-                spinner.succeed('no object found')
+                spinner.succeed("no object found")
             return []
         raise
     return retval
 
 
 async def list_object_info(s3cmd_url: str, context_vars: dict = {}):
-    '''An asyn function that lists basic information of the object at a given s3cmd url.
+    """An asyn function that lists basic information of the object at a given s3cmd url.
 
     Parameters
     ----------
@@ -224,37 +260,47 @@ async def list_object_info(s3cmd_url: str, context_vars: dict = {}):
     dict or None
         A dictionary of attributes related to the object, like 'Key', 'LastModified', 'ETag',
         'Size', 'StorageClass', etc. If the object does not exist, None is returned.
-    '''
+    """
 
     bucket, prefix = split(s3cmd_url)
-    s3_client = context_vars['s3_client']
-    paginator = s3_client.get_paginator('list_objects_v2')
+    s3_client = context_vars["s3_client"]
+    paginator = s3_client.get_paginator("list_objects_v2")
     try:
-        if context_vars['async']:
+        if context_vars["async"]:
             async for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
-                new_list = result.get('Contents', None)
+                new_list = result.get("Contents", None)
                 if new_list is None:
-                    raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
+                    raise ConnectionResetError(
+                        errno.ECONNRESET,
+                        "Unable to get all the records while listing objects.",
+                        s3cmd_url,
+                    )
                 for item in new_list:
-                    if item['Key'] == prefix:
+                    if item["Key"] == prefix:
                         return item
         else:
             for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
-                new_list = result.get('Contents', None)
+                new_list = result.get("Contents", None)
                 if new_list is None:
-                    raise IOError("Unable to get all the records while listing objects at '{}'.".format(s3cmd_url))
+                    raise ConnectionResetError(
+                        errno.ECONNRESET,
+                        "Unable to get all the records while listing objects.",
+                        s3cmd_url,
+                    )
                 for item in new_list:
-                    if item['Key'] == prefix:
+                    if item["Key"] == prefix:
                         return item
     except botocore.exceptions.ClientError as e:
-        if e.response['Error']['Code'] == 'NoSuchKey':
+        if e.response["Error"]["Code"] == "NoSuchKey":
             return None
         raise
     return None
 
 
-async def get_object(s3cmd_url: str, show_progress: bool = False, context_vars: dict = {}):
-    '''An asyn function that gets the content of a given s3cmd url.
+async def get_object(
+    s3cmd_url: str, show_progress: bool = False, context_vars: dict = {}
+):
+    """An asyn function that gets the content of a given s3cmd url.
 
     Parameters
     ----------
@@ -272,28 +318,28 @@ async def get_object(s3cmd_url: str, show_progress: bool = False, context_vars: 
     -------
     bytes
         the content of the given s3cmd url
-    '''
+    """
 
     bucket, prefix = split(s3cmd_url)
-    s3_client = context_vars['s3_client']
+    s3_client = context_vars["s3_client"]
     if show_progress:
-        spinner = Halo("getting object '{}'".format(s3cmd_url), spinner='dots')
+        spinner = Halo("getting object '{}'".format(s3cmd_url), spinner="dots")
         spinner.start()
-    if context_vars['async']:
+    if context_vars["async"]:
         response = await s3_client.get_object(Bucket=bucket, Key=prefix)
         # this will ensure the connection is correctly re-used/closed
-        async with response['Body'] as stream:
+        async with response["Body"] as stream:
             data = await stream.read()
     else:
         response = s3_client.get_object(Bucket=bucket, Key=prefix)
-        data = response['Body'].read()
+        data = response["Body"].read()
     if show_progress:
-        spinner.succeed('{} bytes downloaded'.format(len(data)))
+        spinner.succeed("{} bytes downloaded".format(len(data)))
     return data
 
 
 async def get_object_acl(s3cmd_url: str, context_vars: dict = {}):
-    '''An asyn function that gets the object properties of a given s3cmd url.
+    """An asyn function that gets the object properties of a given s3cmd url.
 
     Parameters
     ----------
@@ -309,19 +355,21 @@ async def get_object_acl(s3cmd_url: str, context_vars: dict = {}):
     -------
     bytes
         the content of the given s3cmd url
-    '''
+    """
 
     bucket, prefix = split(s3cmd_url)
-    s3_client = context_vars['s3_client']
-    if context_vars['async']:
+    s3_client = context_vars["s3_client"]
+    if context_vars["async"]:
         response = await s3_client.get_object_acl(Bucket=bucket, Key=prefix)
     else:
         response = s3_client.get_object_acl(Bucket=bucket, Key=prefix)
     return response
 
 
-async def put_object(s3cmd_url: str, data: bytes, show_progress: bool = False, context_vars: dict = {}):
-    '''An asyn function that puts some content to given s3cmd url.
+async def put_object(
+    s3cmd_url: str, data: bytes, show_progress: bool = False, context_vars: dict = {}
+):
+    """An asyn function that puts some content to given s3cmd url.
 
     Parameters
     ----------
@@ -341,24 +389,24 @@ async def put_object(s3cmd_url: str, data: bytes, show_progress: bool = False, c
     -------
     bytes
         the content of the given s3cmd url
-    '''
+    """
 
     bucket, prefix = split(s3cmd_url)
-    s3_client = context_vars['s3_client']
+    s3_client = context_vars["s3_client"]
     if show_progress:
-        spinner = Halo("putting object '{}'".format(s3cmd_url), spinner='dots')
+        spinner = Halo("putting object '{}'".format(s3cmd_url), spinner="dots")
         spinner.start()
-    if context_vars['async']:
+    if context_vars["async"]:
         await s3_client.put_object(Bucket=bucket, Key=prefix, Body=data)
     else:
         s3_client.put_object(Bucket=bucket, Key=prefix, Body=data)
     if show_progress:
-        spinner.succeed('{} bytes uploaded'.format(len(data)))
+        spinner.succeed("{} bytes uploaded".format(len(data)))
     return data
 
 
 async def delete_object(s3cmd_url: str, context_vars: dict = {}):
-    '''An asyn function that deletes a given s3cmd url.
+    """An asyn function that deletes a given s3cmd url.
 
     Parameters
     ----------
@@ -374,19 +422,24 @@ async def delete_object(s3cmd_url: str, context_vars: dict = {}):
     -------
     list
         the response from S3 of the deletion operation. Lots of attributes expected.
-    '''
+    """
 
     bucket, prefix = split(s3cmd_url)
-    s3_client = context_vars['s3_client']
-    if context_vars['async']:
+    s3_client = context_vars["s3_client"]
+    if context_vars["async"]:
         response = await s3_client.delete_object(Bucket=bucket, Key=prefix)
     else:
         response = s3_client.delete_object(Bucket=bucket, Key=prefix)
     return response
 
 
-async def put_files(bucket: str, filepath2key_map: dict, show_progress: bool = False, context_vars: dict = {}):
-    '''An asyn function that uploads many files to the same S3 bucket.
+async def put_files(
+    bucket: str,
+    filepath2key_map: dict,
+    show_progress: bool = False,
+    context_vars: dict = {},
+):
+    """An asyn function that uploads many files to the same S3 bucket.
 
     In asynchronous mode, the files are uploaded concurrently. In synchronous mode, the files are
     uploaded sequentially.
@@ -412,29 +465,51 @@ async def put_files(bucket: str, filepath2key_map: dict, show_progress: bool = F
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
         statement invoking :func:`mt.base.s3.create_s3_client`.
-    '''
+    """
 
-    async def process_item(filepath, bucket, key, progress_bar, context_vars: dict = {}):
+    async def process_item(
+        filepath, bucket, key, progress_bar, context_vars: dict = {}
+    ):
         s3cmd_url = join(bucket, key)
         data = await read_binary(filepath, context_vars=context_vars)
-        await put_object(s3cmd_url, data, show_progress=False, context_vars=context_vars)
+        await put_object(
+            s3cmd_url, data, show_progress=False, context_vars=context_vars
+        )
         if isinstance(progress_bar, tqdm):
             progress_bar.update()
 
-    with tqdm(total=len(filepath2key_map), unit='file') if show_progress else dummy_scope as progress_bar:
-        if context_vars['async']:
-            coros = [process_item(filepath, bucket, key, progress_bar, context_vars=context_vars) for filepath, key in filepath2key_map.items()]
+    with tqdm(
+        total=len(filepath2key_map), unit="file"
+    ) if show_progress else dummy_scope as progress_bar:
+        if context_vars["async"]:
+            coros = [
+                process_item(
+                    filepath, bucket, key, progress_bar, context_vars=context_vars
+                )
+                for filepath, key in filepath2key_map.items()
+            ]
             await asyncio.gather(*coros)
         else:
             for filepath, key in filepath2key_map.items():
-                srun(process_item, filepath, bucket, key, progress_bar, extra_context_vars=context_vars)
+                srun(
+                    process_item,
+                    filepath,
+                    bucket,
+                    key,
+                    progress_bar,
+                    extra_context_vars=context_vars,
+                )
 
 
 def put_files_boto3(
-        bucket: str, filepath2key_map: dict, show_progress: bool = False,
-        total_filesize: Optional[int] = None, set_acl_public_read: bool = False,
-        context_vars: dict = {}):
-    '''Uploads many files to the same S3 bucket using boto3.
+    bucket: str,
+    filepath2key_map: dict,
+    show_progress: bool = False,
+    total_filesize: Optional[int] = None,
+    set_acl_public_read: bool = False,
+    context_vars: dict = {},
+):
+    """Uploads many files to the same S3 bucket using boto3.
 
     This function implements the code in the url below. It does not use asyncio but it uses
     multi-threading.
@@ -459,19 +534,26 @@ def put_files_boto3(
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
         statement invoking :func:`mt.base.s3.create_s3_client`.
-    '''
+    """
 
     import boto3.s3.transfer as s3transfer
-    transfer_config = s3transfer.TransferConfig(use_threads=True, max_concurrency=20)
-    s3_client = context_vars['s3_client']
-    s3t = s3transfer.create_transfer_manager(s3_client, transfer_config)
-    extra_args = {'ACL': 'public-read'} if set_acl_public_read else None
 
-    with tqdm(total=total_filesize, unit='B', unit_scale=True) if show_progress else dummy_scope as progress_bar:
+    transfer_config = s3transfer.TransferConfig(use_threads=True, max_concurrency=20)
+    s3_client = context_vars["s3_client"]
+    s3t = s3transfer.create_transfer_manager(s3_client, transfer_config)
+    extra_args = {"ACL": "public-read"} if set_acl_public_read else None
+
+    with tqdm(
+        total=total_filesize, unit="B", unit_scale=True
+    ) if show_progress else dummy_scope as progress_bar:
         for filepath, key in filepath2key_map.items():
             s3t.upload(
-                filepath, bucket, key,
+                filepath,
+                bucket,
+                key,
                 extra_args=extra_args,
-                subscribers = [s3transfer.ProgressCallbackInvoker(progress_bar.update)] if show_progress else None,
+                subscribers=[s3transfer.ProgressCallbackInvoker(progress_bar.update)]
+                if show_progress
+                else None,
             )
-        s3t.shutdown() # wait for all the upload tasks to finish
+        s3t.shutdown()  # wait for all the upload tasks to finish
