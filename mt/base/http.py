@@ -5,6 +5,7 @@ import re
 import asyncio
 import aiohttp
 import requests
+import errno
 
 from .contextlib import asynccontextmanager
 
@@ -36,14 +37,6 @@ async def create_http_session(asyn: bool = True):
         yield None
 
 
-def check_content(content):
-    """Checks the content for word b"Access Denied" and raises ValueError if so."""
-    if re.search(b"Access ?Denied", content):
-        raise ValueError(
-            'Forbidden word "Access Denied" or "AccessDenied" detected in the content.'
-        )
-
-
 async def download(url, context_vars: dict = {}):
     """An asyn function that opens a binary file and reads the content.
 
@@ -66,9 +59,22 @@ async def download(url, context_vars: dict = {}):
 
     Raises
     ------
-    IOError
+    ConnectionAbortedError
         if there is a problem downloading
+    PermissionError
+        if forbidden word "Access Denied" or "AccessDenied" is detected
     """
+
+    def check_content(content):
+        """Checks the content for word b"Access Denied" and raises ValueError if so."""
+        if len(content) > 5000:
+            return
+        if re.search(b"Access ?Denied", content):
+            raise PermissionError(
+                errno.EACCES,
+                'Forbidden word "Access Denied" or "AccessDenied" detected in the content.',
+                url,
+            )
 
     if not context_vars["async"]:
         response = requests.get(url)
@@ -85,10 +91,11 @@ async def download(url, context_vars: dict = {}):
     try:
         async with http_session.get(url) as response:
             if response.status < 200 or response.status >= 300:
-                raise IOError(
+                raise ConnectionAbortedError(
+                    errno.ECONNABORTED,
                     "Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(
                         url, response.status, response.headers["content-type"]
-                    )
+                    ),
                 )
             content = await response.read()
     except (
@@ -99,10 +106,11 @@ async def download(url, context_vars: dict = {}):
             await asyncio.sleep(1)  # wait 1s
             async with http_session.get(url) as response:
                 if response.status < 200 or response.status >= 300:
-                    raise IOError(
+                    raise ConnectionAbortedError(
+                        errno.ECONNABORTED,
                         "Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(
                             url, response.status, response.headers["content-type"]
-                        )
+                        ),
                     )
                 content = await response.read()
         except (
@@ -112,10 +120,11 @@ async def download(url, context_vars: dict = {}):
             await asyncio.sleep(10)  # wait 10s
             async with http_session.get(url) as response:
                 if response.status < 200 or response.status >= 300:
-                    raise IOError(
+                    raise ConnectionAbortedError(
+                        errno.ECONNABORTED,
                         "Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(
                             url, response.status, response.headers["content-type"]
-                        )
+                        ),
                     )
                 content = await response.read()
     if not response.ok:
