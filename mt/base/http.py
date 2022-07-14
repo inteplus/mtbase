@@ -68,7 +68,7 @@ async def download(url, context_vars: dict = {}):
     def check_content(content):
         """Checks the content for word b"Access Denied" and raises ValueError if so."""
         if len(content) > 5000:
-            return
+            return content
         if re.search(b"Access ?Denied", content):
             raise PermissionError(
                 errno.EACCES,
