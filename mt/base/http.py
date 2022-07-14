@@ -96,6 +96,7 @@ async def download(url, context_vars: dict = {}):
                     "Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(
                         url, response.status, response.headers["content-type"]
                     ),
+                    url,
                 )
             content = await response.read()
     except (
@@ -111,6 +112,7 @@ async def download(url, context_vars: dict = {}):
                         "Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(
                             url, response.status, response.headers["content-type"]
                         ),
+                        url,
                     )
                 content = await response.read()
         except (
@@ -125,6 +127,7 @@ async def download(url, context_vars: dict = {}):
                         "Unhealthy response while downloading '{}'. Status: {}. Content-type: {}.".format(
                             url, response.status, response.headers["content-type"]
                         ),
+                        url,
                     )
                 content = await response.read()
     if not response.ok:
@@ -151,6 +154,10 @@ async def download_and_chmod(url, filepath, file_mode=0o664, context_vars: dict 
     """
 
     content = await download(url, context_vars=context_vars)
+
+    if len(content) == 0:  # no content?
+        raise ConnectionAbortedError(
+            errno.ECONNABORTED, "The downloaded content of '{}' is empty.".format(url), url)
 
     await write_binary(filepath, content, context_vars=context_vars)
 
