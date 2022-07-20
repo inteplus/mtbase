@@ -8,11 +8,12 @@ import asyncio
 import aiofiles
 
 from ..contextlib import asynccontextmanager
-from .path import rename_asyn, rename
+from .path import rename_asyn, rename, dirname, make_dirs
 
 
 __all__ = ['safe_chmod', 'safe_rename', 'read_binary', 'write_binary',
-           'read_text', 'write_text', 'json_load', 'json_save', 'mkdtemp']
+           'read_text', 'write_text', 'json_load', 'json_save', 'mkdtemp',
+           'CreateFileH5']
 
 
 async def safe_chmod(filepath: str, file_mode: int = 0o664):
@@ -268,3 +269,57 @@ async def mkdtemp(context_vars: dict = {}):
     else:
         with tempfile.TemporaryDirectory() as tmpdir:
             yield tmpdir
+
+class CreateFileH5:
+    '''A context for creating an HDF5 file safely.
+
+    It creates a temporary HDF5 file for writing. Once the user exits the context, the file is
+    chmodded and renamed to a given name. Any intermediate folder that does not exist is created
+    automatically.
+
+    Parameters
+    ----------
+    filepath : str
+        local file path to be written to
+    file_mode : int
+        file mode to be set to using :func:`os.chmod`. If None is given, no setting of file mode
+        will happen.
+    logger : logging.Logger, optional
+        logger for debugging purposes
+
+    Attributes
+    ----------
+    tmp_filepath : str
+        the local file path of the temporary HDF5 file
+    handle : h5py.File
+        the handle of the temporary HDF5 file
+    '''
+
+    def __init__(self, filepath: str, file_mode: int = 0o664, logger=None):
+        dirpath = dirname(filepath)
+        make_dirs(dirpath, shared=True)
+        self.filepath = filepath
+        self.file_mode = file_mode
+        self.logger = logger
+
+    def __enter__(self):
+        try:
+            import h5py
+        except ImportError:
+            if logger:
+                logger.error("Need h5py create file '{}'.".format(self.filepath))
+            raise
+
+        self.tmp_filepath = filepath+'.mttmp'
+        self.handle = h5py.File(self.tmp_filepath, mode='w')
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if not exc_value is None: # successful
+            if logger:
+                logger.warn("File '{}' not removed.".format(self.tmp_filepath))
+            return
+
+        if self.file_mode is not None:  # chmod
+            os.chmod(self.tmp_filepath, file_mode)
+        rename(self.tmp_filepath, self.filepath, overwrite=True)
