@@ -270,11 +270,7 @@ async def list_object_info(s3cmd_url: str, context_vars: dict = {}):
             async for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
                 new_list = result.get("Contents", None)
                 if new_list is None:
-                    raise ConnectionResetError(
-                        errno.ECONNRESET,
-                        "Unable to get all the records while listing objects.",
-                        s3cmd_url,
-                    )
+                    break
                 for item in new_list:
                     if item["Key"] == prefix:
                         return item
@@ -282,11 +278,7 @@ async def list_object_info(s3cmd_url: str, context_vars: dict = {}):
             for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
                 new_list = result.get("Contents", None)
                 if new_list is None:
-                    raise ConnectionResetError(
-                        errno.ECONNRESET,
-                        "Unable to get all the records while listing objects.",
-                        s3cmd_url,
-                    )
+                    break
                 for item in new_list:
                     if item["Key"] == prefix:
                         return item
