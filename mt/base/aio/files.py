@@ -342,5 +342,5 @@ class CreateFileH5:
             return
 
         if self.file_mode is not None:  # chmod
-            await safe_chmod(self.tmp_filepath, file_mode)
+            await safe_chmod(self.tmp_filepath, self.file_mode)
         await safe_rename(self.tmp_filepath, self.filepath, context_vars=self.context_vars)
