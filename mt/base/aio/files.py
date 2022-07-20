@@ -277,6 +277,9 @@ class CreateFileH5:
     chmodded and renamed to a given name. Any intermediate folder that does not exist is created
     automatically.
 
+    The context can be synchronous or asynchronous, by specifying the 'async' keyword and argument
+    'context_vars'.
+
     Parameters
     ----------
     filepath : str
@@ -284,6 +287,10 @@ class CreateFileH5:
     file_mode : int
         file mode to be set to using :func:`os.chmod`. If None is given, no setting of file mode
         will happen.
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not. Only
+        used for the asynchronous mode.
     logger : logging.Logger, optional
         logger for debugging purposes
 
@@ -295,11 +302,12 @@ class CreateFileH5:
         the handle of the temporary HDF5 file
     '''
 
-    def __init__(self, filepath: str, file_mode: int = 0o664, logger=None):
+    def __init__(self, filepath: str, file_mode: int = 0o664, context_vars: dict = {}, logger=None):
         dirpath = dirname(filepath)
         make_dirs(dirpath, shared=True)
         self.filepath = filepath
         self.file_mode = file_mode
+        self.context_vars = context_vars
         self.logger = logger
 
     def __enter__(self):
@@ -314,6 +322,9 @@ class CreateFileH5:
         self.handle = h5py.File(self.tmp_filepath, mode='w')
         return self
 
+    async def __aenter__(self):
+        return self.__enter__()
+
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if not exc_value is None: # successful
             if logger:
@@ -323,3 +334,13 @@ class CreateFileH5:
         if self.file_mode is not None:  # chmod
             os.chmod(self.tmp_filepath, file_mode)
         rename(self.tmp_filepath, self.filepath, overwrite=True)
+
+    async def __aexit__(self, exc_type, exc_value, exc_traceback):
+        if not exc_value is None: # successful
+            if logger:
+                logger.warn("File '{}' not removed.".format(self.tmp_filepath))
+            return
+
+        if self.file_mode is not None:  # chmod
+            await safe_chmod(self.tmp_filepath, file_mode)
+        await safe_rename(self.tmp_filepath, self.filepath, context_vars=self.context_vars)
