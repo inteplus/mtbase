@@ -318,7 +318,7 @@ class CreateFileH5:
                 logger.error("Need h5py create file '{}'.".format(self.filepath))
             raise
 
-        self.tmp_filepath = filepath+'.mttmp'
+        self.tmp_filepath = self.filepath+'.mttmp'
         self.handle = h5py.File(self.tmp_filepath, mode='w')
         return self
 
