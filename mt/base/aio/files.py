@@ -314,8 +314,8 @@ class CreateFileH5:
         try:
             import h5py
         except ImportError:
-            if logger:
-                logger.error("Need h5py create file '{}'.".format(self.filepath))
+            if self.logger:
+                self.logger.error("Need h5py create file '{}'.".format(self.filepath))
             raise
 
         self.tmp_filepath = self.filepath+'.mttmp'
@@ -331,6 +331,8 @@ class CreateFileH5:
                 logger.warn("File '{}' not removed.".format(self.tmp_filepath))
             return
 
+        self.handle.close()
+
         if self.file_mode is not None:  # chmod
             os.chmod(self.tmp_filepath, file_mode)
         rename(self.tmp_filepath, self.filepath, overwrite=True)
@@ -340,6 +342,8 @@ class CreateFileH5:
             if logger:
                 logger.warn("File '{}' not removed.".format(self.tmp_filepath))
             return
+
+        self.handle.close()
 
         if self.file_mode is not None:  # chmod
             await safe_chmod(self.tmp_filepath, self.file_mode)
