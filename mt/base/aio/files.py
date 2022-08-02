@@ -319,7 +319,12 @@ class CreateFileH5:
             raise
 
         self.tmp_filepath = self.filepath+'.mttmp'
-        self.handle = h5py.File(self.tmp_filepath, mode='w')
+        try:
+            self.handle = h5py.File(self.tmp_filepath, mode='w')
+        except BlockingIOError: # try again in 1 second
+            from time import sleep
+            sleep(1)
+            self.handle = h5py.File(self.tmp_filepath, mode='w')
         return self
 
     async def __aenter__(self):
