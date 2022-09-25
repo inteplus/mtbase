@@ -11,6 +11,7 @@ from .sparse import *
 from .matrix import *
 from .image import *
 
-for key in _np.__dict__:
-    if not key in globals():
-        globals()[key] = _np.__dict__[key]
+import numpy.linalg as linag
+import numpy.fft as fft
+import numpy.matlib as matlib
+import numpy.random as random
