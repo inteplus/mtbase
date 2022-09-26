@@ -11,6 +11,7 @@ from .sparse import *
 from .matrix import *
 from .image import *
 
+ndarray = _np.ndarray
 import numpy.linalg as linag
 import numpy.fft as fft
 import numpy.matlib as matlib
