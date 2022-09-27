@@ -1,4 +1,4 @@
-'''Useful asyn functions dealing with files.'''
+"""Useful asyn functions dealing with files."""
 
 
 import os
@@ -11,9 +11,18 @@ from ..contextlib import asynccontextmanager
 from .path import rename_asyn, rename, dirname, make_dirs
 
 
-__all__ = ['safe_chmod', 'safe_rename', 'read_binary', 'write_binary',
-           'read_text', 'write_text', 'json_load', 'json_save', 'mkdtemp',
-           'CreateFileH5']
+__all__ = [
+    "safe_chmod",
+    "safe_rename",
+    "read_binary",
+    "write_binary",
+    "read_text",
+    "write_text",
+    "json_load",
+    "json_save",
+    "mkdtemp",
+    "CreateFileH5",
+]
 
 
 async def safe_chmod(filepath: str, file_mode: int = 0o664):
@@ -26,14 +35,18 @@ async def safe_chmod(filepath: str, file_mode: int = 0o664):
 
 async def safe_rename(filepath: str, new_filepath: str, context_vars: dict = {}):
     try:
-        return await rename_asyn(filepath, new_filepath, context_vars=context_vars, overwrite=True)
+        return await rename_asyn(
+            filepath, new_filepath, context_vars=context_vars, overwrite=True
+        )
     except FileNotFoundError:
         await asyncio.sleep(1)
-        return await rename_asyn(filepath, new_filepath, context_vars=context_vars, overwrite=True)
+        return await rename_asyn(
+            filepath, new_filepath, context_vars=context_vars, overwrite=True
+        )
 
 
 async def read_binary(filepath, size: int = None, context_vars: dict = {}) -> bytes:
-    '''An asyn function that opens a binary file and reads the content.
+    """An asyn function that opens a binary file and reads the content.
 
     Parameters
     ----------
@@ -50,18 +63,24 @@ async def read_binary(filepath, size: int = None, context_vars: dict = {}) -> by
     -------
     bytes
         the content read from file
-    '''
+    """
 
-    if context_vars['async']:
-        async with aiofiles.open(filepath, mode='rb') as f:
+    if context_vars["async"]:
+        async with aiofiles.open(filepath, mode="rb") as f:
             return await f.read(size)
     else:
-        with open(filepath, mode='rb') as f:
+        with open(filepath, mode="rb") as f:
             return f.read(size)
 
 
-async def write_binary(filepath, buf: bytes, file_mode: int = 0o664, context_vars: dict = {}, file_write_delayed: bool = False):
-    '''An asyn function that creates a binary file and writes the content.
+async def write_binary(
+    filepath,
+    buf: bytes,
+    file_mode: int = 0o664,
+    context_vars: dict = {},
+    file_write_delayed: bool = False,
+):
+    """An asyn function that creates a binary file and writes the content.
 
     Parameters
     ----------
@@ -89,22 +108,24 @@ async def write_binary(filepath, buf: bytes, file_mode: int = 0o664, context_var
     -----
     The content is written to a file with '.mttmp' extension first before the file is renamed to
     the right file.
-    '''
+    """
 
-    if context_vars['async']:
+    if context_vars["async"]:
+
         async def func(filepath, buf, file_mode):
-            filepath2 = filepath+'.mttmp'
-            async with aiofiles.open(filepath2, mode='wb') as f:
+            filepath2 = filepath + ".mttmp"
+            async with aiofiles.open(filepath2, mode="wb") as f:
                 retval = await f.write(buf)
             if file_mode is not None:  # chmod
                 await safe_chmod(filepath2, file_mode=file_mode)
             await safe_rename(filepath2, filepath, context_vars=context_vars)
             return retval
+
         coro = func(filepath, buf, file_mode)
         return asyncio.ensure_future(coro) if file_write_delayed else (await coro)
 
-    filepath2 = filepath+'.mttmp'
-    with open(filepath2, mode='wb') as f:
+    filepath2 = filepath + ".mttmp"
+    with open(filepath2, mode="wb") as f:
         retval = f.write(buf)
     if file_mode is not None:  # chmod
         os.chmod(filepath2, file_mode)
@@ -113,7 +134,7 @@ async def write_binary(filepath, buf: bytes, file_mode: int = 0o664, context_var
 
 
 async def read_text(filepath, size: int = None, context_vars: dict = {}) -> str:
-    '''An asyn function that opens a text file and reads the content.
+    """An asyn function that opens a text file and reads the content.
 
     Parameters
     ----------
@@ -130,18 +151,24 @@ async def read_text(filepath, size: int = None, context_vars: dict = {}) -> str:
     -------
     str
         the content read from file
-    '''
+    """
 
-    if context_vars['async']:
-        async with aiofiles.open(filepath, mode='rt') as f:
+    if context_vars["async"]:
+        async with aiofiles.open(filepath, mode="rt") as f:
             return await f.read(size)
     else:
-        with open(filepath, mode='rt') as f:
+        with open(filepath, mode="rt") as f:
             return f.read(size)
 
 
-async def write_text(filepath, buf: str, file_mode: int = 0o664, context_vars: dict = {}, file_write_delayed: bool = False):
-    '''An asyn function that creates a text file and writes the content.
+async def write_text(
+    filepath,
+    buf: str,
+    file_mode: int = 0o664,
+    context_vars: dict = {},
+    file_write_delayed: bool = False,
+):
+    """An asyn function that creates a text file and writes the content.
 
     Parameters
     ----------
@@ -169,22 +196,24 @@ async def write_text(filepath, buf: str, file_mode: int = 0o664, context_vars: d
     -----
     The content is written to a file with '.mttmp' extension first before the file is renamed to
     the right file.
-    '''
+    """
 
-    if context_vars['async']:
+    if context_vars["async"]:
+
         async def func(filepath, buf, file_mode):
-            filepath2 = filepath+'.mttmp'
-            async with aiofiles.open(filepath2, mode='wt') as f:
+            filepath2 = filepath + ".mttmp"
+            async with aiofiles.open(filepath2, mode="wt") as f:
                 retval = await f.write(buf)
             if file_mode is not None:  # chmod
                 await safe_chmod(filepath2, file_mode=file_mode)
             await safe_rename(filepath2, filepath, context_vars=context_vars)
             return retval
+
         coro = func(filepath, buf, file_mode)
         return asyncio.ensure_future(coro) if file_write_delayed else (await coro)
 
-    filepath2 = filepath+'.mttmp'
-    with open(filepath2, mode='wt') as f:
+    filepath2 = filepath + ".mttmp"
+    with open(filepath2, mode="wt") as f:
         retval = f.write(buf)
     if file_mode is not None:  # chmod
         os.chmod(filepath2, file_mode)
@@ -193,7 +222,7 @@ async def write_text(filepath, buf: str, file_mode: int = 0o664, context_vars: d
 
 
 async def json_load(filepath, context_vars: dict = {}, **kwargs):
-    '''An asyn function that loads the json-like object of a file.
+    """An asyn function that loads the json-like object of a file.
 
     Parameters
     ----------
@@ -209,14 +238,21 @@ async def json_load(filepath, context_vars: dict = {}, **kwargs):
     -------
     object
         the loaded json-like object
-    '''
+    """
 
     content = await read_text(filepath, context_vars=context_vars)
     return json.loads(content, **kwargs)
 
 
-async def json_save(filepath, obj, file_mode: int = 0o664, context_vars: dict = {}, file_write_delayed: bool = False, **kwargs):
-    '''An asyn function that saves a json-like object to a file.
+async def json_save(
+    filepath,
+    obj,
+    file_mode: int = 0o664,
+    context_vars: dict = {},
+    file_write_delayed: bool = False,
+    **kwargs
+):
+    """An asyn function that saves a json-like object to a file.
 
     Parameters
     ----------
@@ -241,15 +277,21 @@ async def json_save(filepath, obj, file_mode: int = 0o664, context_vars: dict = 
     asyncio.Future or int
         either a future or the number of bytes written, depending on whether the file write
         task is delayed or not
-    '''
+    """
 
     content = json.dumps(obj, **kwargs)
-    await write_text(filepath, content, file_mode=file_mode, context_vars=context_vars, file_write_delayed=file_write_delayed)
+    await write_text(
+        filepath,
+        content,
+        file_mode=file_mode,
+        context_vars=context_vars,
+        file_write_delayed=file_write_delayed,
+    )
 
 
 @asynccontextmanager
 async def mkdtemp(context_vars: dict = {}):
-    '''An asyn context manager that opens and creates a temporary directory.
+    """An asyn context manager that opens and creates a temporary directory.
 
     Parameters
     ----------
@@ -261,17 +303,18 @@ async def mkdtemp(context_vars: dict = {}):
     -------
     tmpdir : object
         the context manager whose enter-value is a string containing the temporary dirpath.
-    '''
+    """
 
-    if context_vars['async']:
+    if context_vars["async"]:
         async with aiofiles.tempfile.TemporaryDirectory() as tmpdir:
             yield tmpdir
     else:
         with tempfile.TemporaryDirectory() as tmpdir:
             yield tmpdir
 
+
 class CreateFileH5:
-    '''A context for creating an HDF5 file safely.
+    """A context for creating an HDF5 file safely.
 
     It creates a temporary HDF5 file for writing. Once the user exits the context, the file is
     chmodded and renamed to a given name. Any intermediate folder that does not exist is created
@@ -300,9 +343,15 @@ class CreateFileH5:
         the local file path of the temporary HDF5 file
     handle : h5py.File
         the handle of the temporary HDF5 file
-    '''
+    """
 
-    def __init__(self, filepath: str, file_mode: int = 0o664, context_vars: dict = {}, logger=None):
+    def __init__(
+        self,
+        filepath: str,
+        file_mode: int = 0o664,
+        context_vars: dict = {},
+        logger=None,
+    ):
         dirpath = dirname(filepath)
         make_dirs(dirpath, shared=True)
         self.filepath = filepath
@@ -318,21 +367,22 @@ class CreateFileH5:
                 self.logger.error("Need h5py create file '{}'.".format(self.filepath))
             raise
 
-        self.tmp_filepath = self.filepath+'.mttmp'
+        self.tmp_filepath = self.filepath + ".mttmp"
         try:
-            self.handle = h5py.File(self.tmp_filepath, mode='w')
-        except BlockingIOError: # try again in 1 second
+            self.handle = h5py.File(self.tmp_filepath, mode="w")
+        except BlockingIOError:  # try again in 1 second
             from time import sleep
+
             sleep(1)
-            self.handle = h5py.File(self.tmp_filepath, mode='w')
+            self.handle = h5py.File(self.tmp_filepath, mode="w")
         return self
 
     async def __aenter__(self):
         return self.__enter__()
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        if not exc_value is None: # successful
-            if logger:
+        if not exc_value is None:  # successful
+            if self.logger:
                 logger.warn("File '{}' not removed.".format(self.tmp_filepath))
             return
 
@@ -343,8 +393,8 @@ class CreateFileH5:
         rename(self.tmp_filepath, self.filepath, overwrite=True)
 
     async def __aexit__(self, exc_type, exc_value, exc_traceback):
-        if not exc_value is None: # successful
-            if logger:
+        if not exc_value is None:  # successful
+            if self.logger:
                 logger.warn("File '{}' not removed.".format(self.tmp_filepath))
             return
 
@@ -352,4 +402,6 @@ class CreateFileH5:
 
         if self.file_mode is not None:  # chmod
             await safe_chmod(self.tmp_filepath, self.file_mode)
-        await safe_rename(self.tmp_filepath, self.filepath, context_vars=self.context_vars)
+        await safe_rename(
+            self.tmp_filepath, self.filepath, context_vars=self.context_vars
+        )
