@@ -35,7 +35,7 @@ def ndarray_repr(a):
 def sigmoid(x):
     """Returns `sigmoid(x) = 1/(1+exp(-x))`."""
 
-    if not isinstance(a, np.ndarray):
+    if not isinstance(x, np.ndarray):
         return 1 / (1 + math.exp(-x))
 
     cutoff = -20 if x.dtype == np.float64 else -9
@@ -45,7 +45,7 @@ def sigmoid(x):
 def asigmoid(y):
     """Inverse of sigmoid. See :func:`sigmoid`."""
 
-    if not isinstance(a, np.ndarray):
+    if not isinstance(y, np.ndarray):
         return math.log(y) - math.log1p(-y)
 
     return np.log(y) - np.log1p(-y)
