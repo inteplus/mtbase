@@ -10,13 +10,13 @@ __all__ = ["quantise_images", "dequantise_images"]
 def quantise_images(a: np.ndarray) -> np.ndarray:
     """Quantises a tensor of images.
 
-    It takes a tensor of images of dtype float32 where every pixel value is in range [0,256)
+    It takes a tensor of images of dtype float32 where every pixel value is in range (0., 256.)
     and converts them to dtype uint8. No range checking happens.
 
     Parameters
     ----------
     a : numpy.ndarray
-        input tensor of images of dtype float32 and each value is in integer range [0,256)
+        input tensor of images of dtype float32 and each value is in integer range (0., 256.)
 
     Returns
     -------
@@ -37,14 +37,14 @@ def dequantise_images(
     Parameters
     ----------
     a : numpy.ndarray
-        input tensor of images of dtype uint8 and each value is in integer range [0,256)
+        input tensor of images of dtype uint8 and each value is in integer range [0, 256)
     rng : numpy.random.RandomState, optional
         the random number generator to make uniform noise values
 
     Returns
     -------
     numpy.ndarray
-        output tensor of images of dtype float32 and each value is in float32 range [0,256)
+        output tensor of images of dtype float32 and each value is in float32 range (0., 256.)
     """
     if not isinstance(a, np.ndarray):
         raise TypeError("An ndarray is expected. Got '{}'.".format(type(a)))
