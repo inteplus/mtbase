@@ -5,10 +5,10 @@ import math
 import numpy as np
 
 
-__all__ = ["ndarray_repr", "sigmoid", "asigmoid"]
+__all__ = ["ndarray_repr", "sigmoid", "asigmoid", "frombytes"]
 
 
-def ndarray_repr(a):
+def ndarray_repr(a: np.ndarray) -> str:
     """Gets a one-line representation string for a numpy array.
 
     Parameters
@@ -32,7 +32,7 @@ def ndarray_repr(a):
     return "ndarray({}, dtype={})".format(repr(a.tolist()), a.dtype)
 
 
-def sigmoid(x):
+def sigmoid(x) -> np.ndarray:
     """Returns `sigmoid(x) = 1/(1+exp(-x))`."""
 
     if not isinstance(x, np.ndarray):
@@ -42,10 +42,15 @@ def sigmoid(x):
     return np.where(x < cutoff, np.exp(x), 1 / (1 + np.exp(-x)))
 
 
-def asigmoid(y):
+def asigmoid(y) -> np.ndarray:
     """Inverse of sigmoid. See :func:`sigmoid`."""
 
     if not isinstance(y, np.ndarray):
         return math.log(y) - math.log1p(-y)
 
     return np.log(y) - np.log1p(-y)
+
+
+def frombytes(data: bytes) -> np.ndarray:
+    """Converts a `bytes` instance into a 1D uint8 array."""
+    return np.frombuffer(data, dtype=np.uint8)
