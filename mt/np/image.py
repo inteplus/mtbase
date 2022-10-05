@@ -7,22 +7,27 @@ import numpy as np
 __all__ = ["quantise_images", "dequantise_images"]
 
 
-def quantise_images(a: np.ndarray) -> np.ndarray:
+def quantise_images(a: np.ndarray, clip: bool = True) -> np.ndarray:
     """Quantises a tensor of images.
 
     It takes a tensor of images of dtype float32 where every pixel value is in range (0., 256.)
-    and converts them to dtype uint8. No range checking happens.
+    and converts them to dtype uint8.
 
     Parameters
     ----------
     a : numpy.ndarray
         input tensor of images of dtype float32 and each value is in integer range (0., 256.)
+    clip : bool
+        whether or not to clip overflow or underflow values. That is, values less than 0 are set to
+        0 and values at 256 or above are set to 255.
 
     Returns
     -------
     numpy.ndarray
         output tensor of images of dtype uint8 and each value is in range [0, 256)
     """
+    if clip:
+        a = np.clip(a, 0.0, 255.999)
     return a.astype(np.uint8)
 
 
