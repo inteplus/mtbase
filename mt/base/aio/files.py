@@ -395,7 +395,7 @@ class CreateFileH5:
     async def __aexit__(self, exc_type, exc_value, exc_traceback):
         if not exc_value is None:  # successful
             if self.logger:
-                logger.warn("File '{}' not removed.".format(self.tmp_filepath))
+                self.logger.warn("File '{}' not removed.".format(self.tmp_filepath))
             return
 
         self.handle.close()
