@@ -356,9 +356,21 @@ class MyQueenBee(beehive.QueenBee):
             for pair_id_list, output_batch_tensor_dict in tvars.batch_done_list:
                 for i, pair_id in enumerate(pair_id_list):  # unstack the batch
                     row_id = pair_list[pair_id][0]
-                    output_tensor_dict = {
-                        k: v[i] for k, v in output_batch_tensor_dict.items()
-                    }
+                    try:
+                        output_tensor_dict = {
+                            k: v[i] for k, v in output_batch_tensor_dict.items()
+                        }
+                    except (IndexError, AttributeError):
+                        if self.logger:
+                            self.logger.warn_last_exception()
+                            self.logger.debug("Caught the above exception. Details:")
+                            self.logger.debug("  pair_id_list: {}".format(pair_id_list))
+                            self.logger.debug(
+                                "  output_batch_tensor_dict: {}".format(
+                                    output_batch_tensor_dict
+                                )
+                            )
+                        raise
                     task = asyncio.ensure_future(
                         self.delegate(
                             "postprocess",
