@@ -1,16 +1,16 @@
 """Utilities to work with the with statement."""
 
 
-from .contextlib import nullcontext
+from mt import ctx
 
 from .deprecated import deprecated_func
 
 
-__all__ = ['DummyScopeForWithStatement', 'dummy_scope', 'join_scopes']
+__all__ = ["DummyScopeForWithStatement", "dummy_scope", "join_scopes"]
 
 
 class DummyScopeForWithStatement(object):
-    '''Dummy scope for the with statement.
+    """Dummy scope for the with statement.
 
     Warning
     -------
@@ -19,19 +19,25 @@ class DummyScopeForWithStatement(object):
     >>> with dummy_scope:
     ...     a = 1
 
-    '''
+    """
+
     def __enter__(self):
         return self
 
     def __exit__(self, type, value, traceback):
         pass
 
-dummy_scope = nullcontext()
+
+dummy_scope = ctx.nullcontext()
 
 
-@deprecated_func(deprecated_version="2021.1", suggested_func="(use built-in compound with)", docstring_prefix="    ")
+@deprecated_func(
+    deprecated_version="2021.1",
+    suggested_func="(use built-in compound with)",
+    docstring_prefix="    ",
+)
 class join_scopes(object):
-    '''Joins two or more with statements into one.
+    """Joins two or more with statements into one.
 
     If you run into a situation in which you have nested with statements, for example::
 
@@ -54,7 +60,7 @@ class join_scopes(object):
     Notes
     -----
     As of 2021/08/01, MT has realised that the with statement in Python 3 has long supported compound withs. So you can do `with a, b, c:` without any issue. This class has become redundant. Duh!
-    '''
+    """
 
     def __init__(self, *with_objs):
         self.with_objs = with_objs
@@ -63,13 +69,13 @@ class join_scopes(object):
         return [with_obj.__enter__() for with_obj in self.with_objs]
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if exc_type is None: # normal case
-            for with_obj in reversed(self.with_objs): 
+        if exc_type is None:  # normal case
+            for with_obj in reversed(self.with_objs):
                 with_obj.__exit__(exc_type, exc_value, traceback)
             return
 
         reraise = True
-        for with_obj in reversed(self.with_objs): 
+        for with_obj in reversed(self.with_objs):
             if with_obj.__exit__(exc_type, exc_value, traceback):
                 reraise = False
                 exc_type, exc_value, traceback = None, None, None

@@ -7,7 +7,8 @@ import ipaddress as _ia
 import requests as _r
 from getmac import get_mac_address
 from time import sleep
-from .with_utils import dummy_scope
+
+from mt import ctx
 
 
 __all__ = [
@@ -175,7 +176,7 @@ def _pf_shutdown_stream(connection, is_c2s):
                     connection["client_config"], connection["server_config"]
                 ),
                 curly=False,
-            ) if logger else dummy_scope:
+            ) if logger else ctx.nullcontext():
                 _pf_shutdown_socket(
                     connection["client_socket"],
                     _s.SHUT_RD,
@@ -196,7 +197,7 @@ def _pf_shutdown_stream(connection, is_c2s):
                     connection["server_config"], connection["client_config"]
                 ),
                 curly=False,
-            ) if logger else dummy_scope:
+            ) if logger else ctx.nullcontext():
                 _pf_shutdown_socket(
                     connection["server_socket"],
                     _s.SHUT_RD,

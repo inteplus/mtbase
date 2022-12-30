@@ -5,10 +5,11 @@ import typing as tp
 import numpy as np
 import pandas as pd
 
-from contextlib import nullcontext
 from tqdm import tqdm
 import multiprocessing as mp
 import queue
+
+from mt import ctx
 
 from .hashing import hash_int
 from .concurrency import beehive
@@ -465,7 +466,7 @@ class MyQueenBee(beehive.QueenBee):
                         )
                         with self.logger.scoped_debug(
                             text, curly=False
-                        ) if self.logger else nullcontext():
+                        ) if self.logger else ctx.nullcontext():
                             if (msg["reason"] is not None) and self.logger:
                                 self.logger.debug("Reason: {}".format(msg["reason"]))
                         raise asyncio.CancelledError(text + ".")
@@ -475,7 +476,7 @@ class MyQueenBee(beehive.QueenBee):
                         )
                         with self.logger.scoped_debug(
                             text, curly=False
-                        ) if self.logger else nullcontext():
+                        ) if self.logger else ctx.nullcontext():
                             beehive.logger_debug_msg(msg, logger=self.logger)
                         raise msg["exception"]
                     else:  # msg['status'] == 'succeeded':

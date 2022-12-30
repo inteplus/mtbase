@@ -1,7 +1,7 @@
 """Useful subroutines dealing with S3 files via botocore and aiobotocore."""
 
 
-from typing import Optional, Union
+import typing as tp
 
 import errno
 import asyncio
@@ -13,9 +13,9 @@ import botocore.exceptions
 from halo import Halo
 from tqdm import tqdm
 
+from mt import ctx
+
 from .aio import read_binary, srun
-from .with_utils import dummy_scope
-from .contextlib import asynccontextmanager
 from .http import create_http_session
 
 
@@ -36,7 +36,7 @@ __all__ = [
 ]
 
 
-def join(bucket: str, prefix: Optional[str] = None):
+def join(bucket: str, prefix: tp.Optional[str] = None):
     """Joins a bucket and a prefix into an s3cmd url.
 
     Parameters
@@ -92,7 +92,7 @@ def split(s3cmd_url: str):
 
 def get_session(
     profile=None, asyn: bool = True
-) -> Union[aiobotocore.session.AioSession, botocore.session.Session]:
+) -> tp.Union[aiobotocore.session.AioSession, botocore.session.Session]:
     """Gets a botocore session, for either asynchronous mode or synchronous mode.
 
     Parameters
@@ -117,10 +117,10 @@ def get_session(
     return klass(profile=profile)
 
 
-@asynccontextmanager
+@ctx.asynccontextmanager
 async def create_s3_client(
     profile=None, asyn: bool = True
-) -> Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
+) -> tp.Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
     """An asyn context manager that creates an s3 client for a given profile, maximizing the number of connections.
 
     Parameters
@@ -144,7 +144,7 @@ async def create_s3_client(
         yield session.create_client("s3", config=config)
 
 
-@asynccontextmanager
+@ctx.asynccontextmanager
 async def create_context_vars(profile=None, asyn: bool = False):
     """Creates a dictionary of context variables for running functions in this package.
 
@@ -472,7 +472,7 @@ async def put_files(
 
     with tqdm(
         total=len(filepath2key_map), unit="file"
-    ) if show_progress else dummy_scope as progress_bar:
+    ) if show_progress else ctx.nullcontext() as progress_bar:
         if context_vars["async"]:
             coros = [
                 process_item(
@@ -497,7 +497,7 @@ def put_files_boto3(
     bucket: str,
     filepath2key_map: dict,
     show_progress: bool = False,
-    total_filesize: Optional[int] = None,
+    total_filesize: tp.Optional[int] = None,
     set_acl_public_read: bool = False,
     context_vars: dict = {},
 ):
@@ -537,7 +537,7 @@ def put_files_boto3(
 
     with tqdm(
         total=total_filesize, unit="B", unit_scale=True
-    ) if show_progress else dummy_scope as progress_bar:
+    ) if show_progress else ctx.nullcontext() as progress_bar:
         for filepath, key in filepath2key_map.items():
             s3t.upload(
                 filepath,
