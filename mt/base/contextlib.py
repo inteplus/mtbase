@@ -1,9 +1,9 @@
-'''Monkey-patching contextlib.'''
+"""Monkey-patching contextlib.
 
-from packaging import version
-import platform
+For python 3.6 or earlier, this module corresponds to :module:`contextlib2`. Otherwise, it
+corresponds to :module:`contextlib`.
+"""
 
-if version.parse(platform.python_version()) < version.parse('3.7'):
-    from contextlib2 import *
-else:
-    from contextlib import *
+from mt.ctx import *
+
+# MT-TODO: make the module deprecated starting from v4.0.

@@ -7,7 +7,8 @@ import tempfile
 import asyncio
 import aiofiles
 
-from ..contextlib import asynccontextmanager
+from mt import ctx
+
 from .path import rename_asyn, rename, dirname, make_dirs
 
 
@@ -289,7 +290,7 @@ async def json_save(
     )
 
 
-@asynccontextmanager
+@ctx.asynccontextmanager
 async def mkdtemp(context_vars: dict = {}):
     """An asyn context manager that opens and creates a temporary directory.
 

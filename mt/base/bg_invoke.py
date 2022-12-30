@@ -1,4 +1,4 @@
-'''Wrapper around threading for running things in background.'''
+"""Wrapper around threading for running things in background."""
 
 
 from collections import deque
@@ -8,30 +8,37 @@ import sys as _sys
 import os as _os
 from time import sleep
 
-from .with_utils import dummy_scope
+from mt import ctx
+
 from .traceback import format_exception
 from .time import sleep_until
 from .logging import logger
 
 
-__all__ = ['BgException', 'BgInvoke', 'BgThread', 'parallelise', 'bg_run_proc', 'bg_proc_manager']
+__all__ = [
+    "BgException",
+    "BgInvoke",
+    "BgThread",
+    "parallelise",
+    "bg_run_proc",
+    "bg_proc_manager",
+]
 
 
 class BgException(Exception):
-
     def __init__(self, message, exc_info):
         lines = format_exception(*exc_info)
-        lines = ["  "+x for x in lines]
+        lines = ["  " + x for x in lines]
         lines = [message, "{"] + lines + ["}"]
-        message = '\n'.join(lines)
+        message = "\n".join(lines)
         super().__init__(message)
 
 
 class BgInvoke:
-    '''Thin wrapper around threading.Thread to run `target(*args, **kwargs)` in background.
+    """Thin wrapper around threading.Thread to run `target(*args, **kwargs)` in background.
 
     Once invoked, the thread keeps running in background until function `self.is_running()` returns `False`, at which point `self.result` holds the output of the invocation.
-    
+
     If an exception was raised, `self.result` would contain the exception and other useful information.
 
     Notes
@@ -54,7 +61,7 @@ class BgInvoke:
     ...
     >>> print(a.result)
     100000000
-    '''
+    """
 
     def _wrapper(self, g, *args, **kwargs):
         try:
@@ -64,16 +71,21 @@ class BgInvoke:
 
     @property
     def result(self):
-        if hasattr(self, '_result'):
-            if self._result[0]: # succeeded
-                return self._result[1] # returning object
-            else: # thread generated an exception
-                raise BgException("Exception raised in background thread {}".format(self.thread.ident), self._result[1])
+        if hasattr(self, "_result"):
+            if self._result[0]:  # succeeded
+                return self._result[1]  # returning object
+            else:  # thread generated an exception
+                raise BgException(
+                    "Exception raised in background thread {}".format(
+                        self.thread.ident
+                    ),
+                    self._result[1],
+                )
         else:
             raise ValueError("Result is not available.")
 
     def __init__(self, target, *args, **kwargs):
-        '''Initialises the invocation of `target(*args, **kwargs)` in background.
+        """Initialises the invocation of `target(*args, **kwargs)` in background.
 
         Parameters
         ----------
@@ -83,18 +95,20 @@ class BgInvoke:
                 argument tuple for the target invocation. Default to ().
             kwargs : dict
                 dictionary of keyword arguments for the target. Default to {}.
-        '''
-        self.thread = _t.Thread(target=self._wrapper, args=(target,)+args, kwargs=kwargs)
+        """
+        self.thread = _t.Thread(
+            target=self._wrapper, args=(target,) + args, kwargs=kwargs
+        )
         self.thread.daemon = True
         self.thread.start()
 
     def is_running(self):
-        '''Returns whether the invocation is still running.'''
+        """Returns whether the invocation is still running."""
         return self.thread.is_alive()
 
 
 class BgThread(_t.Thread):
-    '''Thin wrapper around threading.Thread to run `func(*args, **kwargs)` in background.
+    """Thin wrapper around threading.Thread to run `func(*args, **kwargs)` in background.
 
     Once invoked via :func:`invoke`, the thread waits until the last function call has finished,
     then invokes the function with new arguments in background. The user can do other things.
@@ -139,7 +153,7 @@ class BgThread(_t.Thread):
     >>> a.invoke(nbTimes=100000)
     >>> print(a.result)
     100000
-    '''
+    """
 
     def __init__(self, func):
 
@@ -159,13 +173,12 @@ class BgThread(_t.Thread):
         self.new_output = False
         self.func_result = None
 
-        self.daemon = True # daemon thread
+        self.daemon = True  # daemon thread
         self.start()
 
-
     def close(self):
-        '''Waits for the current task to be done and closes the thread.'''
-        #print("Bg thread {} closing.".format(self.ident))
+        """Waits for the current task to be done and closes the thread."""
+        # print("Bg thread {} closing.".format(self.ident))
         with self.input_cv:
             self.is_thread_running = False
             self.input_cv.notify()
@@ -173,15 +186,15 @@ class BgThread(_t.Thread):
             sleep(1)
         self.join(30)
         if self.is_alive():
-            raise TimeoutError("Background thread {} takes too long to close.".format(self.ident))
-
+            raise TimeoutError(
+                "Background thread {} takes too long to close.".format(self.ident)
+            )
 
     def __del__(self):
         self.close()
 
-
     def run(self):
-        '''The wrapping code to be run in the background thread. Do not call.'''
+        """The wrapping code to be run in the background thread. Do not call."""
 
         while True:
             # get input
@@ -189,10 +202,10 @@ class BgThread(_t.Thread):
                 while self.is_thread_running and not self.new_input:
                     self.input_cv.wait()
                 if not self.is_thread_running:
-                    return # die happily
+                    return  # die happily
                 args = self.func_args
                 kwargs = self.func_kwargs
-                self.new_input = False # consume the new input
+                self.new_input = False  # consume the new input
                 self.input_cv.notify()
 
             # execute
@@ -209,14 +222,12 @@ class BgThread(_t.Thread):
                 self.new_output = True
                 self.output_cv.notify()
 
-
     def is_running(self):
-        '''Returns whether or not the function is running.'''
+        """Returns whether or not the function is running."""
         return self.func_running
 
-
     def invoke(self, *args, **kwargs):
-        '''Invokes the function in a graceful way.
+        """Invokes the function in a graceful way.
 
         This function blocks until the last function arguments have been consumed and then signals
         the function to be invoked again. It returns immediately.
@@ -227,40 +238,58 @@ class BgThread(_t.Thread):
             positional arguments of the function
         kwargs : dict
             keyword arguments of the function
-        '''
+        """
 
         with self.input_cv:
-            while self.is_thread_running and self.new_input: # current input not yet consumed
+            while (
+                self.is_thread_running and self.new_input
+            ):  # current input not yet consumed
                 self.input_cv.wait()
             if not self.is_thread_running:
-                raise RuntimeError("Cannot invoke the function when the thread is dead.")
+                raise RuntimeError(
+                    "Cannot invoke the function when the thread is dead."
+                )
             self.func_args = args
             self.func_kwargs = kwargs
             self.new_input = True
             self.input_cv.notify()
 
-
     @property
     def result(self):
-        '''The result after waiting for the function call to finish.'''
+        """The result after waiting for the function call to finish."""
         with self.output_cv:
-            while self.is_thread_running and not self.new_output: # no output produced yet
+            while (
+                self.is_thread_running and not self.new_output
+            ):  # no output produced yet
                 self.output_cv.wait()
             if not self.is_thread_running:
-                raise RuntimeError("Cannot get the function result when the thread is dead.")
+                raise RuntimeError(
+                    "Cannot get the function result when the thread is dead."
+                )
             func_result = self.func_result
-            self.new_output = False # consume the result
+            self.new_output = False  # consume the result
             self.output_cv.notify()
 
-        if func_result[0]: # succeeded
-            return func_result[1] # returning object
-        else: # thread generated an exception
-            raise BgException("Exception raised in background thread {}".format(self.ident),
-                              func_result[1])
+        if func_result[0]:  # succeeded
+            return func_result[1]  # returning object
+        else:  # thread generated an exception
+            raise BgException(
+                "Exception raised in background thread {}".format(self.ident),
+                func_result[1],
+            )
 
 
-def parallelise(func, num_jobs, *fn_args, num_threads=None, bg_exception='raise', logger=None, pass_logger=False, **fn_kwargs):
-    '''Embarrasingly parallelises to excecute many jobs with a limited number of threads.
+def parallelise(
+    func,
+    num_jobs,
+    *fn_args,
+    num_threads=None,
+    bg_exception="raise",
+    logger=None,
+    pass_logger=False,
+    **fn_kwargs
+):
+    """Embarrasingly parallelises to excecute many jobs with a limited number of threads.
 
     Parameters
     ----------
@@ -294,38 +323,47 @@ def parallelise(func, num_jobs, *fn_args, num_threads=None, bg_exception='raise'
     Notes
     -----
         use this function instead of joblib if you want to integrate with mt.base.logging and BgException better
-    '''
+    """
     if not isinstance(num_jobs, int) or num_jobs <= 0:
-        raise ValueError("A positive integer is expected for argument 'num_jobs', but was given {}.".format(num_jobs))
+        raise ValueError(
+            "A positive integer is expected for argument 'num_jobs', but was given {}.".format(
+                num_jobs
+            )
+        )
 
     if pass_logger:
-        if not 'logger' in fn_kwargs:
-            fn_kwargs['logger'] = logger
+        if not "logger" in fn_kwargs:
+            fn_kwargs["logger"] = logger
 
-    max_num_conns = max(1, _os.cpu_count()*4//5) if num_threads is None else num_threads
+    max_num_conns = (
+        max(1, _os.cpu_count() * 4 // 5) if num_threads is None else num_threads
+    )
     threads = {}  # background threads
-    thread_outputs = [None]*num_jobs
+    thread_outputs = [None] * num_jobs
 
-    with logger.scoped_info("Parallelise {} jobs using {} threads".format(num_jobs, max_num_conns), curly=False) if logger else dummy_scope:
+    with logger.scoped_info(
+        "Parallelise {} jobs using {} threads".format(num_jobs, max_num_conns),
+        curly=False,
+    ) if logger else ctx.nullcontext():
         i = 0
         threads = {}
         while i <= num_jobs:
-            if i < num_jobs: # still has a job to execute
+            if i < num_jobs:  # still has a job to execute
                 if len(threads) < max_num_conns:
                     if logger is not None and i % 1000 == 0:
-                        logger.info("Job {}/{}...".format(i+1, num_jobs))
+                        logger.info("Job {}/{}...".format(i + 1, num_jobs))
                     # send the job to the thread
                     threads[i] = BgInvoke(func, i, *fn_args, **fn_kwargs)
                     i += 1
                 else:
                     sleep(1)
-            else: # all jobs sent
-                if threads: # waiting for exising threads to finish
+            else:  # all jobs sent
+                if threads:  # waiting for exising threads to finish
                     sleep(1)
-                else: # seems like all jobs are done
+                else:  # seems like all jobs are done
                     i += 1
 
-            indices = [] # list of threads that have completed their job
+            indices = []  # list of threads that have completed their job
             for i2 in threads:
                 if not threads[i2].is_running():
                     indices.append(i2)
@@ -334,20 +372,26 @@ def parallelise(func, num_jobs, *fn_args, num_threads=None, bg_exception='raise'
                 try:
                     thread_outputs[i2] = threads[i2].result
                 except BgException as e:
-                    if bg_exception == 'raise':
+                    if bg_exception == "raise":
                         raise
-                    elif bg_exception == 'warn':
-                        with logger.scoped_warning("Caught an exception from job {}:".format(i2), curly=False) if logger else dummy_scope:
+                    elif bg_exception == "warn":
+                        with logger.scoped_warning(
+                            "Caught an exception from job {}:".format(i2), curly=False
+                        ) if logger else ctx.nullcontext():
                             logger.warn_last_exception()
                     else:
-                        raise ValueError("Argument 'bg_exception' has an unknown value '{}'.".format(bg_exception))
+                        raise ValueError(
+                            "Argument 'bg_exception' has an unknown value '{}'.".format(
+                                bg_exception
+                            )
+                        )
                 threads.pop(i2)
 
     return thread_outputs
 
 
 class BgProcManager:
-    '''A manager to run procedures in background threads.
+    """A manager to run procedures in background threads.
 
     A procedure is a function that returns None. If it an error is raised while executing the
     procedure, it will be reported as a warning in the logger (optional).
@@ -356,7 +400,7 @@ class BgProcManager:
     ----------
     logger : logging.Logger or equivalent
         logger for catching the exceptions as warnings
-    '''
+    """
 
     def __init__(self, logger=None):
         self.logger = logger
@@ -371,22 +415,24 @@ class BgProcManager:
         self.manager_thread = BgInvoke(self._run)
 
     def append_new_proc(self, proc):
-        '''Appends a new procedure to the queue.
+        """Appends a new procedure to the queue.
 
         Parameters
         ----------
         proc : funcion
             a procedure taking no input. If it an error is raised, it will be reported as a warning in the logger.
-        '''
+        """
         if not self.is_alive:
             if self.logger:
-                self.logger.warn("Cannot append a new procedure when the manager is being closed.")
+                self.logger.warn(
+                    "Cannot append a new procedure when the manager is being closed."
+                )
             return
 
         self.deque.append(proc)
 
     def _run(self):
-        '''Manager thread. Do not invoke the function externally.'''
+        """Manager thread. Do not invoke the function externally."""
 
         while True:
             # clean up finished threads
@@ -403,7 +449,10 @@ class BgProcManager:
             self.running_threads = new_running_threads
 
             # see if we can invoke a new thread
-            new_thread_cnt = max(0, min(len(self.deque), self.max_num_threads-len(self.running_threads)))
+            new_thread_cnt = max(
+                0,
+                min(len(self.deque), self.max_num_threads - len(self.running_threads)),
+            )
             for i in range(new_thread_cnt):
                 proc = self.deque.popleft()
                 bg_thread = BgInvoke(proc)
@@ -429,10 +478,12 @@ class BgProcManager:
         self.is_alive = False
         self.wait_until_empty()
 
+
 bg_proc_manager = BgProcManager(logger=logger)
 
+
 def bg_run_proc(proc, *args, **kwargs):
-    '''Runs a procedure in a background thread.
+    """Runs a procedure in a background thread.
 
     Parameters
     ----------
@@ -443,5 +494,5 @@ def bg_run_proc(proc, *args, **kwargs):
         positional arguments to be passed as-is to the procedure
     kwargs : dict
         keyword arguments to be passed as-is to the procedure
-    '''
+    """
     bg_proc_manager.append_new_proc(lambda: proc(*args, **kwargs))

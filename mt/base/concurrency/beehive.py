@@ -18,7 +18,8 @@ import queue
 import multiprocessing as mp
 from copy import copy
 
-from ..contextlib import nullcontext
+from mt import ctx
+
 from ..logging import IndentedLoggerAdapter
 
 
@@ -396,7 +397,7 @@ class Bee:
         if msg["death_type"] == "killed":
             with self.logger.scoped_debug(
                 "Child bee {} was killed".format(child_id), curly=False
-            ) if self.logger else nullcontext():
+            ) if self.logger else ctx.nullcontext():
                 logger_debug_msg(msg, logger=self.logger)
 
         # process all pending tasks held up by the dead bee
@@ -1079,7 +1080,7 @@ async def beehive_run(
     if msg["status"] == "raised":
         with logger.scoped_debug(
             "Exception raised by the queen bee", curly=False
-        ) if logger else nullcontext():
+        ) if logger else ctx.nullcontext():
             logger_debug_msg(msg, logger=logger)
             raise msg["exception"]
 
