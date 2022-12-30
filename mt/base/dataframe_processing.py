@@ -365,11 +365,10 @@ class MyQueenBee(beehive.QueenBee):
                             self.logger.warn_last_exception()
                             self.logger.debug("Caught the above exception. Details:")
                             self.logger.debug("  pair_id_list: {}".format(pair_id_list))
-                            self.logger.debug(
-                                "  output_batch_tensor_dict: {}".format(
-                                    output_batch_tensor_dict
-                                )
-                            )
+                            self.logger.debug("  output_batch_tensor_dict: \{")
+                            for k, v in output_batch_tensor_dict.items():
+                                self.logger.debug("    {}: {}".format(k, v))
+                            self.logger.debug("  \}")
                         raise
                     task = asyncio.ensure_future(
                         self.delegate(
