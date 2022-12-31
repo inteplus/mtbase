@@ -24,7 +24,7 @@ class DummyScopeForWithStatement(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type, value, traceback_obj):
         pass
 
 
@@ -68,16 +68,16 @@ class join_scopes(object):
     def __enter__(self):
         return [with_obj.__enter__() for with_obj in self.with_objs]
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback_obj):
         if exc_type is None:  # normal case
             for with_obj in reversed(self.with_objs):
-                with_obj.__exit__(exc_type, exc_value, traceback)
+                with_obj.__exit__(exc_type, exc_value, traceback_obj)
             return
 
         reraise = True
         for with_obj in reversed(self.with_objs):
-            if with_obj.__exit__(exc_type, exc_value, traceback):
+            if with_obj.__exit__(exc_type, exc_value, traceback_obj):
                 reraise = False
-                exc_type, exc_value, traceback = None, None, None
+                exc_type, exc_value, traceback_obj = None, None, None
 
         return None if reraise else True

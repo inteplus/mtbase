@@ -7,9 +7,8 @@ import threading as _t
 import sys as _sys
 import os as _os
 
-from mt import ctx, time
+from mt import ctx, time, traceback
 
-from .traceback import format_exception
 from .logging import logger
 
 
@@ -25,7 +24,7 @@ __all__ = [
 
 class BgException(Exception):
     def __init__(self, message, exc_info):
-        lines = format_exception(*exc_info)
+        lines = traceback.format_exception(*exc_info)
         lines = ["  " + x for x in lines]
         lines = [message, "{"] + lines + ["}"]
         message = "\n".join(lines)

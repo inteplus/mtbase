@@ -1,4 +1,4 @@
-'''Concurrency using asyncio and multiprocessing.'''
+"""Concurrency using asyncio and multiprocessing."""
 
 import asyncio
 import multiprocessing as _mp
@@ -7,11 +7,17 @@ import queue as _q
 from .base import split_works
 
 
-__all__ = ['aio_work_generator', 'run_asyn_works_in_context', 'asyn_work_generator']
+__all__ = ["aio_work_generator", "run_asyn_works_in_context", "asyn_work_generator"]
 
 
-async def aio_work_generator(func, num_work_ids, skip_null: bool = True, func_kwargs: dict = {}, max_concurrency: int = 1024):
-    '''An asynchronous generator that does some works and yields the work results.
+async def aio_work_generator(
+    func,
+    num_work_ids,
+    skip_null: bool = True,
+    func_kwargs: dict = {},
+    max_concurrency: int = 1024,
+):
+    """An asynchronous generator that does some works and yields the work results.
 
     This function uses asyncio to do works concurrently. The number of concurrent works is
     optionally upper-bounded by `max_concurrency`. It is of good use when the works are IO-bound.
@@ -37,7 +43,7 @@ async def aio_work_generator(func, num_work_ids, skip_null: bool = True, func_kw
     -------
     object
         an asynchronous generator yielding each result in the form `(work_id, ...)`
-    '''
+    """
 
     coros = [func(work_id, **func_kwargs) for work_id in range(num_work_ids)]
 
@@ -53,12 +59,16 @@ async def aio_work_generator(func, num_work_ids, skip_null: bool = True, func_kw
             # add tasks to run concurrently
             spare = min(max_concurrency - len(cur_task_list), num_work_ids - pos)
             if spare > 0:
-                new_task_list = [asyncio.ensure_future(coros[pos+i]) for i in range(spare)]
+                new_task_list = [
+                    asyncio.ensure_future(coros[pos + i]) for i in range(spare)
+                ]
                 cur_task_list.extend(new_task_list)
                 pos += spare
 
             # get some tasks done
-            done_task_list, cur_task_list = await asyncio.wait(cur_task_list, return_when=asyncio.FIRST_COMPLETED)
+            done_task_list, cur_task_list = await asyncio.wait(
+                cur_task_list, return_when=asyncio.FIRST_COMPLETED
+            )
             cur_task_list = list(cur_task_list)
 
             # yield the results
@@ -71,8 +81,17 @@ async def aio_work_generator(func, num_work_ids, skip_null: bool = True, func_kw
                     yield result
 
 
-async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: tuple = (), func_kwargs: dict = {}, context_id = None, work_id_list: list = [], max_concurrency: int = 1024, context_vars: dict = {}):
-    '''Invokes the same asyn function with different work ids concurrently and asynchronously, in a given context.
+async def run_asyn_works_in_context(
+    progress_queue: _mp.Queue,
+    func,
+    func_args: tuple = (),
+    func_kwargs: dict = {},
+    context_id=None,
+    work_id_list: list = [],
+    max_concurrency: int = 1024,
+    context_vars: dict = {},
+):
+    """Invokes the same asyn function with different work ids concurrently and asynchronously, in a given context.
 
     Parameters
     ----------
@@ -114,39 +133,45 @@ async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: 
     If KeyboardInterrupt is raised during the invocation, all remaining unscheduled tasks are
     cancelled. This means for the case that max_concurrency is None, KeyboardInterrupt has no
     effect.
-    '''
+    """
 
     def get_done_task_result(task, work_id):
         if task.cancelled():
-            return (context_id, 'task_cancelled', work_id)
+            return (context_id, "task_cancelled", work_id)
         e = task.exception()
         if e is not None:
             import io
+
             tracestack = io.StringIO()
             task.print_stack(file=tracestack)
-            return (context_id, 'task_raised', work_id, e, tracestack.getvalue())
+            return (context_id, "task_raised", work_id, e, tracestack.getvalue())
         result = task.result()
-        return (context_id, 'task_returned', work_id, result)
+        return (context_id, "task_returned", work_id, result)
 
     import asyncio
+
     keyboard_interrupted = False
 
     if max_concurrency is None:
         task_map = {}
         for work_id in work_id_list:
-            task = asyncio.ensure_future(func(work_id, *func_args, context_vars=context_vars, **func_kwargs))
-            progress_queue.put_nowait((context_id, 'task_scheduled', work_id))
+            task = asyncio.ensure_future(
+                func(work_id, *func_args, context_vars=context_vars, **func_kwargs)
+            )
+            progress_queue.put_nowait((context_id, "task_scheduled", work_id))
             task_map[task] = work_id
 
         while len(task_map) > 0:
-            done_task_set, _ = await asyncio.wait(task_map.keys(), return_when=asyncio.FIRST_COMPLETED)
+            done_task_set, _ = await asyncio.wait(
+                task_map.keys(), return_when=asyncio.FIRST_COMPLETED
+            )
 
             for task in done_task_set:
                 work_id = task_map[task]
                 msg = get_done_task_result(task, work_id)
                 progress_queue.put_nowait(msg)
                 del task_map[task]
-                if msg[1] == 'task_raised' and isinstance(msg[3], KeyboardInterrupt):
+                if msg[1] == "task_raised" and isinstance(msg[3], KeyboardInterrupt):
                     keyboard_interrupted = True
 
     else:
@@ -155,31 +180,57 @@ async def run_asyn_works_in_context(progress_queue: _mp.Queue, func, func_args: 
 
         while cur_pos < len(work_id_list) or len(cur_task_map) > 0:
             # add tasks to run concurrently
-            spare = min(max_concurrency - len(cur_task_map), len(work_id_list) - cur_pos)
+            spare = min(
+                max_concurrency - len(cur_task_map), len(work_id_list) - cur_pos
+            )
             if spare > 0:
                 for i in range(spare):
                     work_id = work_id_list[cur_pos + i]
                     if keyboard_interrupted:
-                        progress_queue.put_nowait((context_id, 'task_cancelled', work_id))
+                        progress_queue.put_nowait(
+                            (context_id, "task_cancelled", work_id)
+                        )
                     else:
-                        task = asyncio.ensure_future(func(work_id, *func_args, context_vars=context_vars, **func_kwargs))
-                        progress_queue.put_nowait((context_id, 'task_scheduled', work_id))
+                        task = asyncio.ensure_future(
+                            func(
+                                work_id,
+                                *func_args,
+                                context_vars=context_vars,
+                                **func_kwargs
+                            )
+                        )
+                        progress_queue.put_nowait(
+                            (context_id, "task_scheduled", work_id)
+                        )
                         cur_task_map[task] = work_id
                 cur_pos += spare
 
             # get some tasks done
-            done_task_set, _ = await asyncio.wait(cur_task_map.keys(), return_when=asyncio.FIRST_COMPLETED)
+            done_task_set, _ = await asyncio.wait(
+                cur_task_map.keys(), return_when=asyncio.FIRST_COMPLETED
+            )
             for task in done_task_set:
                 work_id = cur_task_map[task]
                 msg = get_done_task_result(task, work_id)
                 progress_queue.put_nowait(msg)
                 del cur_task_map[task]
-                if msg[1] == 'task_raised' and isinstance(msg[3], KeyboardInterrupt):
+                if msg[1] == "task_raised" and isinstance(msg[3], KeyboardInterrupt):
                     keyboard_interrupted = True
 
 
-async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {}, num_processes = None, num_works: int = 0, max_concurrency: int = 1024, profile = None, debug_logger = None, progress_queue = None, timeout: int = 300):
-    '''An asyn generator that does a large number of works concurrently and yields the work results.
+async def asyn_work_generator(
+    func,
+    func_args: tuple = (),
+    func_kwargs: dict = {},
+    num_processes=None,
+    num_works: int = 0,
+    max_concurrency: int = 1024,
+    profile=None,
+    debug_logger=None,
+    progress_queue=None,
+    timeout: int = 300,
+):
+    """An asyn generator that does a large number of works concurrently and yields the work results.
 
     Internally, it splits the list of work ids into blocks and invokes
     :func:`run_asyn_works_in_context` to run each block in a new context in a separate process. It
@@ -222,7 +273,7 @@ async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {
 
     Asyncio and KeyboardInterrupt are not happy with each other.
     https://bugs.python.org/issue42683
-    '''
+    """
 
     if num_works <= 0:
         return
@@ -233,15 +284,24 @@ async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {
     num_buckets = _mp.cpu_count() if num_processes is None else num_processes
     work_id_list_list = split_works(num_works, num_buckets)
 
-
-    def worker_process(progress_queue: _mp.Queue, func, func_args: tuple = (), func_kwargs: dict = {}, context_id = None, work_id_list: list = [], max_concurrency: int = 1024, profile = None):
+    def worker_process(
+        progress_queue: _mp.Queue,
+        func,
+        func_args: tuple = (),
+        func_kwargs: dict = {},
+        context_id=None,
+        work_id_list: list = [],
+        max_concurrency: int = 1024,
+        profile=None,
+    ):
         import asyncio
         from ..s3 import create_context_vars
 
         async def asyn_func():
             async with create_context_vars(asyn=True, profile=profile) as context_vars:
                 content = await run_asyn_works_in_context(
-                    progress_queue, func,
+                    progress_queue,
+                    func,
                     func_args=func_args,
                     func_kwargs=func_kwargs,
                     context_id=context_id,
@@ -251,19 +311,27 @@ async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {
                 )
             return content
 
-        progress_queue.put_nowait((context_id, 'context_created'))
+        progress_queue.put_nowait((context_id, "context_created"))
         try:
             asyncio.run(asyn_func())
-        except KeyboardInterrupt as e: # asyncio sucks
-            from ..traceback import extract_stack_compact
-            progress_queue.put_nowait((context_id, 'context_raised', e, extract_stack_compact()))
+        except KeyboardInterrupt as e:  # asyncio sucks
+            from mt.traceback import extract_stack_compact
+
+            progress_queue.put_nowait(
+                (context_id, "context_raised", e, extract_stack_compact())
+            )
         except Exception as e:
-            from ..traceback import extract_stack_compact
+            from mt.traceback import extract_stack_compact
             from ..logging import logger
+
             logger.warn_last_exception()
-            logger.warn("Uncaught exception from a subprocess of mt.base.asyn_work_generator.")
-            progress_queue.put_nowait((context_id, 'context_raised', e, extract_stack_compact()))
-        progress_queue.put_nowait((context_id, 'context_destroyed'))
+            logger.warn(
+                "Uncaught exception from a subprocess of mt.base.asyn_work_generator."
+            )
+            progress_queue.put_nowait(
+                (context_id, "context_raised", e, extract_stack_compact())
+            )
+        progress_queue.put_nowait((context_id, "context_destroyed"))
 
     # launch the concurrency suite
     process_list = []
@@ -272,14 +340,15 @@ async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {
             target=worker_process,
             args=(queue, func),
             kwargs={
-                'func_args': func_args,
-                'func_kwargs': func_kwargs,
-                'context_id': context_id,
-                'work_id_list': work_id_list_list[context_id],
-                'max_concurrency': max_concurrency,
-                'profile': profile,
+                "func_args": func_args,
+                "func_kwargs": func_kwargs,
+                "context_id": context_id,
+                "work_id_list": work_id_list_list[context_id],
+                "max_concurrency": max_concurrency,
+                "profile": profile,
             },
-            daemon=True)
+            daemon=True,
+        )
         p.start()
         process_list.append(p)
 
@@ -292,34 +361,40 @@ async def asyn_work_generator(func, func_args: tuple = (), func_kwargs: dict = {
         try:
             msg = queue.get_nowait()
             wait_cnt = 0
-            #if debug_logger:
-                #debug_logger.debug("asyn_work_generator: {}".format(msg))
-            if msg[1] == 'context_destroyed':
+            # if debug_logger:
+            # debug_logger.debug("asyn_work_generator: {}".format(msg))
+            if msg[1] == "context_destroyed":
                 num_running_buckets -= 1
-            elif msg[1] in ('task_returned', 'task_cancelled', 'task_raised'):
+            elif msg[1] in ("task_returned", "task_cancelled", "task_raised"):
                 num_works_done += 1
-                #if num_works_done % 1000 == 0:
-                    #if debug_logger:
-                        #debug_logger.debug("asyn_work_generator: {}/{} works done".format(num_works_done, num_works))
+                # if num_works_done % 1000 == 0:
+                # if debug_logger:
+                # debug_logger.debug("asyn_work_generator: {}/{} works done".format(num_works_done, num_works))
                 yield msg[1:]
         except _q.Empty:
             try:
                 await asyncio.sleep(0.1)
             except KeyboardInterrupt:
                 if debug_logger:
-                    debug_logger.warn("Keyboard interrupted. Will reraise when the time is right.")
+                    debug_logger.warn(
+                        "Keyboard interrupted. Will reraise when the time is right."
+                    )
                 keyboard_interrupted = True
             wait_cnt += 1
 
     # clean up
-    if wait_cnt < timeout: # healthy
+    if wait_cnt < timeout:  # healthy
         for p in process_list:
             p.join()
-    else: # something wrong
+    else:  # something wrong
         if debug_logger:
-            debug_logger.debug("asyn_work_generator: {:.1f}s timeout reached.".format(0.1*timeout))
+            debug_logger.debug(
+                "asyn_work_generator: {:.1f}s timeout reached.".format(0.1 * timeout)
+            )
         for p in process_list:
-            p.terminate() # ouch!
+            p.terminate()  # ouch!
 
     if keyboard_interrupted:
-        raise KeyboardInterrupt("Keyboard interrupted while asyn_work_generator() is running.")
+        raise KeyboardInterrupt(
+            "Keyboard interrupted while asyn_work_generator() is running."
+        )

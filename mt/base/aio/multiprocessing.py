@@ -1,4 +1,4 @@
-'''Useful subroutines dealing with asyn functions from another process.'''
+"""Useful subroutines dealing with asyn functions from another process."""
 
 
 import asyncio
@@ -10,11 +10,17 @@ import multiprocessing.queues as mq
 from .base import yield_control
 
 
-__all__ = ['qput_aio', 'qget_aio', 'BgProcess']
+__all__ = ["qput_aio", "qget_aio", "BgProcess"]
 
 
-async def qput_aio(q: mq.Queue, obj, block : bool = True, timeout : float = None, aio_interval : float = 0.001):
-    '''Puts obj into the queue q.
+async def qput_aio(
+    q: mq.Queue,
+    obj,
+    block: bool = True,
+    timeout: float = None,
+    aio_interval: float = 0.001,
+):
+    """Puts obj into the queue q.
 
     If the optional argument `block` is True (the default) and `timeout` is None (the default),
     block asynchronously if necessary until a free slot is available. If timeout is a positive
@@ -22,7 +28,7 @@ async def qput_aio(q: mq.Queue, obj, block : bool = True, timeout : float = None
     exception if no free slot was available within that time. Otherwise (`block` is False),
     put an item on the queue if a free slot is immediately available, else raise the
     :class:`queue.Full` exception (timeout is ignored in that case).
-    '''
+    """
 
     if not block:
         return q.put(obj, block=False)
@@ -32,7 +38,7 @@ async def qput_aio(q: mq.Queue, obj, block : bool = True, timeout : float = None
             await asyncio.sleep(aio_interval)
         return q.put(obj, block=True)
 
-    cnt = int(timeout / aio_interval)+1
+    cnt = int(timeout / aio_interval) + 1
     while cnt > 0:
         if not q.full():
             return q.put(obj, block=True)
@@ -41,8 +47,10 @@ async def qput_aio(q: mq.Queue, obj, block : bool = True, timeout : float = None
     raise queue.Full()
 
 
-async def qget_aio(q: mq.Queue, block : bool = True, timeout : float = None, aio_interval : float = 0.001):
-    '''Removes and returns an item from the queue q.
+async def qget_aio(
+    q: mq.Queue, block: bool = True, timeout: float = None, aio_interval: float = 0.001
+):
+    """Removes and returns an item from the queue q.
 
     If optional args `block` is True (the default) and `timeout` is None (the default), block
     asynchronously if necessary until an item is available. If `timeout` is a positive number,
@@ -50,7 +58,7 @@ async def qget_aio(q: mq.Queue, block : bool = True, timeout : float = None, aio
     exception if no item was available within that time. Otherwise (`block` is False), return
     an item if one is immediately available, else raise the :class:`queue.Empty` exception
     (`timeout` is ignored in that case).
-    '''
+    """
 
     if not block:
         return q.get(block=False)
@@ -60,7 +68,7 @@ async def qget_aio(q: mq.Queue, block : bool = True, timeout : float = None, aio
             await asyncio.sleep(aio_interval)
         return q.get(block=True)
 
-    cnt = int(timeout / aio_interval)+1
+    cnt = int(timeout / aio_interval) + 1
     while cnt > 0:
         if not q.empty():
             return q.get(block=True)
@@ -70,7 +78,7 @@ async def qget_aio(q: mq.Queue, block : bool = True, timeout : float = None, aio
 
 
 class BgProcess:
-    '''Launches a child process that communicates with the parent process via message passing.
+    """Launches a child process that communicates with the parent process via message passing.
 
     You should subclass this class and implement :func:`child_handle_message`. See the docstring of the
     function below.
@@ -79,7 +87,7 @@ class BgProcess:
     -----
     In interactive mode, remember to delete any instance of the the class when you exit or else it
     will not exit.
-    '''
+    """
 
     def __init__(self):
         self.msg_p2c = mp.Queue()
@@ -93,8 +101,8 @@ class BgProcess:
     def __del__(self):
         self.close()
 
-    async def send(self, msg, recv_timeout : float = None, recv_aio_interval = 0.001):
-        '''Sends a message to the child process and awaits for the returning message.
+    async def send(self, msg, recv_timeout: float = None, recv_aio_interval=0.001):
+        """Sends a message to the child process and awaits for the returning message.
 
         Parameters
         ----------
@@ -117,7 +125,7 @@ class BgProcess:
         ------
         RuntimeError
             if the child process is not alive while processing the message
-        '''
+        """
 
         while self.sending:
             await yield_control()
@@ -126,27 +134,40 @@ class BgProcess:
             self.sending = True
             self.msg_p2c.put_nowait(msg)
             while True:
-                retval = await qget_aio(self.msg_c2p, timeout=recv_timeout, aio_interval=recv_aio_interval)
-                if retval[0] == 'ignored_exception':
+                retval = await qget_aio(
+                    self.msg_c2p, timeout=recv_timeout, aio_interval=recv_aio_interval
+                )
+                if retval[0] == "ignored_exception":
                     continue
-                if retval[0] == 'write': # child printing something
+                if retval[0] == "write":  # child printing something
                     for line in retval[2].splitlines():
                         print("BgProcess ({}): {}".format(retval[1], line))
                     continue
                 break
-            if retval[0] == 'exit':
+            if retval[0] == "exit":
                 if retval[1] is None:
-                    raise RuntimeError("Child process died normally while parent process is expecting some message response.", msg)
+                    raise RuntimeError(
+                        "Child process died normally while parent process is expecting some message response.",
+                        msg,
+                    )
                 else:
-                    raise RuntimeError("Child process died abruptedly with an exception.", retval[1], msg)
-            if retval[0] == 'raised_exception':
-                raise RuntimeError("Child raised an exception while processing the message.", retval[1], retval[2])
+                    raise RuntimeError(
+                        "Child process died abruptedly with an exception.",
+                        retval[1],
+                        msg,
+                    )
+            if retval[0] == "raised_exception":
+                raise RuntimeError(
+                    "Child raised an exception while processing the message.",
+                    retval[1],
+                    retval[2],
+                )
         finally:
             self.sending = False
         return retval[1]
 
     def child_handle_message(self, msg: object) -> object:
-        '''Handles a message obtained from the queue.
+        """Handles a message obtained from the queue.
 
         This function should only be called by the child process.
 
@@ -172,56 +193,59 @@ class BgProcess:
         get a `('ignored_exception', KeyboardInterrupt)` message. If the child process dies
         you will get a `('exit', None or Exception)` message depending on whether the child process
         dies normally or abruptedly.
-        '''
+        """
         return msg
 
     def _worker_process(self):
         import psutil
         import queue
         import sys
-        from ..traceback import extract_stack_compact
+
+        from mt import traceback
 
         class Writer:
-
             def __init__(self, msg_c2p, prefix):
                 self.msg_c2p = msg_c2p
                 self.prefix = prefix
 
             def write(self, text):
-                self.msg_c2p.put_nowait(('write', self.prefix, text))
+                self.msg_c2p.put_nowait(("write", self.prefix, text))
 
-        sys.stderr = Writer(self.msg_c2p, 'stderr')
-        sys.stdout = Writer(self.msg_c2p, 'stdout')
+        sys.stderr = Writer(self.msg_c2p, "stderr")
+        sys.stdout = Writer(self.msg_c2p, "stdout")
 
         while True:
-          try:
-            if self.parent_pid is not None:
-                if not psutil.pid_exists(self.parent_pid):
-                    self.msg_c2p.put_nowait(('exit', RuntimeError('Parent does not exist.')))
-                    return
-
             try:
-                msg = self.msg_p2c.get(block=True, timeout=1)
-            except queue.Empty:
-                continue
+                if self.parent_pid is not None:
+                    if not psutil.pid_exists(self.parent_pid):
+                        self.msg_c2p.put_nowait(
+                            ("exit", RuntimeError("Parent does not exist."))
+                        )
+                        return
 
-            if msg == 'exit':
-                break
+                try:
+                    msg = self.msg_p2c.get(block=True, timeout=1)
+                except queue.Empty:
+                    continue
 
-            try:
-                retval = self.child_handle_message(msg) # handle the message and return
-                msg = ('returned', retval)
+                if msg == "exit":
+                    break
+
+                try:
+                    retval = self.child_handle_message(
+                        msg
+                    )  # handle the message and return
+                    msg = ("returned", retval)
+                except Exception as e:
+                    msg = ("raised_exception", e, traceback.extract_stack_compact())
+                self.msg_c2p.put_nowait(msg)
+            except KeyboardInterrupt as e:
+                self.msg_c2p.put_nowait(("ignored_exception", e))
             except Exception as e:
-                msg = ('raised_exception', e, extract_stack_compact())
-            self.msg_c2p.put_nowait(msg)
-          except KeyboardInterrupt as e:
-            self.msg_c2p.put_nowait(('ignored_exception', e))
-          except Exception as e:
-            self.msg_c2p.put_nowait(('exit', e))
-            return
+                self.msg_c2p.put_nowait(("exit", e))
+                return
 
-        self.msg_c2p.put_nowait(('exit', None))
+        self.msg_c2p.put_nowait(("exit", None))
 
     def close(self):
-        self.msg_p2c.put_nowait('exit')
-
+        self.msg_p2c.put_nowait("exit")

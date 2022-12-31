@@ -1,4 +1,4 @@
-'''Utilities dealing with a zip file.'''
+"""Utilities dealing with a zip file."""
 
 
 import zipfile as _zf
@@ -6,14 +6,14 @@ import tempfile as _tf
 
 from .path import make_dirs, remove
 
-__all__ = ['extract_temporarily', 'ExtractedFolder']
+__all__ = ["extract_temporarily", "ExtractedFolder"]
 
 
 class ExtractedFolder(object):
-    '''A scope for use in a with statement. Upon exiting, the extracted folder is removed.
+    """A scope for use in a with statement. Upon exiting, the extracted folder is removed.
 
     The 'dirpath' attribute of the with object contains the extracted dirpath.
-    '''
+    """
 
     def __init__(self, dirpath):
         if isinstance(dirpath, _tf.TemporaryDirectory):
@@ -22,17 +22,17 @@ class ExtractedFolder(object):
         else:
             self.temp_dir = None
             self.dirpath = dirpath
-    
+
     def __enter__(self):
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type, value, traceback_obj):
         if self.temp_dir is None:
             remove(self.dirpath)
 
 
 def extract_temporarily(zipfile, out_dirpath=None):
-    '''Extracts a zip file to an local dirpath, deleting the dirpath after use.
+    """Extracts a zip file to an local dirpath, deleting the dirpath after use.
 
     Parameters
     ----------
@@ -45,7 +45,7 @@ def extract_temporarily(zipfile, out_dirpath=None):
     -------
     ExtractedFolder
         the extracted folder wrapped in an object for use in a with statement. The folder is removed upon exitting the with statement.
-    '''
+    """
 
     if not isinstance(zipfile, _zf.ZipFile):
         zipfile = _zf.ZipFile(zipfile)

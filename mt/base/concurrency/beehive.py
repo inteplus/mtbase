@@ -390,7 +390,7 @@ class Bee:
         """Processes the death wish of a child bee."""
 
         import asyncio
-        from ..traceback import extract_stack_compact
+        from mt.traceback import extract_stack_compact
 
         self.child_alive_list[child_id] = False  # mark the child as dead
 
@@ -463,7 +463,7 @@ class Bee:
         """Dispatches a new message from a child."""
 
         import asyncio
-        from ..traceback import extract_stack_compact
+        from mt.traceback import extract_stack_compact
 
         msg_type = msg["msg_type"]
         if msg_type == "dead":
@@ -524,7 +524,7 @@ class Bee:
 
         import asyncio
 
-        from ..traceback import extract_stack_compact
+        from mt.traceback import extract_stack_compact
 
         msg_type = msg["msg_type"]
         if msg_type == "die":  # request to die?
@@ -713,7 +713,7 @@ def subprocess_workerbee(
         logger: Optional[IndentedLoggerAdapter] = None,
     ):
         import asyncio
-        from ..traceback import extract_stack_compact
+        from mt.traceback import extract_stack_compact
 
         try:
             asyncio.run(
@@ -855,7 +855,7 @@ class QueenBee(WorkerBee):
         import multiprocessing as mp
 
         from .base import used_cpu_too_much, used_memory_too_much
-        from ..traceback import extract_stack_compact
+        from mt.traceback import extract_stack_compact
 
         min_num_workers = 1
         max_num_workers = max(mp.cpu_count() - 1, min_num_workers)
