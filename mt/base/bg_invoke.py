@@ -6,12 +6,10 @@ import multiprocessing as _mp
 import threading as _t
 import sys as _sys
 import os as _os
-from time import sleep
 
-from mt import ctx
+from mt import ctx, time
 
 from .traceback import format_exception
-from .time import sleep_until
 from .logging import logger
 
 
@@ -183,7 +181,7 @@ class BgThread(_t.Thread):
             self.is_thread_running = False
             self.input_cv.notify()
         while self.is_running():
-            sleep(1)
+            time.sleep(1)
         self.join(30)
         if self.is_alive():
             raise TimeoutError(
@@ -356,10 +354,10 @@ def parallelise(
                     threads[i] = BgInvoke(func, i, *fn_args, **fn_kwargs)
                     i += 1
                 else:
-                    sleep(1)
+                    time.sleep(1)
             else:  # all jobs sent
                 if threads:  # waiting for exising threads to finish
-                    sleep(1)
+                    time.sleep(1)
                 else:  # seems like all jobs are done
                     i += 1
 
@@ -462,7 +460,7 @@ class BgProcManager:
             if not self.is_alive and not self.deque and not self.running_threads:
                 break
 
-            sleep(0.1)
+            time.sleep(0.1)
 
     def is_deque_empty(self):
         return not self.deque
@@ -471,8 +469,8 @@ class BgProcManager:
         return not self.running_threads
 
     def wait_until_empty(self):
-        sleep_until(self.is_deque_empty, logger=self.logger)
-        sleep_until(self.is_no_running_threads, logger=self.logger)
+        time.sleep_until(self.is_deque_empty, logger=self.logger)
+        time.sleep_until(self.is_no_running_threads, logger=self.logger)
 
     def __del__(self):
         self.is_alive = False
