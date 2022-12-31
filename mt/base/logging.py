@@ -11,9 +11,7 @@ from colorama import init as _colorama_init
 
 _colorama_init()
 
-from mt import traceback
-
-from .terminal import stty_size  # for backward compatibility
+from mt import traceback, shutil
 
 
 __all__ = [
@@ -374,7 +372,7 @@ def make_logger(logger_name, max_indent=10):
         std_handler.addFilter(std_filter)
 
         # determine some max string lengths
-        column_length = stty_size()[1] - 13
+        column_length = shutil.stty_size()[1] - 13
         log_lvl_length = min(max(int(column_length * 0.03), 1), 8)
         s1 = "{}.{}s ".format(log_lvl_length, log_lvl_length)
         column_length -= log_lvl_length
