@@ -123,8 +123,8 @@ def deprecated_class(
 
         @wraps(the_init)
         def new_init(self, *args, **kwargs):
-            if not self._warn_of_class_deprecation:
-                self._warn_of_class_deprecation = True
+            if not self.__class__._warn_of_class_deprecation:
+                self.__class__._warn_of_class_deprecation = True
 
                 lines = traceback.extract_stack_compact()
                 if len(lines) > 7:
