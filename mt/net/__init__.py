@@ -31,14 +31,17 @@ def get_default_ifaces():
     """Returns a list of (host_ip_addr, subnet, broadcast, gateway_ip_address, iface) tuples of default ifaces."""
     res = []
     for k, v in _n.gateways()["default"].items():
-        gw, iface = v
-        item = _n.ifaddresses(iface)[k][0]
-        ip_addr = _ia.ip_address(item["addr"])
-        net_str = "{}/{}".format(item["addr"], item["netmask"])
-        ip_network = _ia.ip_network(net_str, strict=False)
-        gw_addr = _ia.ip_address(gw)
-        bc_addr = _ia.ip_address(item["broadcast"])
-        res.append((ip_addr, ip_network, bc_addr, gw_addr, iface))
+        try:
+            gw, iface = v
+            item = _n.ifaddresses(iface)[k][0]
+            ip_addr = _ia.ip_address(item["addr"])
+            net_str = "{}/{}".format(item["addr"], item["netmask"])
+            ip_network = _ia.ip_network(net_str, strict=False)
+            gw_addr = _ia.ip_address(gw)
+            bc_addr = _ia.ip_address(item["broadcast"])
+            res.append((ip_addr, ip_network, bc_addr, gw_addr, iface))
+        except ValueError:
+            continue
     return res
 
 
