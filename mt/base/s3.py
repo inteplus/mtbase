@@ -13,9 +13,8 @@ import botocore.exceptions
 from halo import Halo
 from tqdm import tqdm
 
-from mt import ctx
+from mt import ctx, aio
 
-from .aio import read_binary, srun
 from .http import create_http_session
 
 
@@ -463,7 +462,7 @@ async def put_files(
         filepath, bucket, key, progress_bar, context_vars: dict = {}
     ):
         s3cmd_url = join(bucket, key)
-        data = await read_binary(filepath, context_vars=context_vars)
+        data = await aio.read_binary(filepath, context_vars=context_vars)
         await put_object(
             s3cmd_url, data, show_progress=False, context_vars=context_vars
         )
@@ -483,7 +482,7 @@ async def put_files(
             await asyncio.gather(*coros)
         else:
             for filepath, key in filepath2key_map.items():
-                srun(
+                aio.srun(
                     process_item,
                     filepath,
                     bucket,

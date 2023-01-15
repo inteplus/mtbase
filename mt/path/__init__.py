@@ -5,7 +5,7 @@ from os.path import *
 from glob import glob
 from func_timeout import func_timeout
 
-from mt.base.aio.path import (
+from mt.aio.path import (
     exists_asyn,
     remove_asyn,
     remove,

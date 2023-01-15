@@ -7,10 +7,7 @@ import aiohttp
 import requests
 import errno
 
-from mt import ctx
-
-from .aio import sleep, write_binary
-from .path import chmod
+from mt import ctx, aio, path
 
 
 __all__ = ["download", "download_and_chmod"]
@@ -162,19 +159,19 @@ async def download_and_chmod(url, filepath, file_mode=0o664, context_vars: dict 
             url,
         )
 
-    await write_binary(filepath, content, context_vars=context_vars)
+    await aio.write_binary(filepath, content, context_vars=context_vars)
 
     if file_mode:  # chmod, attempt 1
         try:
-            chmod(filepath, file_mode)
+            path.chmod(filepath, file_mode)
         except FileNotFoundError:  # attempt 2
             try:
-                await sleep(0.1, context_vars=context_vars)
-                chmod(filepath, file_mode)
+                await aio.sleep(0.1, context_vars=context_vars)
+                path.chmod(filepath, file_mode)
             except FileNotFoundError:  # attempt 3
                 try:
-                    await sleep(1, context_vars=context_vars)
-                    chmod(filepath, file_mode)
+                    await aio.sleep(1, context_vars=context_vars)
+                    path.chmod(filepath, file_mode)
                 except FileNotFoundError:  # attemp 4
-                    await sleep(10, context_vars=context_vars)
-                    chmod(filepath, file_mode)
+                    await aio.sleep(10, context_vars=context_vars)
+                    path.chmod(filepath, file_mode)

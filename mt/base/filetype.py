@@ -1,18 +1,18 @@
-'''Extra subroutines using package 'filetype' asynchronously.'''
+"""Extra subroutines using package 'filetype' asynchronously."""
 
 
 import aiofiles
 from filetype import *
 import filetype
 
-from .aio import srun, read_binary
+from mt.aio import srun, read_binary
 
 
-__all__ = ['read_file_header', 'is_image_asyn', 'image_match_asyn']
+__all__ = ["read_file_header", "is_image_asyn", "image_match_asyn"]
 
 
 async def read_file_header(filepath, context_vars: dict = {}):
-    '''An asyn function that reads the file header so :module:`filetype` can work on.
+    """An asyn function that reads the file header so :module:`filetype` can work on.
 
     Parameters
     ----------
@@ -26,17 +26,19 @@ async def read_file_header(filepath, context_vars: dict = {}):
     -------
     buf : bytes
         first 261 bytes of the file content or a ValueError is raised if the file is shorter
-    '''
+    """
 
     buf = await read_binary(filepath, 261, context_vars=context_vars)
     if len(buf) < 261:
-        raise ValueError("Corrupted file '{}' with only {} bytes.".format(filepath, len(buf)))
+        raise ValueError(
+            "Corrupted file '{}' with only {} bytes.".format(filepath, len(buf))
+        )
 
     return buf
 
 
 async def is_image_asyn(filepath, context_vars: dict = {}):
-    '''An asyn function that checks if a file is an image.
+    """An asyn function that checks if a file is an image.
 
     Parameters
     ----------
@@ -55,9 +57,9 @@ async def is_image_asyn(filepath, context_vars: dict = {}):
     --------
     :func:`filetype.is_image`
         the wrapped function
-    '''
+    """
 
-    if not context_vars['async'] or not isinstance(filepath, str):
+    if not context_vars["async"] or not isinstance(filepath, str):
         return filetype.is_image(filepath)
 
     buf = await read_file_header(filepath, context_vars=context_vars)
@@ -65,7 +67,7 @@ async def is_image_asyn(filepath, context_vars: dict = {}):
 
 
 async def image_match_asyn(filepath, context_vars: dict = {}):
-    '''An asyn function that obtains the image file type.
+    """An asyn function that obtains the image file type.
 
     Parameters
     ----------
@@ -79,9 +81,9 @@ async def image_match_asyn(filepath, context_vars: dict = {}):
     -------
     filetype.Type
         the file type, with mime and extension attributes
-    '''
+    """
 
-    if not context_vars['async'] or not isinstance(filepath, str):
+    if not context_vars["async"] or not isinstance(filepath, str):
         return filetype.image_match(filepath)
 
     buf = await read_file_header(filepath, context_vars=context_vars)
