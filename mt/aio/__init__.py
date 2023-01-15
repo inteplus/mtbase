@@ -1,4 +1,4 @@
-'''Useful subroutines dealing with asyn and asynch functions.
+"""Useful subroutines dealing with asyn and asynch functions.
 
 Asyn functions and asynch functions are functions that can operate either asynchronously or
 synchronously. Asynchronicity means like a coroutine function that can yield control back to the
@@ -23,9 +23,31 @@ asynchronous and synchronous modes.
 
 It is discouraged to implement an asynch function. You should only do so if you have no other
 choice.
-'''
+"""
 
 from .base import *
 from .files import *
 from .multiprocessing import *
 from .procedure import *
+
+__api__ = [
+    "srun",
+    "arun",
+    "arun2",
+    "sleep",
+    "yield_control",
+    "safe_chmod",
+    "safe_rename",
+    "read_binary",
+    "write_binary",
+    "read_text",
+    "write_text",
+    "json_load",
+    "json_save",
+    "mkdtemp",
+    "CreateFileH5",
+    "qput_aio",
+    "qget_aio",
+    "BgProcess",
+    "AprocManager",
+]

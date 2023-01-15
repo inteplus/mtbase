@@ -1,14 +1,11 @@
-'''Base module dealing with asyn and asynch functions.'''
+"""Base module dealing with asyn and asynch functions."""
 
 import time
 import asyncio
 
 
-__all__ = ['srun', 'arun', 'arun2', 'sleep', 'yield_control']
-
-
 def srun(asyn_func, *args, extra_context_vars: dict = {}, **kwargs) -> object:
-    '''Invokes an asyn function synchronously, without using keyword 'await'.
+    """Invokes an asyn function synchronously, without using keyword 'await'.
 
     Parameters
     ----------
@@ -26,10 +23,10 @@ def srun(asyn_func, *args, extra_context_vars: dict = {}, **kwargs) -> object:
     -------
     object
         whatever the function returns
-    '''
+    """
 
     try:
-        context_vars = {'async': False}
+        context_vars = {"async": False}
         context_vars.update(extra_context_vars)
         coro = asyn_func(*args, context_vars=context_vars, **kwargs)
         coro.send(None)
@@ -39,7 +36,7 @@ def srun(asyn_func, *args, extra_context_vars: dict = {}, **kwargs) -> object:
 
 
 def arun(asyn_func, *args, context_vars: dict = {}, **kwargs) -> object:
-    '''Invokes an asyn function from inside an asynch function.
+    """Invokes an asyn function from inside an asynch function.
 
     Parameters
     ----------
@@ -57,7 +54,7 @@ def arun(asyn_func, *args, context_vars: dict = {}, **kwargs) -> object:
     -------
     object
         whatver the asyn function returns
-    '''
+    """
 
     async def async_func(*args, **kwargs):
         return await asyn_func(*args, **kwargs)
@@ -65,12 +62,12 @@ def arun(asyn_func, *args, context_vars: dict = {}, **kwargs) -> object:
     def sync_func(*args, **kwargs):
         return srun(asyn_func, *args, **kwargs)
 
-    func = async_func if context_vars['async'] else sync_func
+    func = async_func if context_vars["async"] else sync_func
     return func(*args, context_vars=context_vars, **kwargs)
 
 
 async def arun2(asynch_func, *args, context_vars: dict = {}, **kwargs) -> object:
-    '''Invokes an asynch function from inside an asyn function.
+    """Invokes an asynch function from inside an asyn function.
 
     Parameters
     ----------
@@ -88,9 +85,9 @@ async def arun2(asynch_func, *args, context_vars: dict = {}, **kwargs) -> object
     -------
     object
         whatver the asyn function returns
-    '''
+    """
 
-    if context_vars['async']:
+    if context_vars["async"]:
         retval = await asynch_func(*args, context_vars=context_vars, **kwargs)
     else:
         retval = asynch_func(*args, context_vars=context_vars, **kwargs)
@@ -98,7 +95,7 @@ async def arun2(asynch_func, *args, context_vars: dict = {}, **kwargs) -> object
 
 
 async def sleep(secs: float, context_vars: dict = {}):
-    '''An asyn function that sleeps for a number of seconds.
+    """An asyn function that sleeps for a number of seconds.
 
     In asynchronous mode, it invokes :func:`asyncio.sleep`. In synchronous mode, it invokes
     :func:`time.sleep`.
@@ -110,14 +107,14 @@ async def sleep(secs: float, context_vars: dict = {}):
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
-    '''
+    """
 
-    if context_vars['async']:
+    if context_vars["async"]:
         await asyncio.sleep(secs)
     else:
         time.sleep(secs)
 
 
 async def yield_control():
-    '''Yields the control back to the current event loop.'''
+    """Yields the control back to the current event loop."""
     await asyncio.sleep(0)
