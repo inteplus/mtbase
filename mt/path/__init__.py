@@ -1,4 +1,24 @@
-"""Useful functions dealing with paths."""
+"""Additional functions dealing with paths.
+
+Instead of:
+
+.. code-block:: python
+
+   from os import path
+
+You do:
+
+.. code-block:: python
+
+   from mt import path
+
+It will import the path package plus the additional stuff implemented here.
+
+Please see Python package `os.path`_ for more details.
+
+.. _os.path:
+   https://docs.python.org/3/library/os.path.html
+"""
 
 from os import utime, walk, chmod, listdir
 from os.path import *

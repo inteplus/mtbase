@@ -27,6 +27,8 @@ try:
     import matplotlib as _mpl
 
     for key in _mpl.__dict__:
+        if "__doc__" in key:
+            continue
         globals()[key] = _mpl.__dict__[key]
 except ImportError:
     raise ImportError(
