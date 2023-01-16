@@ -1,5 +1,19 @@
 """Additional `shutil`_ stuff related to the terminal.
 
+Instead of:
+
+.. code-block:: python
+
+   import shutil
+
+You do:
+
+.. code-block:: python
+
+   from mt import shutil
+
+It will import shutil plus the additional stuff implemented here.
+
 Please see Python package `shutil`_ for more details.
 
 .. _shutil:
