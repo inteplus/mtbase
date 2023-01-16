@@ -1,6 +1,9 @@
 """Additional utitlities dealing with time.
 
-Please see :module:`time` for more details.
+Please see Python package `time`_ for more details.
+
+.. _time:
+   https://docs.python.org/3/library/time.html
 """
 
 import errno

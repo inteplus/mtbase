@@ -1,4 +1,10 @@
-"""Additional shutil stuff related to the terminal."""
+"""Additional `shutil`_ stuff related to the terminal.
+
+Please see Python package `shutil`_ for more details.
+
+.. _shutil:
+   https://docs.python.org/3/library/shutil.html
+"""
 
 
 from shutil import *
