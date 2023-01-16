@@ -1,4 +1,24 @@
-"""Alias module. Instead of 'import numpy as np' you can do 'from mt import np'."""
+"""Additional utitlities dealing with numpy.
+
+Instead of:
+
+.. code-block:: python
+
+   import numpy as np
+
+You do:
+
+.. code-block:: python
+
+   from mt import np
+
+It will import the numpy package plus the additional stuff implemented here.
+
+Please see the `numpy`_ package for more details.
+
+.. _numpy:
+   https://numpy.org/doc/stable/
+"""
 
 
 from numpy import *

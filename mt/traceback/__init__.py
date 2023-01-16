@@ -1,6 +1,23 @@
-"""Traceback extra
+"""Additional utitlities dealing with traceback.
 
-Please see :module:`traceback` for more details.
+Instead of:
+
+.. code-block:: python
+
+   import traceback
+
+You do:
+
+.. code-block:: python
+
+   from mt import traceback
+
+It will import the traceback package plus the additional stuff implemented here.
+
+Please see Python package `traceback`_ for more details.
+
+.. _traceback:
+   https://docs.python.org/3/library/traceback.html
 """
 
 import traceback as _tb

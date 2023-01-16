@@ -1,3 +1,25 @@
+"""Additional utitlities dealing with threading.
+
+Instead of:
+
+.. code-block:: python
+
+   import threading
+
+You do:
+
+.. code-block:: python
+
+   from mt import threading
+
+It will import the threading package plus the additional stuff implemented here.
+
+Please see Python package `threading`_ for more details.
+
+.. _threading:
+   https://docs.python.org/3/library/threading.html
+"""
+
 # From O'Reilly Python Cookbook by David Ascher, Alex Martelli
 # With changes to cover the starvation situation where a continuous
 #   stream of readers may starve a writer, Lock Promotion and Context Managers
