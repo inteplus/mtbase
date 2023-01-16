@@ -17,7 +17,7 @@ It will import the matplotlib package.
 Please see Python package `matplotlib`_ for more details.
 
 .. _matplotlib:
-   https://matplotlib.org/
+   https://matplotlib.org/stable/api/index
 """
 
 try:
