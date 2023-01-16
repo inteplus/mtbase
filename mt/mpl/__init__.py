@@ -1,4 +1,24 @@
-'''Alias module. Instead of 'import matplotlib as mpl' you can do 'from mt import mpl'.'''
+"""Alias module of matplotlib.
+
+Instead of:
+
+.. code-block:: python
+
+   import matplotlib as mpl
+
+You do:
+
+.. code-block:: python
+
+   from mt import mpl
+
+It will import the matplotlib package.
+
+Please see Python package `matplotlib`_ for more details.
+
+.. _matplotlib:
+   https://matplotlib.org/
+"""
 
 try:
     from matplotlib import *
@@ -9,4 +29,6 @@ try:
     for key in _mpl.__dict__:
         globals()[key] = _mpl.__dict__[key]
 except ImportError:
-    raise ImportError("Alias 'mt.mpl' to 'maplotlib' requires package 'matplotlib' be installed.")
+    raise ImportError(
+        "Alias 'mt.mpl' to 'maplotlib' requires package 'matplotlib' be installed."
+    )

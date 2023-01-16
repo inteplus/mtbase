@@ -1,5 +1,19 @@
 """Additional utitlities dealing with time.
 
+Instead of:
+
+.. code-block:: python
+
+   import time
+
+You do:
+
+.. code-block:: python
+
+   from mt import time
+
+It will import the time package plus the additional stuff implemented here.
+
 Please see Python package `time`_ for more details.
 
 .. _time:

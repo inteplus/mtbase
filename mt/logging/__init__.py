@@ -1,4 +1,25 @@
-"""Customised logging"""
+"""Customised logging.
+
+This module extends Python's package `logging`_ with some customisation made specifically for MT's
+code. Instead of:
+
+.. code-block:: python
+
+   import logging
+
+You do:
+
+.. code-block:: python
+
+   from mt import logging
+
+It will import the logging package plus the additional stuff implemented here.
+
+Please see Python package `logging`_ for more details.
+
+.. _logging:
+   https://docs.python.org/3/library/logging.html
+"""
 from logging import *
 import logging.handlers as _lh
 import sys as _sys
