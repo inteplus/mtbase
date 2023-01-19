@@ -8,7 +8,7 @@ import requests as _r
 from getmac import get_mac_address
 from time import sleep
 
-from mt import ctx
+from mt import logging
 
 
 __all__ = [
@@ -174,12 +174,13 @@ def _pf_shutdown_stream(connection, is_c2s):
     if is_c2s:
         if connection["c2s_stream"]:
             connection["c2s_stream"] = False
-            with logger.scoped_debug(
+            with logging.scoped_debug(
+                logger,
                 "Shutting down stream client {} -> server {}".format(
                     connection["client_config"], connection["server_config"]
                 ),
                 curly=False,
-            ) if logger else ctx.nullcontext():
+            ):
                 _pf_shutdown_socket(
                     connection["client_socket"],
                     _s.SHUT_RD,
@@ -195,12 +196,13 @@ def _pf_shutdown_stream(connection, is_c2s):
     else:
         if connection["s2c_stream"]:
             connection["s2c_stream"] = False
-            with logger.scoped_debug(
+            with logging.scoped_debug(
+                logger,
                 "Shutting down stream server {} -> client {}".format(
                     connection["server_config"], connection["client_config"]
                 ),
                 curly=False,
-            ) if logger else ctx.nullcontext():
+            ):
                 _pf_shutdown_socket(
                     connection["server_socket"],
                     _s.SHUT_RD,

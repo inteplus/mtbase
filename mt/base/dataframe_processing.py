@@ -9,11 +9,10 @@ from tqdm import tqdm
 import multiprocessing as mp
 import queue
 
-from mt import ctx
+from mt import logging
 
 from .hashing import hash_int
 from .concurrency import beehive
-from .logging import IndentedLoggerAdapter
 
 
 __all__ = [
@@ -214,7 +213,7 @@ class MyWorkerBee(beehive.WorkerBee):
         postprocess_func=None,
         max_concurrency: int = 1024,
         context_vars: dict = {},
-        logger: tp.Optional[IndentedLoggerAdapter] = None,
+        logger: tp.Optional[logging.IndentedLoggerAdapter] = None,
     ):
         super().__init__(
             my_id,
@@ -277,7 +276,7 @@ class MyQueenBee(beehive.QueenBee):
         max_concurrency: tp.Optional[int] = None,
         workerbee_max_concurrency: tp.Optional[int] = 1024,
         context_vars: dict = {},
-        logger: tp.Optional[IndentedLoggerAdapter] = None,
+        logger: tp.Optional[logging.IndentedLoggerAdapter] = None,
     ):
         super().__init__(
             my_id,
@@ -666,7 +665,7 @@ async def process_dataframe(
         invoking :func:`mt.base.s3.create_s3_client`. In asynchronous mode, variable
         'http_session' must exist and hold an enter-result of an async with statement invoking
         :func:`mt.base.http.create_http_session`.
-    logger : logging.Logger or equivalent
+    logger : mt.logging.IndentedLoggerAdapter, optional
         logger for debugging purposes
 
     Returns

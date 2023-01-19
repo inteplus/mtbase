@@ -18,9 +18,7 @@ import queue
 import multiprocessing as mp
 from copy import copy
 
-from mt import ctx
-
-from ..logging import IndentedLoggerAdapter
+from mt import logging
 
 
 __all__ = [
@@ -124,7 +122,7 @@ class Bee:
     max_concurrency : int, optional
         maximum number of concurrent tasks that the bee handles at a time. If None is provided,
         there is no constraint in maximum number of concurrent tasks.
-    logger : mt.base.logging.IndentedLoggerAdapter, optional
+    logger : mt.logging.IndentedLoggerAdapter, optional
         logger for debugging purposes
     """
 
@@ -134,7 +132,7 @@ class Bee:
         p_m2p: queue.Queue,
         p_p2m: queue.Queue,
         max_concurrency: Optional[int] = 1024,
-        logger: Optional[IndentedLoggerAdapter] = None,
+        logger: Optional[logging.IndentedLoggerAdapter] = None,
     ):
         self.my_id = my_id
         self.p_m2p = p_m2p  # me-to-parent, private
@@ -395,9 +393,9 @@ class Bee:
         self.child_alive_list[child_id] = False  # mark the child as dead
 
         if msg["death_type"] == "killed":
-            with self.logger.scoped_debug(
-                "Child bee {} was killed".format(child_id), curly=False
-            ) if self.logger else ctx.nullcontext():
+            with logging.scoped_debug(
+                self.logger, "Child bee {} was killed".format(child_id), curly=False
+            ):
                 logger_debug_msg(msg, logger=self.logger)
 
         # process all pending tasks held up by the dead bee
@@ -581,7 +579,7 @@ class WorkerBee(Bee):
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
         statement invoking :func:`mt.base.s3.create_s3_client`.
-    logger : mt.base.logging.IndentedLoggerAdapter, optional
+    logger : mt.logging.IndentedLoggerAdapter, optional
         logger for debugging purposes
     """
 
@@ -592,7 +590,7 @@ class WorkerBee(Bee):
         p_p2m: mp.Queue,
         max_concurrency: int = 1024,
         context_vars: dict = {},
-        logger: Optional[IndentedLoggerAdapter] = None,
+        logger: Optional[logging.IndentedLoggerAdapter] = None,
     ):
         super().__init__(
             my_id, p_m2p, p_p2m, max_concurrency=max_concurrency, logger=logger
@@ -640,7 +638,7 @@ def subprocess_workerbee(
     init_kwargs: dict = {},
     s3_profile: Optional[str] = None,
     max_concurrency: int = 1024,
-    logger: Optional[IndentedLoggerAdapter] = None,
+    logger: Optional[logging.IndentedLoggerAdapter] = None,
 ):
     """Creates a daemon subprocess that holds a worker bee and runs the bee in the subprocess.
 
@@ -660,7 +658,7 @@ def subprocess_workerbee(
         See :func:`mt.base.s3.create_context_vars`.
     max_concurrency : int
         maximum number of concurrent tasks that the bee handles at a time
-    logger : mt.base.logging.IndentedLoggerAdapter, optional
+    logger : mt.logging.IndentedLoggerAdapter, optional
         logger for debugging purposes
 
     Returns
@@ -684,7 +682,7 @@ def subprocess_workerbee(
         init_kwargs: dict = {},
         s3_profile: Optional[str] = None,
         max_concurrency: int = 1024,
-        logger: Optional[IndentedLoggerAdapter] = None,
+        logger: Optional[logging.IndentedLoggerAdapter] = None,
     ):
         from ..s3 import create_context_vars
 
@@ -710,7 +708,7 @@ def subprocess_workerbee(
         init_kwargs: dict = {},
         s3_profile: Optional[str] = None,
         max_concurrency: int = 1024,
-        logger: Optional[IndentedLoggerAdapter] = None,
+        logger: Optional[logging.IndentedLoggerAdapter] = None,
     ):
         import asyncio
         from mt.traceback import extract_stack_compact
@@ -797,7 +795,7 @@ class QueenBee(WorkerBee):
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
         statement invoking :func:`mt.base.s3.create_s3_client`.
-    logger : mt.base.logging.IndentedLoggerAdapter, optional
+    logger : mt.logging.IndentedLoggerAdapter, optional
         logger for debugging purposes
     """
 
@@ -813,7 +811,7 @@ class QueenBee(WorkerBee):
         max_concurrency: Optional[int] = None,
         workerbee_max_concurrency: Optional[int] = 1024,
         context_vars: dict = {},
-        logger: Optional[IndentedLoggerAdapter] = None,
+        logger: Optional[logging.IndentedLoggerAdapter] = None,
     ):
         super().__init__(
             my_id,
@@ -957,7 +955,7 @@ async def beehive_run(
     max_concurrency: int = 1024,
     queenbee_max_concurrency: Optional[int] = None,
     context_vars: dict = {},
-    logger: Optional[IndentedLoggerAdapter] = None,
+    logger: Optional[logging.IndentedLoggerAdapter] = None,
 ):
     """An asyn function that runs a task in a BeeHive concurrency model.
 
@@ -995,7 +993,7 @@ async def beehive_run(
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
         statement invoking :func:`mt.base.s3.create_s3_client`.
-    logger : mt.base.logging.IndentedLoggerAdapter, optional
+    logger : mt.logging.IndentedLoggerAdapter, optional
         logger for debugging purposes
 
     Returns
@@ -1078,9 +1076,9 @@ async def beehive_run(
         )
 
     if msg["status"] == "raised":
-        with logger.scoped_debug(
-            "Exception raised by the queen bee", curly=False
-        ) if logger else ctx.nullcontext():
+        with logging.scoped_debug(
+            logger, "Exception raised by the queen bee", curly=False
+        ):
             logger_debug_msg(msg, logger=logger)
             raise msg["exception"]
 

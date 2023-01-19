@@ -7,9 +7,7 @@ import threading as _t
 import sys as _sys
 import os as _os
 
-from mt import ctx, time, traceback
-
-from .logging import logger
+from mt import time, traceback, logging
 
 
 __all__ = [
@@ -34,9 +32,11 @@ class BgException(Exception):
 class BgInvoke:
     """Thin wrapper around threading.Thread to run `target(*args, **kwargs)` in background.
 
-    Once invoked, the thread keeps running in background until function `self.is_running()` returns `False`, at which point `self.result` holds the output of the invocation.
+    Once invoked, the thread keeps running in background until function `self.is_running()` returns
+    `False`, at which point `self.result` holds the output of the invocation.
 
-    If an exception was raised, `self.result` would contain the exception and other useful information.
+    If an exception was raised, `self.result` would contain the exception and other useful
+    information.
 
     Notes
     -----
@@ -297,11 +297,13 @@ def parallelise(
     num_threads : int, optional
         number of threads to be used. If not specified, then 80% of available CPUs are used
     bg_exception : {'raise', 'warn'}
-        whether to re-rasise a BgException raised by a thread or to suppress all of them and warn instead, in which case `logger` must not be None
+        whether to re-rasise a BgException raised by a thread or to suppress all of them and warn
+        instead, in which case `logger` must not be None
     logger : IndentedLoggerAdaptor, optional
         for logging purposes
     pass_logger : bool
-        whether or not to include `logger` to `func_kwargs` if it does not exist in `func_kwargs` so the function can use the same logger as `parallelise()`
+        whether or not to include `logger` to `func_kwargs` if it does not exist in `func_kwargs`
+        so the function can use the same logger as `parallelise()`
     fn_args : list
         list of postional arguments for the function
     fn_kwargs : dict
@@ -310,7 +312,8 @@ def parallelise(
     Returns
     -------
     list
-        a list of `num_jobs` elements, each corresponding to the returning object of the function for a given job id
+        a list of `num_jobs` elements, each corresponding to the returning object of the function
+        for a given job id
 
     Raises
     ------
@@ -319,7 +322,8 @@ def parallelise(
 
     Notes
     -----
-        use this function instead of joblib if you want to integrate with mt.base.logging and BgException better
+        use this function instead of joblib if you want to integrate with mt.logging and
+        BgException better
     """
     if not isinstance(num_jobs, int) or num_jobs <= 0:
         raise ValueError(
@@ -338,10 +342,11 @@ def parallelise(
     threads = {}  # background threads
     thread_outputs = [None] * num_jobs
 
-    with logger.scoped_info(
+    with logging.scoped_info(
+        logger,
         "Parallelise {} jobs using {} threads".format(num_jobs, max_num_conns),
         curly=False,
-    ) if logger else ctx.nullcontext():
+    ):
         i = 0
         threads = {}
         while i <= num_jobs:
@@ -372,10 +377,13 @@ def parallelise(
                     if bg_exception == "raise":
                         raise
                     elif bg_exception == "warn":
-                        with logger.scoped_warning(
-                            "Caught an exception from job {}:".format(i2), curly=False
-                        ) if logger else ctx.nullcontext():
-                            logger.warn_last_exception()
+                        with logging.scoped_warning(
+                            logger,
+                            "Caught an exception from job {}:".format(i2),
+                            curly=False,
+                        ):
+                            if logger:
+                                logger.warn_last_exception()
                     else:
                         raise ValueError(
                             "Argument 'bg_exception' has an unknown value '{}'.".format(
@@ -476,7 +484,7 @@ class BgProcManager:
         self.wait_until_empty()
 
 
-bg_proc_manager = BgProcManager(logger=logger)
+bg_proc_manager = BgProcManager(logger=logging.logger)
 
 
 def bg_run_proc(proc, *args, **kwargs):
