@@ -32,7 +32,7 @@ from colorama import init as _colorama_init
 
 _colorama_init()
 
-from mt import traceback, shutil
+from mt import traceback, shutil, ctx
 
 
 __all__ = [
@@ -126,14 +126,20 @@ class ScopedLog:
 
 # convenient scoped-log functions
 def scoped_critical(indented_logger_adapter, msg="", curly=True):
+    if indented_logger_adapter is None:
+        return ctx.nullcontext()
     return ScopedLog(indented_logger_adapter, CRITICAL, msg=msg, curly=curly)
 
 
 def scoped_error(indented_logger_adapter, msg="", curly=True):
+    if indented_logger_adapter is None:
+        return ctx.nullcontext()
     return ScopedLog(indented_logger_adapter, ERROR, msg=msg, curly=curly)
 
 
 def scoped_warning(indented_logger_adapter, msg="", curly=True):
+    if indented_logger_adapter is None:
+        return ctx.nullcontext()
     return ScopedLog(indented_logger_adapter, WARNING, msg=msg, curly=curly)
 
 
@@ -141,10 +147,14 @@ scoped_warn = scoped_warning
 
 
 def scoped_info(indented_logger_adapter, msg="", curly=True):
+    if indented_logger_adapter is None:
+        return ctx.nullcontext()
     return ScopedLog(indented_logger_adapter, INFO, msg=msg, curly=curly)
 
 
 def scoped_debug(indented_logger_adapter, msg="", curly=True):
+    if indented_logger_adapter is None:
+        return ctx.nullcontext()
     return ScopedLog(indented_logger_adapter, DEBUG, msg=msg, curly=curly)
 
 
