@@ -20,6 +20,9 @@ Please see Python package `logging`_ for more details.
 .. _logging:
    https://docs.python.org/3/library/logging.html
 """
+
+import typing as tp
+
 from logging import *
 import logging.handlers as _lh
 import sys as _sys
@@ -65,7 +68,7 @@ class ScopedLog:
 
     """
 
-    def __init__(self, indented_logger_adapter, level, msg="", curly=True):
+    def __init__(self, indented_logger_adapter, level, msg: tp.Union[str, bytes], curly: bool = False):
         """Scope a log message.
 
         # Arguments
@@ -126,32 +129,32 @@ class ScopedLog:
 
 
 # convenient scoped-log functions
-def scoped_log(indented_logger_adapter, level, msg="", curly=True):
+def scoped_log(indented_logger_adapter, level, msg: tp.Union[str, bytes], curly: bool = False):
     if indented_logger_adapter is None:
         return ctx.nullcontext()
     return ScopedLog(indented_logger_adapter, level, msg=msg, curly=curly)
 
 
-def scoped_critical(indented_logger_adapter, msg="", curly=True):
+def scoped_critical(indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False):
     return scoped_log(indented_logger_adapter, CRITICAL, msg=msg, curly=curly)
 
 
-def scoped_error(indented_logger_adapter, msg="", curly=True):
+def scoped_error(indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False):
     return scoped_log(indented_logger_adapter, ERROR, msg=msg, curly=curly)
 
 
-def scoped_warning(indented_logger_adapter, msg="", curly=True):
+def scoped_warning(indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False):
     return scoped_log(indented_logger_adapter, WARNING, msg=msg, curly=curly)
 
 
 scoped_warn = scoped_warning
 
 
-def scoped_info(indented_logger_adapter, msg="", curly=True):
+def scoped_info(indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False):
     return scoped_log(indented_logger_adapter, INFO, msg=msg, curly=curly)
 
 
-def scoped_debug(indented_logger_adapter, msg="", curly=True):
+def scoped_debug(indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False):
     return scoped_log(indented_logger_adapter, DEBUG, msg=msg, curly=curly)
 
 
@@ -171,8 +174,8 @@ def scoped_log_if(
     func,
     indented_logger_adapter,
     level=INFO,
-    msg="",
-    curly=True,
+    msg: tp.Union[str, bytes],
+    curly: bool = False,
     func_args: tuple = (),
     func_kwargs: dict = {},
     return_value_if_false=None,
@@ -195,7 +198,7 @@ class IndentedLoggerAdapter(LoggerAdapter):
         f = _IndentedFilter(self)
         self.logger.addFilter(f)
 
-    def process(self, msg, kwargs):
+    def process(self, msg: tp.Union[str, bytes], kwargs):
         return (
             ("  " * self.indent + msg.decode(), kwargs)
             if isinstance(msg, bytes)
@@ -216,7 +219,7 @@ class IndentedLoggerAdapter(LoggerAdapter):
 
     # ----- break mutli-line messages -----
 
-    def critical(self, msg, *args, **kwargs):
+    def critical(self, msg: tp.Union[str, bytes], *args, **kwargs):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b"\n") if isinstance(msg, bytes) else msg.split("\n"):
@@ -224,7 +227,7 @@ class IndentedLoggerAdapter(LoggerAdapter):
                 Fore.LIGHTRED_EX + m, *args, **kwargs
             )
 
-    def error(self, msg, *args, **kwargs):
+    def error(self, msg: tp.Union[str, bytes], *args, **kwargs):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b"\n") if isinstance(msg, bytes) else msg.split("\n"):
@@ -232,7 +235,7 @@ class IndentedLoggerAdapter(LoggerAdapter):
                 Fore.LIGHTMAGENTA_EX + m, *args, **kwargs
             )
 
-    def warning(self, msg, *args, **kwargs):
+    def warning(self, msg: tp.Union[str, bytes], *args, **kwargs):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b"\n") if isinstance(msg, bytes) else msg.split("\n"):
@@ -242,7 +245,7 @@ class IndentedLoggerAdapter(LoggerAdapter):
 
     warn = warning
 
-    def info(self, msg, *args, **kwargs):
+    def info(self, msg: tp.Union[str, bytes], *args, **kwargs):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b"\n") if isinstance(msg, bytes) else msg.split("\n"):
@@ -250,7 +253,7 @@ class IndentedLoggerAdapter(LoggerAdapter):
                 Fore.LIGHTWHITE_EX + m, *args, **kwargs
             )
 
-    def debug(self, msg, *args, **kwargs):
+    def debug(self, msg: tp.Union[str, bytes], *args, **kwargs):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b"\n") if isinstance(msg, bytes) else msg.split("\n"):
@@ -260,21 +263,21 @@ class IndentedLoggerAdapter(LoggerAdapter):
 
     # ----- scoped logging -----
 
-    def scoped_critical(self, msg="", curly=True):
+    def scoped_critical(self, msg: tp.Union[str, bytes], curly: bool = False):
         return ScopedLog(self, CRITICAL, msg=msg, curly=curly)
 
-    def scoped_error(self, msg="", curly=True):
+    def scoped_error(self, msg: tp.Union[str, bytes], curly: bool = False):
         return ScopedLog(self, ERROR, msg=msg, curly=curly)
 
-    def scoped_warning(self, msg="", curly=True):
+    def scoped_warning(self, msg: tp.Union[str, bytes], curly: bool = False):
         return ScopedLog(self, WARNING, msg=msg, curly=curly)
 
     scoped_warn = scoped_warning
 
-    def scoped_info(self, msg="", curly=True):
+    def scoped_info(self, msg: tp.Union[str, bytes], curly: bool = False):
         return ScopedLog(self, INFO, msg=msg, curly=curly)
 
-    def scoped_debug(self, msg="", curly=True):
+    def scoped_debug(self, msg: tp.Union[str, bytes], curly: bool = False):
         return ScopedLog(self, DEBUG, msg=msg, curly=curly)
 
     # ----- useful warning messages -----
