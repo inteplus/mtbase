@@ -462,9 +462,7 @@ class MyQueenBee(beehive.QueenBee):
                         text = "Cancelled delegated {} task to child {} of iteration {}".format(
                             proc_str, child_id, pair_id
                         )
-                        with self.logger.scoped_debug(
-                            text, curly=False
-                        ) if self.logger else ctx.nullcontext():
+                        with logging.scoped_debug(self.logger, text, curly=False):
                             if (msg["reason"] is not None) and self.logger:
                                 self.logger.debug("Reason: {}".format(msg["reason"]))
                         raise asyncio.CancelledError(text + ".")
@@ -472,9 +470,7 @@ class MyQueenBee(beehive.QueenBee):
                         text = "Exception raised in the delegated {} task to child {} of iteration {}".format(
                             proc_str, child_id, pair_id
                         )
-                        with self.logger.scoped_debug(
-                            text, curly=False
-                        ) if self.logger else ctx.nullcontext():
+                        with logging.scoped_debug(self.logger, text, curly=False):
                             beehive.logger_debug_msg(msg, logger=self.logger)
                         raise msg["exception"]
                     else:  # msg['status'] == 'succeeded':
