@@ -43,6 +43,7 @@ __all__ = [
     "scoped_info",
     "scoped_warn",
     "scoped_warning",
+    "scoped_log_if",
     "IndentedLoggerAdapter",
     "make_logger",
     "prepare_file_handler",
@@ -125,37 +126,33 @@ class ScopedLog:
 
 
 # convenient scoped-log functions
-def scoped_critical(indented_logger_adapter, msg="", curly=True):
+def scoped_log(indented_logger_adapter, level, msg="", curly=True):
     if indented_logger_adapter is None:
         return ctx.nullcontext()
-    return ScopedLog(indented_logger_adapter, CRITICAL, msg=msg, curly=curly)
+    return ScopedLog(indented_logger_adapter, level, msg=msg, curly=curly)
+
+
+def scoped_critical(indented_logger_adapter, msg="", curly=True):
+    return scoped_log(indented_logger_adapter, CRITICAL, msg=msg, curly=curly)
 
 
 def scoped_error(indented_logger_adapter, msg="", curly=True):
-    if indented_logger_adapter is None:
-        return ctx.nullcontext()
-    return ScopedLog(indented_logger_adapter, ERROR, msg=msg, curly=curly)
+    return scoped_log(indented_logger_adapter, ERROR, msg=msg, curly=curly)
 
 
 def scoped_warning(indented_logger_adapter, msg="", curly=True):
-    if indented_logger_adapter is None:
-        return ctx.nullcontext()
-    return ScopedLog(indented_logger_adapter, WARNING, msg=msg, curly=curly)
+    return scoped_log(indented_logger_adapter, WARNING, msg=msg, curly=curly)
 
 
 scoped_warn = scoped_warning
 
 
 def scoped_info(indented_logger_adapter, msg="", curly=True):
-    if indented_logger_adapter is None:
-        return ctx.nullcontext()
-    return ScopedLog(indented_logger_adapter, INFO, msg=msg, curly=curly)
+    return scoped_log(indented_logger_adapter, INFO, msg=msg, curly=curly)
 
 
 def scoped_debug(indented_logger_adapter, msg="", curly=True):
-    if indented_logger_adapter is None:
-        return ctx.nullcontext()
-    return ScopedLog(indented_logger_adapter, DEBUG, msg=msg, curly=curly)
+    return scoped_log(indented_logger_adapter, DEBUG, msg=msg, curly=curly)
 
 
 class _IndentedFilter(Filter):
@@ -167,6 +164,23 @@ class _IndentedFilter(Filter):
     def filter(self, record):
         record.indent = self.parent.indent
         return True
+
+
+def scoped_log_if(
+    cond,
+    func,
+    indented_logger_adapter,
+    level=INFO,
+    msg="",
+    curly=True,
+    func_args: tuple = (),
+    func_kwargs: dict = {},
+    return_value_if_false=None,
+):
+    if not cond:
+        return return_value_if_false
+    with scoped_log(indented_logger_adapter, level, msg=msg, curly=curly):
+        return func(*func_args, **func_kwargs)
 
 
 class IndentedLoggerAdapter(LoggerAdapter):
