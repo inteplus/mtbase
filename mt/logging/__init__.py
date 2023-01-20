@@ -39,13 +39,19 @@ from mt import traceback, shutil, ctx
 
 
 __all__ = [
+    "critical",
+    "error",
+    "info",
+    "warning",
+    "warn",
+    "debug",
     "ScopedLog",
     "scoped_critical",
-    "scoped_debug",
     "scoped_error",
     "scoped_info",
     "scoped_warn",
     "scoped_warning",
+    "scoped_debug",
     "scoped_log_if",
     "IndentedLoggerAdapter",
     "make_logger",
@@ -62,9 +68,8 @@ class ScopedLog:
     >>> with ScopedLog(logger, logging.DEBUG, 'hello world'):
     ...     a = 1
     ...     logger.info("Hi there")
-    { hello world
+    hello world:
       Hi there
-    } hello world
 
     """
 
@@ -134,6 +139,35 @@ class ScopedLog:
                 self.func("} " + self.msg)
 
 
+# convenient log functions
+def critical(logger, level, msg: tp.Union[str, bytes], *args, **kwargs):
+    if logger:
+        logger.critical(msg, *args, **kwargs)
+
+
+def error(logger, level, msg: tp.Union[str, bytes], *args, **kwargs):
+    if logger:
+        logger.error(msg, *args, **kwargs)
+
+
+def warning(logger, level, msg: tp.Union[str, bytes], *args, **kwargs):
+    if logger:
+        logger.warning(msg, *args, **kwargs)
+
+
+warn = warning
+
+
+def info(logger, level, msg: tp.Union[str, bytes], *args, **kwargs):
+    if logger:
+        logger.info(msg, *args, **kwargs)
+
+
+def debug(logger, level, msg: tp.Union[str, bytes], *args, **kwargs):
+    if logger:
+        logger.debug(msg, *args, **kwargs)
+
+
 # convenient scoped-log functions
 def scoped_log(
     indented_logger_adapter, level, msg: tp.Union[str, bytes], curly: bool = False
@@ -191,8 +225,8 @@ def scoped_log_if(
     cond,
     func,
     indented_logger_adapter,
+    level,
     msg: tp.Union[str, bytes],
-    level=INFO,
     curly: bool = False,
     func_args: tuple = (),
     func_kwargs: dict = {},
