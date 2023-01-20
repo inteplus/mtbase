@@ -68,7 +68,13 @@ class ScopedLog:
 
     """
 
-    def __init__(self, indented_logger_adapter, level, msg: tp.Union[str, bytes], curly: bool = False):
+    def __init__(
+        self,
+        indented_logger_adapter,
+        level,
+        msg: tp.Union[str, bytes],
+        curly: bool = False,
+    ):
         """Scope a log message.
 
         # Arguments
@@ -129,32 +135,44 @@ class ScopedLog:
 
 
 # convenient scoped-log functions
-def scoped_log(indented_logger_adapter, level, msg: tp.Union[str, bytes], curly: bool = False):
+def scoped_log(
+    indented_logger_adapter, level, msg: tp.Union[str, bytes], curly: bool = False
+):
     if indented_logger_adapter is None:
         return ctx.nullcontext()
     return ScopedLog(indented_logger_adapter, level, msg=msg, curly=curly)
 
 
-def scoped_critical(indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False):
+def scoped_critical(
+    indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False
+):
     return scoped_log(indented_logger_adapter, CRITICAL, msg=msg, curly=curly)
 
 
-def scoped_error(indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False):
+def scoped_error(
+    indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False
+):
     return scoped_log(indented_logger_adapter, ERROR, msg=msg, curly=curly)
 
 
-def scoped_warning(indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False):
+def scoped_warning(
+    indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False
+):
     return scoped_log(indented_logger_adapter, WARNING, msg=msg, curly=curly)
 
 
 scoped_warn = scoped_warning
 
 
-def scoped_info(indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False):
+def scoped_info(
+    indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False
+):
     return scoped_log(indented_logger_adapter, INFO, msg=msg, curly=curly)
 
 
-def scoped_debug(indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False):
+def scoped_debug(
+    indented_logger_adapter, msg: tp.Union[str, bytes], curly: bool = False
+):
     return scoped_log(indented_logger_adapter, DEBUG, msg=msg, curly=curly)
 
 
@@ -173,8 +191,8 @@ def scoped_log_if(
     cond,
     func,
     indented_logger_adapter,
-    level=INFO,
     msg: tp.Union[str, bytes],
+    level=INFO,
     curly: bool = False,
     func_args: tuple = (),
     func_kwargs: dict = {},
