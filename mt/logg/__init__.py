@@ -413,6 +413,9 @@ def log(
 ):
     """Wraps :func:`logging.log` with additional logger keyword.
 
+    Partial functions derived from the function include: `critical`, `error`, `warning`, `warn`,
+    `info` and `debug`.
+
     Parameters
     ----------
     level : int
@@ -525,6 +528,9 @@ def scoped_log(
     curly: bool = False,
 ):
     """Scoped log function that can be used in a with statement.
+
+    Partial functions derived from the function include: `scoped_critical`, `scoped_error`,
+    `scoped_warning`, `scoped_warn`, `scoped_info` and `scoped_debug`.
 
     Parameters
     ----------
