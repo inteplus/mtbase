@@ -1,4 +1,4 @@
-'''Minh-Tri Pham's base package for Python.
+"""Minh-Tri Pham's base package for Python.
 
 
 # Variable prefix naming convention
@@ -17,10 +17,11 @@ that are not the first letter in the prefix accept further values 'i', 'm', and 
 image, matrix and vector respectively. For example, Prefix 'biv_' stands for a tensorflow batch of
 images of vectors of things.
 
-'''
+"""
 
-from .with_utils import dummy_scope, join_scopes
-from .logging import make_logger, logger, init as _log_init
+from mt.logg import make_logger, logger, init as _log_init
+
+from .with_utils import dummy_scope
 from .deprecated import deprecated_func
 from .casting import cast, castable
 from .exec import debug_exec
@@ -28,7 +29,14 @@ from .exec import debug_exec
 home_dirpath = _log_init._home_dirpath
 temp_dirpath = _log_init._temp_dirpath
 
-__all__ = ['logger', 'home_dirpath', 'temp_dirpath', 'deprecated_func', 'cast', 'castable']
+__all__ = [
+    "logger",
+    "home_dirpath",
+    "temp_dirpath",
+    "deprecated_func",
+    "cast",
+    "castable",
+]
 
 
 from .const import *
@@ -36,4 +44,5 @@ from .const import *
 
 # backdoor to debug the process
 from .debug_process import listen as _listen
+
 _listen()

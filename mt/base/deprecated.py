@@ -3,7 +3,7 @@
 from functools import wraps
 
 from mt import traceback
-from mt.logging import logger
+from mt.logg import logger
 
 
 __all__ = ["deprecated_func", "deprecated_class"]
