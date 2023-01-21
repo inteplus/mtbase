@@ -16,7 +16,7 @@ from pathlib import Path
 from os.path import *
 
 
-from mt.logging import logger
+from mt.logg import logger
 from mt.threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
 from .base import srun
 

@@ -446,9 +446,10 @@ class ScopedLog:
 
     """Scoped-log a message.
 
-    >>> with ScopedLog(logger, logging.DEBUG, 'hello world'):
+    >>> from mt import logg
+    >>> with logg.ScopedLog(logg.logger, logg.DEBUG, 'hello world'):
     ...     a = 1
-    ...     logger.info("Hi there")
+    ...     logg.logger.info("Hi there")
     hello world:
       Hi there
 

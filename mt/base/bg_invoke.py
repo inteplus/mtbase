@@ -7,7 +7,7 @@ import threading as _t
 import sys as _sys
 import os as _os
 
-from mt import time, traceback, logging
+from mt import time, traceback, logg
 
 
 __all__ = [
@@ -322,7 +322,7 @@ def parallelise(
 
     Notes
     -----
-        use this function instead of joblib if you want to integrate with mt.logging and
+        use this function instead of joblib if you want to integrate with mt.logg and
         BgException better
     """
     if not isinstance(num_jobs, int) or num_jobs <= 0:
@@ -342,9 +342,9 @@ def parallelise(
     threads = {}  # background threads
     thread_outputs = [None] * num_jobs
 
-    with logging.scoped_info(
-        logger,
+    with logg.scoped_info(
         "Parallelise {} jobs using {} threads".format(num_jobs, max_num_conns),
+        logger=logger,
         curly=False,
     ):
         i = 0
@@ -377,9 +377,9 @@ def parallelise(
                     if bg_exception == "raise":
                         raise
                     elif bg_exception == "warn":
-                        with logging.scoped_warning(
-                            logger,
+                        with logg.scoped_warning(
                             "Caught an exception from job {}:".format(i2),
+                            logger=logger,
                             curly=False,
                         ):
                             if logger:
@@ -484,7 +484,7 @@ class BgProcManager:
         self.wait_until_empty()
 
 
-bg_proc_manager = BgProcManager(logger=logging.logger)
+bg_proc_manager = BgProcManager(logger=logg.logger)
 
 
 def bg_run_proc(proc, *args, **kwargs):
