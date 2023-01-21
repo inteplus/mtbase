@@ -58,7 +58,7 @@ __api__ = [
     removed_version="4.0",
     docstring_prefix="    ",
 )
-def critical(logger, level, msg: tp.Union[str, bytes], *args, **kwargs):
+def critical(logger, msg: tp.Union[str, bytes], *args, **kwargs):
     return logg.critical(msg, *args, logger=logger, **kwargs)
 
 
@@ -68,14 +68,14 @@ def critical(logger, level, msg: tp.Union[str, bytes], *args, **kwargs):
     removed_version="4.0",
     docstring_prefix="    ",
 )
-def error(logger, level, msg: tp.Union[str, bytes], *args, **kwargs):
+def error(logger, msg: tp.Union[str, bytes], *args, **kwargs):
     return logg.error(msg, *args, logger=logger, **kwargs)
 
 
 @deprecated_func(
     "3.6", suggested_func="mt.logg.warn", removed_version="4.0", docstring_prefix="    "
 )
-def warning(logger, level, msg: tp.Union[str, bytes], *args, **kwargs):
+def warning(logger, msg: tp.Union[str, bytes], *args, **kwargs):
     return logg.warning(msg, *args, logger=logger, **kwargs)
 
 
@@ -85,7 +85,7 @@ warn = warning
 @deprecated_func(
     "3.6", suggested_func="mt.logg.info", removed_version="4.0", docstring_prefix="    "
 )
-def info(logger, level, msg: tp.Union[str, bytes], *args, **kwargs):
+def info(logger, msg: tp.Union[str, bytes], *args, **kwargs):
     return logg.info(msg, *args, logger=logger, **kwargs)
 
 
@@ -95,8 +95,8 @@ def info(logger, level, msg: tp.Union[str, bytes], *args, **kwargs):
     removed_version="4.0",
     docstring_prefix="    ",
 )
-def debug(logger, level, msg: tp.Union[str, bytes], *args, **kwargs):
-    return logg.debug(msg, *args, logger=logger, **kwargs)
+def debug(logger, msg: tp.Union[str, bytes], *args, **kwargs):
+    return logg.debug(msg, logger=logger, *args, **kwargs)
 
 
 # convenient scoped-log functions
