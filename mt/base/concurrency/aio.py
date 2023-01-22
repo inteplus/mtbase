@@ -322,7 +322,7 @@ async def asyn_work_generator(
             )
         except Exception as e:
             from mt.traceback import extract_stack_compact
-            from ..logging import logger
+            from mt.logg import logger
 
             logger.warn_last_exception()
             logger.warn(

@@ -9,7 +9,7 @@ from tqdm import tqdm
 import multiprocessing as mp
 import queue
 
-from mt import logging
+from mt import logg
 
 from .hashing import hash_int
 from .concurrency import beehive
@@ -213,7 +213,7 @@ class MyWorkerBee(beehive.WorkerBee):
         postprocess_func=None,
         max_concurrency: int = 1024,
         context_vars: dict = {},
-        logger: tp.Optional[logging.IndentedLoggerAdapter] = None,
+        logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
     ):
         super().__init__(
             my_id,
@@ -276,7 +276,7 @@ class MyQueenBee(beehive.QueenBee):
         max_concurrency: tp.Optional[int] = None,
         workerbee_max_concurrency: tp.Optional[int] = 1024,
         context_vars: dict = {},
-        logger: tp.Optional[logging.IndentedLoggerAdapter] = None,
+        logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
     ):
         super().__init__(
             my_id,
@@ -462,7 +462,7 @@ class MyQueenBee(beehive.QueenBee):
                         text = "Cancelled delegated {} task to child {} of iteration {}".format(
                             proc_str, child_id, pair_id
                         )
-                        with logging.scoped_debug(self.logger, text, curly=False):
+                        with logg.scoped_debug(text, logger=self.logger, curly=False):
                             if (msg["reason"] is not None) and self.logger:
                                 self.logger.debug("Reason: {}".format(msg["reason"]))
                         raise asyncio.CancelledError(text + ".")
@@ -470,7 +470,7 @@ class MyQueenBee(beehive.QueenBee):
                         text = "Exception raised in the delegated {} task to child {} of iteration {}".format(
                             proc_str, child_id, pair_id
                         )
-                        with logging.scoped_debug(self.logger, text, curly=False):
+                        with logg.scoped_debug(text, logger=self.logger, curly=False):
                             beehive.logger_debug_msg(msg, logger=self.logger)
                         raise msg["exception"]
                     else:  # msg['status'] == 'succeeded':
@@ -661,7 +661,7 @@ async def process_dataframe(
         invoking :func:`mt.base.s3.create_s3_client`. In asynchronous mode, variable
         'http_session' must exist and hold an enter-result of an async with statement invoking
         :func:`mt.base.http.create_http_session`.
-    logger : mt.logging.IndentedLoggerAdapter, optional
+    logger : mt.logg.IndentedLoggerAdapter, optional
         logger for debugging purposes
 
     Returns
