@@ -11,14 +11,12 @@ potentially IO-related preprocessing and postprocessing tasks of every row of th
 worker bees, and deals with making batch predictions from the model.
 """
 
-from typing import Optional
-
 import random
 import queue
 import multiprocessing as mp
 from copy import copy
 
-from mt import logg
+from mt import tp, logg
 
 
 __all__ = [
@@ -131,8 +129,8 @@ class Bee:
         my_id: int,
         p_m2p: queue.Queue,
         p_p2m: queue.Queue,
-        max_concurrency: Optional[int] = 1024,
-        logger: Optional[logg.IndentedLoggerAdapter] = None,
+        max_concurrency: tp.Optional[int] = 1024,
+        logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
     ):
         self.my_id = my_id
         self.p_m2p = p_m2p  # me-to-parent, private
@@ -592,7 +590,7 @@ class WorkerBee(Bee):
         p_p2m: mp.Queue,
         max_concurrency: int = 1024,
         context_vars: dict = {},
-        logger: Optional[logg.IndentedLoggerAdapter] = None,
+        logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
     ):
         super().__init__(
             my_id, p_m2p, p_p2m, max_concurrency=max_concurrency, logger=logger
@@ -638,9 +636,9 @@ def subprocess_workerbee(
     workerbee_id: int,
     init_args: tuple = (),
     init_kwargs: dict = {},
-    s3_profile: Optional[str] = None,
+    s3_profile: tp.Optional[str] = None,
     max_concurrency: int = 1024,
-    logger: Optional[logg.IndentedLoggerAdapter] = None,
+    logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
 ):
     """Creates a daemon subprocess that holds a worker bee and runs the bee in the subprocess.
 
@@ -682,9 +680,9 @@ def subprocess_workerbee(
         p_p2m: mp.Queue,
         init_args: tuple = (),
         init_kwargs: dict = {},
-        s3_profile: Optional[str] = None,
+        s3_profile: tp.Optional[str] = None,
         max_concurrency: int = 1024,
-        logger: Optional[logg.IndentedLoggerAdapter] = None,
+        logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
     ):
         from ..s3 import create_context_vars
 
@@ -708,9 +706,9 @@ def subprocess_workerbee(
         p_p2m: mp.Queue,
         init_args: tuple = (),
         init_kwargs: dict = {},
-        s3_profile: Optional[str] = None,
+        s3_profile: tp.Optional[str] = None,
         max_concurrency: int = 1024,
-        logger: Optional[logg.IndentedLoggerAdapter] = None,
+        logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
     ):
         import asyncio
         from mt.traceback import extract_stack_compact
@@ -809,11 +807,11 @@ class QueenBee(WorkerBee):
         workerbee_class,
         worker_init_args: tuple = (),
         worker_init_kwargs: dict = {},
-        s3_profile: Optional[str] = None,
-        max_concurrency: Optional[int] = None,
-        workerbee_max_concurrency: Optional[int] = 1024,
+        s3_profile: tp.Optional[str] = None,
+        max_concurrency: tp.Optional[int] = None,
+        workerbee_max_concurrency: tp.Optional[int] = 1024,
         context_vars: dict = {},
-        logger: Optional[logg.IndentedLoggerAdapter] = None,
+        logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
     ):
         super().__init__(
             my_id,
@@ -953,11 +951,11 @@ async def beehive_run(
     queenbee_init_kwargs: dict = {},
     workerbee_init_args: tuple = (),
     workerbee_init_kwargs: dict = {},
-    s3_profile: Optional[str] = None,
+    s3_profile: tp.Optional[str] = None,
     max_concurrency: int = 1024,
-    queenbee_max_concurrency: Optional[int] = None,
+    queenbee_max_concurrency: tp.Optional[int] = None,
     context_vars: dict = {},
-    logger: Optional[logg.IndentedLoggerAdapter] = None,
+    logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
 ):
     """An asyn function that runs a task in a BeeHive concurrency model.
 

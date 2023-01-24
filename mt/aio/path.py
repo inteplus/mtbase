@@ -1,7 +1,5 @@
 """Useful functions dealing with paths and asyncio."""
 
-from typing import Union
-
 
 import errno
 import asyncio
@@ -15,8 +13,7 @@ from pathlib import Path
 
 from os.path import *
 
-
-from mt.logg import logger
+from mt import tp, logg
 from mt.threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
 from .base import srun
 
@@ -24,7 +21,7 @@ from .base import srun
 _path_lock = Lock()
 
 
-async def exists_asyn(path: Union[Path, str], context_vars: dict = {}):
+async def exists_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
     """An asyn function that checks if a path exists, regardless of it being a file or a folder.
 
     Parameters
@@ -62,7 +59,7 @@ async def exists_asyn(path: Union[Path, str], context_vars: dict = {}):
     return retval
 
 
-async def remove_asyn(path: Union[Path, str], context_vars: dict = {}):
+async def remove_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
     """An asyn function that removes a path completely, regardless of it being a file or a folder.
 
     If the path does not exist, do nothing.
@@ -92,7 +89,7 @@ async def remove_asyn(path: Union[Path, str], context_vars: dict = {}):
                 raise e
 
 
-def remove(path: Union[Path, str]):
+def remove(path: tp.Union[Path, str]):
     """Removes a path completely, regardless of it being a file or a folder.
 
     If the path does not exist, do nothing.
@@ -105,7 +102,7 @@ def remove(path: Union[Path, str]):
     return srun(remove_asyn, path)
 
 
-def make_dirs(path: Union[Path, str], shared: bool = True):
+def make_dirs(path: tp.Union[Path, str], shared: bool = True):
     """Convenient invocation of `os.makedirs(path, exist_ok=True)`. If `shared` is True, every newly created folder will have permission 0o775."""
     if not path:  # empty path, just ignore
         return
@@ -134,7 +131,7 @@ def make_dirs(path: Union[Path, str], shared: bool = True):
             _os.makedirs(path, mode=0o775, exist_ok=True)
 
 
-def lock(path: Union[Path, str], to_write: bool = False):
+def lock(path: tp.Union[Path, str], to_write: bool = False):
     """Returns the current MROW lock for a given path.
 
     Parameters
@@ -183,8 +180,8 @@ lock.__cleanup_cnt = 0
 
 
 async def rename_asyn(
-    src: Union[Path, str],
-    dst: Union[Path, str],
+    src: tp.Union[Path, str],
+    dst: tp.Union[Path, str],
     context_vars: dict = {},
     overwrite: bool = False,
 ):
@@ -228,7 +225,7 @@ async def rename_asyn(
     return _os.rename(src, dst)
 
 
-def rename(src: Union[Path, str], dst: Union[Path, str], overwrite: bool = False):
+def rename(src: tp.Union[Path, str], dst: tp.Union[Path, str], overwrite: bool = False):
     """Renames a file or a directory.
 
     Parameters
@@ -245,7 +242,10 @@ def rename(src: Union[Path, str], dst: Union[Path, str], overwrite: bool = False
 
 
 async def stat_asyn(
-    path: Union[Path, str], dir_fd=None, follow_symlinks=True, context_vars: dict = {}
+    path: tp.Union[Path, str],
+    dir_fd=None,
+    follow_symlinks=True,
+    context_vars: dict = {},
 ):
     """An asyn function that performs a stat system call on the given path.
 
@@ -285,7 +285,7 @@ async def stat_asyn(
     return _os.stat(path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
 
 
-def stat(path: Union[Path, str], dir_fd=None, follow_symlinks=True):
+def stat(path: tp.Union[Path, str], dir_fd=None, follow_symlinks=True):
     """Performs a stat system call on the given path.
 
     Parameters
@@ -322,7 +322,7 @@ def __exit_module():
         cnt = sum((not v.is_free() for k, v in lock.__locks.items()))
         if not cnt:
             break
-        logger.info("waiting for {} path locks to be free...".format(cnt))
+        logg.logger.info("waiting for {} path locks to be free...".format(cnt))
         _t.sleep(5)
 
 
