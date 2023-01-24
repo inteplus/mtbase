@@ -1,8 +1,6 @@
 """Useful subroutines dealing with S3 files via botocore and aiobotocore."""
 
 
-import typing as tp
-
 import errno
 import asyncio
 import aiobotocore
@@ -13,7 +11,7 @@ import botocore.exceptions
 from halo import Halo
 from tqdm import tqdm
 
-from mt import ctx, aio
+from mt import ctx, aio, tp
 
 from .http import create_http_session
 

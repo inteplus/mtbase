@@ -25,8 +25,6 @@ Please see Python package `logging`_ for more details.
    https://docs.python.org/3/library/logging.html
 """
 
-import typing as tp
-
 from logging import *
 import logging.handlers as _lh
 import functools
@@ -40,7 +38,7 @@ from colorama import init as _colorama_init
 
 _colorama_init()
 
-from mt import traceback, shutil, ctx
+from mt import traceback, shutil, ctx, tp
 
 
 __all__ = [

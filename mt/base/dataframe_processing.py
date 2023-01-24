@@ -1,7 +1,5 @@
 """Batch processing a dataframe."""
 
-import typing as tp
-
 import numpy as np
 import pandas as pd
 
@@ -9,7 +7,7 @@ from tqdm import tqdm
 import multiprocessing as mp
 import queue
 
-from mt import logg
+from mt import tp, logg
 
 from .hashing import hash_int
 from .concurrency import beehive

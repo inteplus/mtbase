@@ -1,7 +1,8 @@
 """Useful functions dealing with images."""
 
-import typing as tp
 import numpy as np
+
+from mt import tp
 
 
 __all__ = ["quantise_images", "dequantise_images"]

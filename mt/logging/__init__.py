@@ -25,11 +25,9 @@ Please see Python package `logging`_ for more details.
    https://docs.python.org/3/library/logging.html
 """
 
-import typing as tp
-
 from mt.logg import *
 
-from mt import logg
+from mt import tp, logg
 from mt.base import deprecated_func
 
 logger.warn_module_move("mt.logging", "mt.logg")
