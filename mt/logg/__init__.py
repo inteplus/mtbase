@@ -47,6 +47,7 @@ __all__ = [
     "prepare_file_handler",
     "init",
     "logger",
+    "with_logger",
     "log",
     "critical",
     "error",
@@ -394,6 +395,11 @@ def init():
 init._completed = False
 
 logger = make_logger("mtbase")
+
+
+def with_logger(func, logger: tp.Optional[IndentedLoggerAdapter] = None):
+    """Wrapper that adds keyword 'logger=loger' to the input function."""
+    return functools.partial(func, logger=logger)
 
 
 # -----------------------------------------------------------------------------
