@@ -1,6 +1,9 @@
 """Submodules dealing with datatypes."""
 
 
+import sys
+
+
 def is_ndarray(a) -> bool:
     """Checks if the object is a numpy ndarray or not."""
     if "numpy" not in sys.modules:

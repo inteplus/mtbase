@@ -1,7 +1,6 @@
 """Useful functions dealing with numpy array."""
 
 
-import sys
 import math
 import numpy as np
 
