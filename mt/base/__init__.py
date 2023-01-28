@@ -29,16 +29,21 @@ from .exec import debug_exec
 home_dirpath = _log_init._home_dirpath
 temp_dirpath = _log_init._temp_dirpath
 
-__all__ = [
+__api__ = [
     "logger",
     "home_dirpath",
     "temp_dirpath",
     "deprecated_func",
     "cast",
     "castable",
+    "is_ndarray",
+    "is_jaxarray",
+    "is_tftensor",
+    "is_h5group",
 ]
 
 
+from .datatype import *
 from .const import *
 
 
