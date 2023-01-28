@@ -5,9 +5,6 @@ import numpy as np
 from mt import tp
 
 
-__all__ = ["quantise_images", "dequantise_images"]
-
-
 def quantise_images(a: np.ndarray, clip: bool = True) -> np.ndarray:
     """Quantises a tensor of images.
 

@@ -40,3 +40,17 @@ import numpy.linalg as linag
 import numpy.fft as fft
 import numpy.matlib as matlib
 import numpy.random as random
+
+
+__api__ = [
+    "ndarray_repr",
+    "sigmoid",
+    "asigmoid",
+    "frombytes",
+    "SparseNdarray",
+    "psd_approx",
+    "sqrtm",
+    "powm",
+    "quantise_images",
+    "dequantise_images",
+]
