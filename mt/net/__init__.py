@@ -306,11 +306,19 @@ def _pf_server(listen_config, connect_configs, timeout=30, logger=None):
                 )
 
             for connect_config in connect_configs:
+                if connect_config.startswith("::1"):
+                    ipv6 = True
+                    connect_params = ("::1", connect_config[4:])
+                else:
+                    ipv6 = False
+                    connect_params = connect_config.split(":")
                 try:
-                    server_socket = _s.socket(_s.AF_INET, _s.SOCK_STREAM)
+                    if ipv6:
+                        server_socket = _s.socket(_s.AF_INET6, _s.SOCK_STREAM)
+                    else:
+                        server_socket = _s.socket(_s.AF_INET, _s.SOCK_STREAM)
                     # listen for 10 seconds before going to the next
                     server_socket.settimeout(10)
-                    connect_params = connect_config.split(":")
                     result = server_socket.connect_ex(
                         (connect_params[0], int(connect_params[1]))
                     )
@@ -411,15 +419,21 @@ class SSHTunnelWatcher(object):
                 self.base.stop()
 
 
+# MT-TODO: make launch_port_forwarder work with remote ipv6 ports
+
+
 def launch_port_forwarder(listen_config, connect_configs, timeout=30, logger=None):
     """Launchs in other threads a port forwarding service.
 
     Parameters
     ----------
     listen_config : str
-        listening config as an 'addr:port' pair. For example, ':30443', '0.0.0.0:324', 'localhost:345', etc.
+        listening config as an 'addr:port' pair. For example, ':30443', '0.0.0.0:324',
+        'localhost:345', etc.
     connect_configs : iterable
-        list of connecting configs, each of which is an 'addr:port' pair. For example, 'www.foomum.com:443', etc.
+        list of connecting configs, each of which is an 'addr:port' pair. For example,
+        'home2.sdfamily.co.uk:443', etc. Special case '::1:port' stands for localhost in ipv6 with
+        a specific port.
     timeout : int
         number of seconds for connection timeout
     logger : logging.Logger or equivalent
