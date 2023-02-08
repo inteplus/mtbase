@@ -417,9 +417,6 @@ def log(
 ):
     """Wraps :func:`logging.log` with additional logger keyword.
 
-    Partial functions derived from the function include: `critical`, `error`, `warning`, `warn`,
-    `info` and `debug`.
-
     Parameters
     ----------
     level : int
@@ -438,12 +435,112 @@ def log(
         logger.log(level, msg, *args, **kwargs)
 
 
-critical = functools.partial(log, CRITICAL)
-error = functools.partial(log, ERROR)
-warning = functools.partial(log, WARNING)
-warn = functools.partial(log, WARNING)
-info = functools.partial(log, INFO)
-debug = functools.partial(log, DEBUG)
+def critical(
+    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwargs
+):
+    """Wraps :func:`logging.critical` with additional logger keyword.
+
+    Parameters
+    ----------
+    msg : str or bytes
+        message. Passed as-is to :func:`logging.critical`.
+    logger : logging.Logger, optional
+        which logger to process the message. Default is the default logger of mtbase. If None is
+        provided, no message will be logged.
+    *args : tuple
+        positional arguments passed as-is to :func:`logging.critical`.
+    *kwargs : dict
+        keyword arguments passed as-is to :func:`logging.critical`.
+    """
+    if logger:
+        logger.critical(msg, *args, **kwargs)
+
+
+def error(
+    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwargs
+):
+    """Wraps :func:`logging.error` with additional logger keyword.
+
+    Parameters
+    ----------
+    msg : str or bytes
+        message. Passed as-is to :func:`logging.error`.
+    logger : logging.Logger, optional
+        which logger to process the message. Default is the default logger of mtbase. If None is
+        provided, no message will be logged.
+    *args : tuple
+        positional arguments passed as-is to :func:`logging.error`.
+    *kwargs : dict
+        keyword arguments passed as-is to :func:`logging.error`.
+    """
+    if logger:
+        logger.error(msg, *args, **kwargs)
+
+
+def warning(
+    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwargs
+):
+    """Wraps :func:`logging.warning` with additional logger keyword.
+
+    Parameters
+    ----------
+    msg : str or bytes
+        message. Passed as-is to :func:`logging.warning`.
+    logger : logging.Logger, optional
+        which logger to process the message. Default is the default logger of mtbase. If None is
+        provided, no message will be logged.
+    *args : tuple
+        positional arguments passed as-is to :func:`logging.warning`.
+    *kwargs : dict
+        keyword arguments passed as-is to :func:`logging.warning`.
+    """
+    if logger:
+        logger.warning(msg, *args, **kwargs)
+
+
+warn = warning
+
+
+def info(
+    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwargs
+):
+    """Wraps :func:`logging.info` with additional logger keyword.
+
+    Parameters
+    ----------
+    msg : str or bytes
+        message. Passed as-is to :func:`logging.info`.
+    logger : logging.Logger, optional
+        which logger to process the message. Default is the default logger of mtbase. If None is
+        provided, no message will be logged.
+    *args : tuple
+        positional arguments passed as-is to :func:`logging.info`.
+    *kwargs : dict
+        keyword arguments passed as-is to :func:`logging.info`.
+    """
+    if logger:
+        logger.info(msg, *args, **kwargs)
+
+
+def debug(
+    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwargs
+):
+    """Wraps :func:`logging.debug` with additional logger keyword.
+
+    Parameters
+    ----------
+    msg : str or bytes
+        message. Passed as-is to :func:`logging.debug`.
+    logger : logging.Logger, optional
+        which logger to process the message. Default is the default logger of mtbase. If None is
+        provided, no message will be logged.
+    *args : tuple
+        positional arguments passed as-is to :func:`logging.debug`.
+    *kwargs : dict
+        keyword arguments passed as-is to :func:`logging.debug`.
+    """
+    if logger:
+        logger.debug(msg, *args, **kwargs)
 
 
 class ScopedLog:
