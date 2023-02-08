@@ -287,9 +287,15 @@ def _pf_server(listen_config, connect_configs, timeout=30, logger=None):
                 dock_socket.bind((listen_params[0], int(listen_params[1])))
                 dock_socket.listen(5)
                 break
-            except OSError:
+            except OSError as e:
                 if logger:
-                    logger.warn_last_exception()
+                    if e.errno == 98:
+                        logger.warn(
+                            "Unable to bind to local port {} as it is already in use. Please wait "
+                            "until it is available.".format(listen_params[1])
+                        )
+                    else:
+                        logger.warn_last_exception()
                 dock_socket.close()
                 sleep(5)
 
