@@ -8,10 +8,10 @@ import requests as _r
 from getmac import get_mac_address
 from time import sleep
 
-from mt import logg
+from mt import tp, logg
 
 
-__all__ = [
+__api__ = [
     "get_default_ifaces",
     "is_port_open",
     "get_hostname",
@@ -428,7 +428,12 @@ class SSHTunnelWatcher(object):
 # MT-TODO: make launch_port_forwarder work with remote ipv6 ports
 
 
-def launch_port_forwarder(listen_config, connect_configs, timeout=30, logger=None):
+def launch_port_forwarder(
+    listen_config,
+    connect_configs,
+    timeout=30,
+    logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
+):
     """Launchs in other threads a port forwarding service.
 
     Parameters
@@ -442,8 +447,8 @@ def launch_port_forwarder(listen_config, connect_configs, timeout=30, logger=Non
         a specific port.
     timeout : int
         number of seconds for connection timeout
-    logger : logging.Logger or equivalent
-        for logging messages
+    logger : mt.logg.IndentedLoggerAdapter, optional
+        logger for debugging purposes
     """
     _t.Thread(
         target=_pf_server,
