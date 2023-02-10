@@ -3,7 +3,7 @@ from time import sleep
 
 from mt import tp, logg, threading
 
-from .host_port import HostPort
+from .host_port import HostPort, listen_to_port
 
 
 def set_keepalive_linux(sock, after_idle_sec=1, interval_sec=3, max_fails=5):
@@ -147,45 +147,7 @@ def pf_forward(connection, is_c2s):
 
 def pf_server(listen_config, connect_configs, timeout=30, logger=None):
     try:
-        while True:
-            try:
-                listen_hostport = HostPort.from_str(listen_config)
-                listen_address = listen_hostport.socket_address()
-            except ValueError:
-                if logger:
-                    logger.warn_last_exception()
-                    logger.error(
-                        "Unable to parse listening config: '{}'".format(listen_config)
-                    )
-                break
-
-            try:
-                family = socket.AF_INET6 if listen_hostport.is_v6() else socket.AF_INET
-                dock_socket = socket.socket(family, socket.SOCK_STREAM)
-            except OSError:
-                if logger:
-                    logger.warn_last_exception()
-                sleep(5)
-                continue
-
-            try:
-                dock_socket.bind(listen_address)
-                dock_socket.listen(5)
-                break
-            except OSError as e:
-                if logger:
-                    if e.errno == 98:
-                        logger.warn(
-                            "Unable to bind to local port {} as it is already in use. Please wait "
-                            "until it is available.".format(listen_address)
-                        )
-                    else:
-                        logger.warn_last_exception()
-                dock_socket.close()
-                sleep(5)
-
-        if logger:
-            logger.info("Listening at '{}'.".format(listen_config))
+        dock_socket = listen_to_port(listen_config, logger=logger)
 
         while True:
             client_socket, client_addr = dock_socket.accept()
@@ -284,9 +246,6 @@ def pf_server(listen_config, connect_configs, timeout=30, logger=None):
             args=(listen_config, connect_configs),
             kwargs={"logger": logger},
         ).start()
-
-
-# MT-TODO: make launch_port_forwarder work with remote ipv6 ports
 
 
 def launch_port_forwarder(

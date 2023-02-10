@@ -1,7 +1,9 @@
+import socket
+from time import sleep
 import re
 import ipaddress
 
-from mt import tp
+from mt import tp, logg
 
 
 class HostPort:
@@ -85,3 +87,66 @@ class HostPort:
             return HostPort(port, host_addr=ipaddress.IPv4Address(host))
 
         return HostPort(port, host_name=host)
+
+
+def listen_to_port(
+    listen_config: str,
+    logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
+) -> socket.socket:
+    """Listens to a local port, returning the listening socket.
+
+    The function repeats indefinitely until it can open the port.
+
+    Parameters
+    ----------
+    listen_config : str
+        listening config as an 'addr:port' pair. For example, ':30443', '0.0.0.0:324',
+        'localhost:345', etc.
+    logger : mt.logg.IndentedLoggerAdapter, optional
+        logger for debugging purposes
+
+    Returns
+    -------
+    dock_socket : socket.socket
+        the output listening socket
+    """
+
+    while True:
+        try:
+            listen_hostport = HostPort.from_str(listen_config)
+            listen_address = listen_hostport.socket_address()
+        except ValueError:
+            if logger:
+                logger.warn_last_exception()
+                logger.error(
+                    "Unable to parse listening config: '{}'".format(listen_config)
+                )
+            break
+
+        try:
+            family = socket.AF_INET6 if listen_hostport.is_v6() else socket.AF_INET
+            dock_socket = socket.socket(family, socket.SOCK_STREAM)
+        except OSError:
+            if logger:
+                logger.warn_last_exception()
+            sleep(5)
+            continue
+
+        try:
+            dock_socket.bind(listen_address)
+            dock_socket.listen(5)
+            break
+        except OSError as e:
+            if logger:
+                if e.errno == 98:
+                    logger.warn(
+                        "Unable to bind to local port {} which is in use. Please wait until it is "
+                        "available.".format(listen_address)
+                    )
+                else:
+                    logger.warn_last_exception()
+            dock_socket.close()
+            sleep(5)
+
+    if logger:
+        logger.info("Listening at '{}'.".format(listen_config))

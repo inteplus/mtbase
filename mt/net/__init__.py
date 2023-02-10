@@ -13,6 +13,7 @@ __api__ = [
     "get_all_inet4_ipaddresses",
     "get_public_ip_address",
     "HostPort",
+    "listen_to_port",
     "set_keepalive_linux",
     "set_keepalive_osx",
     "launch_port_forwarder",
