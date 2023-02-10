@@ -27,6 +27,7 @@ install_requires = [
 
 if V.parse(platform.python_version()) < V.parse("3.7"):
     install_requires.append("contextlib2")  # to have nullcontext
+    install_requires.append("asyncio37")  # to have asyncio 3.7
 
 setup(
     name="mtbase",
@@ -38,7 +39,7 @@ setup(
         "scripts/path_exists",
     ],
     install_requires=install_requires,
-    python_requires=">=3.6",  # we still need to support TX1 modules
+    python_requires=">=3.6",  # we still need to support TX2 modules coming with JetPack 4
     url="https://github.com/inteplus/mtbase",
     project_urls={
         "Documentation": "https://mtdoc.readthedocs.io/en/latest/mt.base/mt.base.html",
