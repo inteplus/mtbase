@@ -65,7 +65,7 @@ def pf_tunnel_server(listen_config, ssh_tunnel_forwarder, timeout=30, logger=Non
                 dock_socket.bind(listen_address)
                 dock_socket.listen(5)
                 break
-            except OSError:
+            except OSError as e:
                 if logger:
                     if e.errno == 98:
                         logger.warn(
