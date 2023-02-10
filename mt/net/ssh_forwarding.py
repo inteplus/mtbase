@@ -67,12 +67,13 @@ def pf_tunnel_server(listen_config, ssh_tunnel_forwarder, timeout=30, logger=Non
                 break
             except OSError:
                 if logger:
-                    logger.warn_last_exception()
-                    logger.warn(
-                        "Exception caught while trying to listen to {}".format(
-                            listen_address
+                    if e.errno == 98:
+                        logger.warn(
+                            "Unable to bind to local port {} as it is already in use. Please wait "
+                            "until it is available.".format(listen_address)
                         )
-                    )
+                    else:
+                        logger.warn_last_exception()
                 dock_socket.close()
                 sleep(5)
 
