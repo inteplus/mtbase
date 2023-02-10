@@ -107,8 +107,8 @@ def listen_to_port(
 
     Returns
     -------
-    dock_socket : socket.socket
-        the output listening socket
+    dock_socket : socket.socket, optional
+        the output listening socket. None may be returned if something wrong has happened.
     """
 
     while True:
@@ -121,7 +121,7 @@ def listen_to_port(
                 logger.error(
                     "Unable to parse listening config: '{}'".format(listen_config)
                 )
-            break
+            return
 
         try:
             family = socket.AF_INET6 if listen_hostport.is_v6() else socket.AF_INET
@@ -150,3 +150,5 @@ def listen_to_port(
 
     if logger:
         logger.info("Listening at '{}'.".format(listen_config))
+
+    return dock_socket
