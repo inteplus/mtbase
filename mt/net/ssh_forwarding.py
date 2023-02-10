@@ -3,6 +3,7 @@ from time import sleep
 
 from mt import tp, logg, threading
 
+from .host_port import HostPort
 from .port_forwarding import pf_forward, set_keepalive_linux
 
 
@@ -41,7 +42,19 @@ def pf_tunnel_server(listen_config, ssh_tunnel_forwarder, timeout=30, logger=Non
     try:
         while True:
             try:
-                dock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                listen_hostport = HostPort.from_str(listen_config)
+                listen_address = listen_hostport.socket_address()
+            except ValueError:
+                if logger:
+                    logger.warn_last_exception()
+                    logger.error(
+                        "Unable to parse listening config: '{}'".format(listen_config)
+                    )
+                break
+
+            try:
+                family = socket.AF_INET6 if listen_hostport.is_v6() else socket.AF_INET
+                dock_socket = socket.socket(family, socket.SOCK_STREAM)
             except OSError:
                 if logger:
                     logger.warn_last_exception()
@@ -49,8 +62,7 @@ def pf_tunnel_server(listen_config, ssh_tunnel_forwarder, timeout=30, logger=Non
                 continue
 
             try:
-                listen_params = listen_config.split(":")
-                dock_socket.bind((listen_params[0], int(listen_params[1])))
+                dock_socket.bind(listen_address)
                 dock_socket.listen(5)
                 break
             except OSError:
@@ -58,7 +70,7 @@ def pf_tunnel_server(listen_config, ssh_tunnel_forwarder, timeout=30, logger=Non
                     logger.warn_last_exception()
                     logger.warn(
                         "Exception caught while trying to listen to {}".format(
-                            listen_params
+                            listen_address
                         )
                     )
                 dock_socket.close()

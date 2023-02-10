@@ -3,6 +3,8 @@ from time import sleep
 
 from mt import tp, logg, threading
 
+from .host_port import HostPort
+
 
 def set_keepalive_linux(sock, after_idle_sec=1, interval_sec=3, max_fails=5):
     """Set TCP keepalive on an open socket.
@@ -147,7 +149,19 @@ def pf_server(listen_config, connect_configs, timeout=30, logger=None):
     try:
         while True:
             try:
-                dock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                listen_hostport = HostPort.from_str(listen_config)
+                listen_address = listen_hostport.socket_address()
+            except ValueError:
+                if logger:
+                    logger.warn_last_exception()
+                    logger.error(
+                        "Unable to parse listening config: '{}'".format(listen_config)
+                    )
+                break
+
+            try:
+                family = socket.AF_INET6 if listen_hostport.is_v6() else socket.AF_INET
+                dock_socket = socket.socket(family, socket.SOCK_STREAM)
             except OSError:
                 if logger:
                     logger.warn_last_exception()
@@ -155,8 +169,7 @@ def pf_server(listen_config, connect_configs, timeout=30, logger=None):
                 continue
 
             try:
-                listen_params = listen_config.split(":")
-                dock_socket.bind((listen_params[0], int(listen_params[1])))
+                dock_socket.bind(listen_address)
                 dock_socket.listen(5)
                 break
             except OSError as e:
@@ -164,7 +177,7 @@ def pf_server(listen_config, connect_configs, timeout=30, logger=None):
                     if e.errno == 98:
                         logger.warn(
                             "Unable to bind to local port {} as it is already in use. Please wait "
-                            "until it is available.".format(listen_params[1])
+                            "until it is available.".format(listen_address)
                         )
                     else:
                         logger.warn_last_exception()
@@ -184,26 +197,27 @@ def pf_server(listen_config, connect_configs, timeout=30, logger=None):
                 )
 
             for connect_config in connect_configs:
-                if connect_config.startswith("::1"):
-                    ipv6 = True
-                    connect_params = ("::1", connect_config[4:])
-                else:
-                    ipv6 = False
-                    connect_params = connect_config.split(":")
                 try:
-                    if ipv6:
-                        server_socket = socket.socket(
-                            socket.AF_INET6, socket.SOCK_STREAM
+                    connect_hostport = HostPort.from_str(connect_config)
+                    connect_address = connect_hostport.socket_address()
+                except ValueError:
+                    if logger:
+                        logger.warn_last_exception()
+                        logger.error(
+                            "Unable to parse connecting config: '{}'".format(
+                                connect_config
+                            )
                         )
-                    else:
-                        server_socket = socket.socket(
-                            socket.AF_INET, socket.SOCK_STREAM
-                        )
+                    break
+
+                try:
+                    family = (
+                        socket.AF_INET6 if connect_hostport.is_v6() else socket.AF_INET
+                    )
+                    server_socket = socket.socket(family, socket.SOCK_STREAM)
                     # listen for 10 seconds before going to the next
                     server_socket.settimeout(10)
-                    result = server_socket.connect_ex(
-                        (connect_params[0], int(connect_params[1]))
-                    )
+                    result = server_socket.connect_ex(connect_address)
                     if result != 0:
                         if logger:
                             logger.warning(
