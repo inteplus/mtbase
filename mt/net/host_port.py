@@ -91,6 +91,7 @@ class HostPort:
 
 def listen_to_port(
     listen_config: str,
+    blocking: bool = True,
     logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
 ) -> socket.socket:
     """Listens to a local port, returning the listening socket.
@@ -102,6 +103,8 @@ def listen_to_port(
     listen_config : str
         listening config as an 'addr:port' pair. For example, ':30443', '0.0.0.0:324',
         'localhost:345', etc.
+    blocking : bool
+        whether or not the returning socket is blocking
     logger : mt.logg.IndentedLoggerAdapter, optional
         logger for debugging purposes
 
@@ -125,7 +128,10 @@ def listen_to_port(
 
         try:
             family = socket.AF_INET6 if listen_hostport.is_v6() else socket.AF_INET
-            dock_socket = socket.socket(family, socket.SOCK_STREAM)
+            socket_type = socket.SOCK_STREAM
+            if not blocking:
+                socket_type |= socket.SOCK_NONBLOCK
+            dock_socket = socket.socket(family, socket_type)
         except OSError:
             if logger:
                 logger.warn_last_exception()
@@ -133,6 +139,7 @@ def listen_to_port(
             continue
 
         try:
+            dock_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             dock_socket.bind(listen_address)
             dock_socket.listen(5)
             break
