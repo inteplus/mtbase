@@ -90,12 +90,12 @@ class PortForwardingService:
                     c2s = StreamForwarder(
                         client_reader, server_writer, logger=self.logger
                     )()
-                    c2s_task = asyncio.create_task(c2s)
+                    c2s_task = asyncio.ensure_future(c2s)
                 if s2c_task is None and not client_writer.is_closing():
                     s2c = StreamForwarder(
                         server_reader, client_writer, logger=self.logger
                     )()
-                    s2c_task = asyncio.create_task(s2c)
+                    s2c_task = asyncio.ensure_future(s2c)
 
                 tasks = []
                 if c2s_task is not None:
