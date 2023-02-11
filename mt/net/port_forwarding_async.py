@@ -46,7 +46,7 @@ class PortForwardingService:
     ):
         client_addr = client_reader._transport.get_extra_info("peername")
         msg = "Client '{}' connected to '{}'.".format(client_addr, self.listen_config)
-        logg.info(msg, logger=self.logger)
+        logg.debug(msg, logger=self.logger)
 
         # establish a connection to a server
         for connect_config in self.connect_configs:
@@ -77,7 +77,7 @@ class PortForwardingService:
                 continue
 
             msg = "Client '{}' forwarded to '{}'.".format(client_addr, connect_config)
-            logg.info(msg, logger=self.logger)
+            logg.debug(msg, logger=self.logger)
 
             c2s_task = None
             s2c_task = None
@@ -116,7 +116,7 @@ class PortForwardingService:
             msg = "Client '{}' disconnected from '{}'.".format(
                 client_addr, self.listen_config
             )
-            logg.info(msg, logger=self.logger)
+            logg.debug(msg, logger=self.logger)
 
             break  # job done
         else:
