@@ -155,11 +155,12 @@ async def port_forwarder_actx(
         listen_hostport = HostPort.from_str(listen_config)
         listen_address = listen_hostport.socket_address()
         listen_family = socket.AF_INET6 if listen_hostport.is_v6() else socket.AF_INET
-    except ValueError:
-        if logger:
-            logger.warn_last_exception()
-            logger.error("Unable to parse listening config: '{}'".format(listen_config))
-        return
+    except Exception:
+        msg = "Exception caught while parsing listening config: '{}'".format(
+            listen_config
+        )
+        logg.error(msg, logger=logger)
+        raise
 
     client_connected_cb = PortForwardingService(
         listen_config, connect_configs, logger=logger
