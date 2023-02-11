@@ -1,6 +1,7 @@
 from .base import *
 from .host_port import *
 from .port_forwarding import *
+from .port_forwarding_async import *
 from .ssh_forwarding import *
 
 
@@ -17,6 +18,7 @@ __api__ = [
     "set_keepalive_linux",
     "set_keepalive_osx",
     "launch_port_forwarder",
+    "port_forwarder_actx",
     "SSHTunnelWatcher",
     "launch_ssh_forwarder",
 ]
