@@ -103,7 +103,7 @@ class PortForwardingService:
                 if s2c_task is not None:
                     tasks.append(s2c_task)
 
-                done_set, pending_seg = await asyncio.wait(
+                done_set, pending_set = await asyncio.wait(
                     tasks, return_when=asyncio.FIRST_COMPLETED
                 )
 
