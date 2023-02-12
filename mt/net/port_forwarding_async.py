@@ -67,13 +67,19 @@ class PortForwardingService:
                 server_reader, server_writer = await asyncio.open_connection(
                     host=connect_address[0], port=connect_address[1], family=family
                 )
-            except:
+            except Exception as e:
                 if self.logger:
-                    self.logger.warn_last_exception()
-                    self.logger.warning(
-                        "Unable to forward client '{}' to '{}'. Skipping to the next "
-                        "server.".format(client_addr, connect_config)
-                    )
+                    if isinstance(e, socket.gaierror) and e.errno == -3:
+                        self.logger.warn(
+                            "Unable to resolve hostname '{}'. Skipping to the next "
+                            "server".format(connect_config)
+                        )
+                    else:
+                        self.logger.warn_last_exception()
+                        self.logger.warning(
+                            "Unable to forward client '{}' to '{}'. Skipping to the next "
+                            "server.".format(client_addr, connect_config)
+                        )
                 continue
 
             msg = "Client '{}' forwarded to '{}'.".format(client_addr, connect_config)
