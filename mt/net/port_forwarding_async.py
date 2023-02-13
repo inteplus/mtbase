@@ -1,6 +1,5 @@
 import asyncio
 import socket
-from time import sleep
 
 from mt import tp, logg, threading
 
@@ -57,7 +56,9 @@ class PortForwardingService:
                 if self.logger:
                     self.logger.warn_last_exception()
                     self.logger.error(
-                        "Unable to parse connecting config: '{}'".format(connect_config)
+                        "Unable to parse connecting config: '{}'.".format(
+                            connect_config
+                        )
                     )
                 break
 
@@ -72,7 +73,7 @@ class PortForwardingService:
                     if isinstance(e, socket.gaierror) and e.errno == -3:
                         self.logger.warn(
                             "Unable to resolve hostname '{}'. Skipping to the next "
-                            "server".format(connect_config)
+                            "server.".format(connect_config)
                         )
                     else:
                         self.logger.warn_last_exception()
