@@ -116,8 +116,30 @@ class PortForwardingService:
 
                 for item in done_set:
                     if c2s_task == item:
+                        try:
+                            c2s_task.result()
+                        except:
+                            if self.logger:
+                                self.logger.warn_last_exception()
+                                self.logger.warn(
+                                    "Ignored the above exception while forwarding data "
+                                    "from client '{}' to server '{}'.".format(
+                                        client_addr, connect_config
+                                    )
+                                )
                         c2s_task = None
                     elif s2c_task == item:
+                        try:
+                            s2c_task.result()
+                        except:
+                            if self.logger:
+                                self.logger.warn_last_exception()
+                                self.logger.warn(
+                                    "Ignored the above exception while forwarding data "
+                                    "from server '{}' to client '{}'.".format(
+                                        connect_config, client_addr
+                                    )
+                                )
                         s2c_task = None
 
             msg = "Client '{}' disconnected from '{}'.".format(
