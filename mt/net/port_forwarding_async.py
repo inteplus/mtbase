@@ -44,6 +44,8 @@ class PortForwardingService:
         self, client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter
     ):
         client_addr = client_reader._transport.get_extra_info("peername")
+        socket = client_reader._transport.get_extra_info("socket")
+        set_keepalive_linux(socket)
         msg = "Client '{}' connected to '{}'.".format(client_addr, self.listen_config)
         logg.debug(msg, logger=self.logger)
 
