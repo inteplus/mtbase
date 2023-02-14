@@ -1,7 +1,7 @@
 import asyncio
 import socket
 
-from mt import tp, logg, threading
+from mt import tp, logg
 
 from .host_port import HostPort
 from .port_forwarding import set_keepalive_linux, set_keepalive_osx
@@ -148,6 +148,10 @@ class PortForwardingService:
                 client_addr, self.listen_config
             )
             logg.debug(msg, logger=self.logger)
+
+            self.connect_configs = [connect_config] + [
+                x for x in self.connect_configs if x != connect_config
+            ]
 
             break  # job done
         else:
