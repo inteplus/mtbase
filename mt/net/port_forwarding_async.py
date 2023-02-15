@@ -202,7 +202,7 @@ async def port_forwarder_actx(
     listen_config,
     connect_configs,
     logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
-):
+) -> asyncio.base_events.Server:
     """Launches an asynchronous port forwarding server.
 
     Parameters
@@ -219,7 +219,7 @@ async def port_forwarder_actx(
 
     Returns
     -------
-    server : asyncio.Server
+    server : asyncio.base_events.Server
         the port forwarding server that can be used as an asynchronous context
     """
 
