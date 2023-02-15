@@ -525,11 +525,15 @@ def put_files_boto3(
         statement invoking :func:`mt.base.s3.create_s3_client`.
     """
 
-    import boto3.s3.transfer as s3transfer
+    from .s3transfer import (
+        TransferConfig,
+        create_transfer_manager,
+        ProgressCallbackInvoker,
+    )
 
-    transfer_config = s3transfer.TransferConfig(use_threads=True, max_concurrency=20)
+    transfer_config = TransferConfig(use_threads=True, max_concurrency=20)
     s3_client = context_vars["s3_client"]
-    s3t = s3transfer.create_transfer_manager(s3_client, transfer_config)
+    s3t = create_transfer_manager(s3_client, transfer_config)
     extra_args = {"ACL": "public-read"} if set_acl_public_read else None
 
     with tqdm(
@@ -541,7 +545,7 @@ def put_files_boto3(
                 bucket,
                 key,
                 extra_args=extra_args,
-                subscribers=[s3transfer.ProgressCallbackInvoker(progress_bar.update)]
+                subscribers=[ProgressCallbackInvoker(progress_bar.update)]
                 if show_progress
                 else None,
             )
