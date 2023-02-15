@@ -41,68 +41,81 @@ class PortForwardingService:
         self.logger = logger
 
     async def scan_remotes(self):
-        task_map = {}
-        for connect_config in self.connect_configs:
-            try:
-                connect_hostport = HostPort.from_str(connect_config)
-                connect_address = connect_hostport.socket_address()
-            except ValueError:
-                msg = "Unable to parse connecting config: '{}'.".format(connect_config)
-                logg.error(msg, logger=self.logger)
-                raise
+        """Scans the remote configs for one that can be connected to."""
 
-            family = socket.AF_INET6 if connect_hostport.is_v6() else socket.AF_INET
+        while True:
+            task_map = {}
+            for connect_config in self.connect_configs:
+                try:
+                    connect_hostport = HostPort.from_str(connect_config)
+                    connect_address = connect_hostport.socket_address()
+                except ValueError:
+                    msg = "Unable to parse connecting config: '{}'.".format(
+                        connect_config
+                    )
+                    logg.error(msg, logger=self.logger)
+                    raise
 
-            task = asyncio.ensure_future(
-                asyncio.open_connection(
+                family = socket.AF_INET6 if connect_hostport.is_v6() else socket.AF_INET
+                coro = asyncio.open_connection(
                     host=connect_address[0], port=connect_address[1], family=family
                 )
-            )
-            task_map[connect_config] = task
+                task = asyncio.ensure_future(coro)
+                task_map[connect_config] = task
 
-        await asyncio.wait(task_map.values(), return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait(task_map.values(), return_when=asyncio.FIRST_COMPLETED)
 
-        # find a good remote
-        res = None
-        for connect_config, task in task_map.items():
-            if not task.done() or task.cancelled() or (task.exception() is not None):
-                continue
-            server_reader, server_writer = task.result()
-            res = (connect_config, server_reader, server_writer)
-            break
-
-        # clean up
-        for task in task_map.values():
-            if not task.done() and not task.cancelled():
-                task.cancel()
-
-        if res is not None:
-            return res
-
-        msg = "Unable to connect '{}' to any destination.".format(self.listen_config)
-        if not self.logger:
-            raise OSError(msg)
-
-        self.logger.error(msg)
-        with self.logger.scoped_error("Reasons"):
+            # find a good remote
+            res = None
             for connect_config, task in task_map.items():
-                if not task.done() or task.cancelled():
+                if (
+                    not task.done()
+                    or task.cancelled()
+                    or (task.exception() is not None)
+                ):
                     continue
-                e = task.exception()
-                if e is None:
-                    continue
-                with self.logger.scoped_error("Connect '{}'".format(connect_config)):
-                    if isinstance(e, socket.gaierror) and e.errno == -3:
-                        self.logger.warn(
-                            "Unable to resolve host '{}'.".format(connect_config)
-                        )
-                    else:
-                        try:
-                            raise e
-                        except:
-                            self.logger.warn_last_exception()
+                server_reader, server_writer = task.result()
+                res = (connect_config, server_reader, server_writer)
+                break
 
-        raise OSError(msg)
+            # clean up
+            for task in task_map.values():
+                if not task.done() and not task.cancelled():
+                    task.cancel()
+
+            if res is not None:
+                return res
+
+            # attempt to retry in 1 minute
+            if not self.logger:
+                await asyncio.sleep(60)
+                continue
+
+            # display error messages before retrying
+            msg = "Unable to connect '{}' to any destination.".format(
+                self.listen_config
+            )
+            self.logger.error(msg)
+            with self.logger.scoped_error("Reasons"):
+                for connect_config, task in task_map.items():
+                    if not task.done() or task.cancelled():
+                        continue
+                    e = task.exception()
+                    if e is None:
+                        continue
+                    msg = "Connect '{}'".format(connect_config)
+                    with self.logger.scoped_error(msg):
+                        if isinstance(e, socket.gaierror) and e.errno == -3:
+                            msg = "Unable to resolve host '{}'.".format(connect_config)
+                            self.logger.warn(msg)
+                        else:
+                            try:
+                                raise e
+                            except:
+                                self.logger.warn_last_exception()
+
+            self.logger.error("Will retry in 1 minute.")
+            await asyncio.sleep(60)
 
     async def __call__(
         self, client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter
