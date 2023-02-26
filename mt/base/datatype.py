@@ -14,12 +14,12 @@ def is_ndarray(a) -> bool:
 
 
 def is_jaxarray(a) -> bool:
-    """Checks if the object is a jax Array or not."""
+    """Checks if the object is a jax ndarray or not."""
     if "jax" not in sys.modules:
         return False
-    import jax
+    import jax.numpy as jnp
 
-    return isinstance(a, jax.Array)
+    return isinstance(a, jnp.ndarray)
 
 
 def is_tftensor(a) -> bool:
