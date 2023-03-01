@@ -6,14 +6,15 @@ Instead of:
 
    import jax
    import jax.numpy as jnp
+   import jax.scipy as jsp
 
 You do:
 
 .. code-block:: python
 
-   from mt import jax, jnp
+   from mt import jax, jnp, jsp
 
-It will import the jax package and its numpy package. While doing so, it tries to avoid
+It will import the jax package and its numpy and scipy packages. While doing so, it tries to avoid
 preallocation, accepting potential memory fragmentation.
 
 Please see Python package `jax`_ for more details.

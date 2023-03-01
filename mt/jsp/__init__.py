@@ -32,9 +32,9 @@ if "jax" not in sys.modules:
         os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 
 try:
-    import jax.numpy as _jnp
+    import jax.scipy as _jsp
 
-    for k, v in _jnp.__dict__.items():
+    for k, v in _jsp.__dict__.items():
         globals()[k] = v
 except ImportError:
     raise ImportError("Alias 'mt.jax' requires package 'jax' be installed.")
