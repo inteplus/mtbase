@@ -43,6 +43,9 @@ class PortForwardingService:
     async def scan_remotes(self):
         """Scans the remote configs for one that can be connected to."""
 
+        delay_times = [60, 600, 3600]
+        idx = 0
+
         while True:
             task_map = {}
             for connect_config in self.connect_configs:
@@ -114,8 +117,13 @@ class PortForwardingService:
                             except:
                                 self.logger.warn_last_exception()
 
-            self.logger.error("Will retry in 1 minute.")
-            await asyncio.sleep(60)
+            if idx < len(delay_times):
+                timeout = delay_times[idx]
+                self.logger.error(f"Will retry in {timeout} seconds.")
+                idx += 1
+                await asyncio.sleep(60)
+            else:
+                raise ConnectionAbortedError("Unable to connect to any remote server.")
 
     async def __call__(
         self, client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter
