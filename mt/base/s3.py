@@ -11,7 +11,7 @@ import botocore.exceptions
 from halo import Halo
 from tqdm import tqdm
 
-from mt import ctx, aio, tp
+from mt import ctx, aio, tp, logg
 
 from .http import create_http_session
 
@@ -142,7 +142,11 @@ async def create_s3_client(
 
 
 @ctx.asynccontextmanager
-async def create_context_vars(profile=None, asyn: bool = False):
+async def create_context_vars(
+    profile=None,
+    asyn: bool = False,
+    logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
+):
     """Creates a dictionary of context variables for running functions in this package.
 
     Parameters
@@ -151,6 +155,8 @@ async def create_context_vars(profile=None, asyn: bool = False):
         one of the profiles specified in the AWS. The default is used if None is given.
     asyn : bool
         whether the functions are to be invoked asynchronously or synchronously
+    logger : mt.logg.IndentedLoggerAdapter, optional
+        logger for debugging purposes
 
     Returns
     -------
@@ -159,15 +165,24 @@ async def create_context_vars(profile=None, asyn: bool = False):
         's3_client' and 'http_session'.
     """
 
-    async with create_s3_client(
-        profile=profile, asyn=asyn
-    ) as s3_client, create_http_session() as http_session:
-        context_vars = {
-            "async": asyn,
-            "s3_client": s3_client,
-            "http_session": http_session,
-        }
-        yield context_vars
+    try:
+        async with create_s3_client(
+            profile=profile, asyn=asyn
+        ) as s3_client, create_http_session() as http_session:
+            context_vars = {
+                "async": asyn,
+                "s3_client": s3_client,
+                "http_session": http_session,
+            }
+            yield context_vars
+    except botocore.exceptions.ConnectionError:
+        if logger:
+            if profile:
+                msg = f"Exception caught while establishing a connection to S3 using AWS profile '{profile}':"
+            else:
+                msg = "Exception caught while establishing a connection to S3 using the default AWS profile:"
+            logger.error(msg)
+        raise
 
 
 async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict = {}):
