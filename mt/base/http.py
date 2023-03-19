@@ -72,6 +72,7 @@ async def download(url, context_vars: dict = {}):
                 'Forbidden word "Access Denied" or "AccessDenied" detected in the content.',
                 url,
             )
+        return content
 
     if not context_vars["async"]:
         response = requests.get(url)
