@@ -66,27 +66,33 @@ class PortForwardingService:
                 task = asyncio.ensure_future(coro)
                 task_map[connect_config] = task
 
-            await asyncio.wait(task_map.values(), return_when=asyncio.FIRST_COMPLETED)
-
-            # find a good remote
             res = None
-            for connect_config, task in task_map.items():
-                if (
-                    not task.done()
-                    or task.cancelled()
-                    or (task.exception() is not None)
-                ):
-                    continue
-                server_reader, server_writer = task.result()
-                res = (connect_config, server_reader, server_writer)
-                break
+            while res is None:
+                cur_task_map = {k: v for k, v in task_map.items() if not v.done()}
+                if len(cur_task_map) == 0:
+                    break
 
-            # clean up
-            for task in task_map.values():
-                if not task.done() and not task.cancelled():
-                    task.cancel()
+                await asyncio.wait(
+                    cur_task_map.values(), return_when=asyncio.FIRST_COMPLETED
+                )
 
+                # find a good remote
+                for connect_config, task in cur_task_map.items():
+                    if (
+                        not task.done()
+                        or task.cancelled()
+                        or (task.exception() is not None)
+                    ):
+                        continue
+                    server_reader, server_writer = task.result()
+                    res = (connect_config, server_reader, server_writer)
+                    break
+
+            # clean up and return
             if res is not None:
+                for task in task_map.values():
+                    if not task.done() and not task.cancelled():
+                        task.cancel()
                 return res
 
             # attempt to retry in 1 minute
