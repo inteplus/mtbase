@@ -5,9 +5,6 @@ import threading as _t
 from mt.logg import logger
 
 
-__all__ = ["debug_exec"]
-
-
 def debug_exec(func, *args, **kwargs):
     """Executes a function with trials.
 

@@ -36,6 +36,7 @@ __api__ = [
     "deprecated_func",
     "cast",
     "castable",
+    "debug_exec",
     "is_ndarray",
     "is_jaxarray",
     "is_tftensor",

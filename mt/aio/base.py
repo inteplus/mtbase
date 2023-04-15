@@ -4,6 +4,27 @@ import time
 import asyncio
 
 
+def inside_ipython():
+    """Checks whether we are inside an IPython environment."""
+    try:
+        __IPYTHON__
+        return True
+    except NameError:
+        return False
+
+
+if inside_ipython():
+    try:
+        import nest_asyncio
+
+        nest_asyncio.apply()
+        ipython = "inside_with_asyncio_nested"
+    except ImportError:
+        ipython = "inside_without_asyncio_nested"
+else:
+    ipython = "outside"
+
+
 def srun(asyn_func, *args, extra_context_vars: dict = {}, **kwargs) -> object:
     """Invokes an asyn function synchronously, without using keyword 'await'.
 

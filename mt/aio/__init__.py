@@ -10,9 +10,9 @@ asynchronous mode (`context_vars['async']` is True) or in synchronous mode
 enter-results of either asynchronous or normal with statements.
 
 An asyn function is declared with 'async def'. It can be invoked without an event loop, via
-invoking :func:`mt.base.aio.srun`. Asyn functions are good for building library subroutines
-supporting both asynchronous and synchronous modes, but they break backward compatibility because
-of their 'async' declaration requirement.
+invoking :func:`mt.aio.srun`. Asyn functions are good for building library subroutines supporting
+both asynchronous and synchronous modes, but they break backward compatibility because of their
+'async' declaration requirement.
 
 An asynch function is declared with 'def' like a normal function. When in asynchronous mode, the
 function returns a coroutine that must be intercepted with keyword 'await', as if it is a coroutine
@@ -31,6 +31,7 @@ from .multiprocessing import *
 from .procedure import *
 
 __api__ = [
+    "ipython",
     "srun",
     "arun",
     "arun2",

@@ -23,6 +23,7 @@ install_requires = [
     "sshtunnel",  # for ssh tunnelling
     "func-timeout",  # for mt.base.path.exists with timeout
     #'matplotlib', # for drawing stuff, optional
+    #'nest_asyncio', # for running asyncio inside an IPython environment
 ]
 
 if V.parse(platform.python_version()) < V.parse("3.7"):

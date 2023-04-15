@@ -26,19 +26,18 @@ Please see Python package `logging`_ for more details.
 """
 
 from logging import *
-import logging.handlers as _lh
 import functools
 import sys as _sys
 import os as _os
 import os.path as _op
 import tempfile as _tf
 import getpass as _gp
-from colorama import Fore, Style
+from colorama import Fore
 from colorama import init as _colorama_init
 
-_colorama_init()
-
 from mt import traceback, shutil, ctx, tp
+
+_colorama_init()
 
 
 __all__ = [
