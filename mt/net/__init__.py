@@ -22,3 +22,23 @@ __api__ = [
     "SSHTunnelWatcher",
     "launch_ssh_forwarder",
 ]
+
+
+# check if mtnet has been installed
+def _future_warn_install_mtnet():
+
+    import subprocess as sp
+
+    bash_str = 'pip freeze | grep "mtnet"'
+    try:
+        sp.check_output(bash_str, shell=True)
+    except sp.CalledProcessError:
+        from .. import logg
+
+        logg.logger.warn(
+            "The 'mt.net' section of package 'mtbase' will be moved to package 'mtnet' from version 5.0."
+        )
+        logg.logger.warn("Please pip install mtnet in advance to avoid disruptions.")
+
+
+_future_warn_install_mtnet()
