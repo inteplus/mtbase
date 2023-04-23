@@ -8,7 +8,7 @@ from mt.base.version import version
 install_requires = [
     "packaging",  # for comparing versions
     "psutil",
-    "getmac",
+    "getmac<0.9",  # a bug at getmac>=0.9 is stopping us from using get_mac_address properly
     "netifaces",
     "colorama",  # for colored text
     "Cython",  # for fast speed on tiny objects
