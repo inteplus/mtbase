@@ -2,7 +2,8 @@
 
 import os
 from time import sleep
-import multiprocessing as _mp
+import multiprocessing as mp
+import multiprocessing.connection as mpc
 import threading as _t
 import queue as _q
 
@@ -19,9 +20,9 @@ MAX_MISS_CNT = 240  # number of times before we declare that the other process h
 
 def worker_process(
     func,
-    heartbeat_pipe: _mp.Connection,
-    queue_in: _mp.Queue,
-    queue_out: _mp.Queue,
+    heartbeat_pipe: mpc.Connection,
+    queue_in: mp.Queue,
+    queue_out: mp.Queue,
     logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
 ):
     """The worker process.
@@ -52,7 +53,7 @@ def worker_process(
     func : function
         a function taking work_id as the only argument and returning something. The function is run
         in a background thread of the worker process
-    heartbeat_pipe : multiprocessing.Connection
+    heartbeat_pipe : multiprocessing.connection.Connection
         the child connection of a parent-child pipe to communicate with the parent about their
         heartbeats
     queue_in : multiprocessing.Queue
@@ -167,12 +168,12 @@ class ProcessParalleliser(object):
 
     def __init__(self, func, max_num_workers=None, logger=None):
         if max_num_workers is None:
-            max_num_workers = _mp.cpu_count()
+            max_num_workers = mp.cpu_count()
 
         self.func = func
         self.logger = logger
-        self.queue_in = _mp.Queue()
-        self.queue_out = _mp.Queue()
+        self.queue_in = mp.Queue()
+        self.queue_out = mp.Queue()
         self.num_workers = max_num_workers
         self.miss_cnt_list = [0] * self.num_workers
         self.pipe_list = []
@@ -180,9 +181,9 @@ class ProcessParalleliser(object):
         for i in range(self.num_workers):
             if used_memory_too_much():
                 break
-            pipe = _mp.Pipe()
+            pipe = mp.Pipe()
             self.pipe_list.append(pipe[0])
-            p = _mp.Process(
+            p = mp.Process(
                 target=worker_process,
                 args=(func, pipe[1], self.queue_in, self.queue_out),
                 kwargs={"logger": logger},
