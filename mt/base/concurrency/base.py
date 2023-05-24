@@ -4,6 +4,8 @@ import multiprocessing as _mp
 import numpy as np
 import psutil
 
+from mt import tp
+
 
 class Counter(object):
 
@@ -25,15 +27,17 @@ class Counter(object):
 
 
 def used_memory_too_much():
+    """Checks whether memory usage exceeeds 90%."""
     mem = psutil.virtual_memory()
     return mem.percent > 90  # 90% usage is the limit
 
 
 def used_cpu_too_much():
+    """Checks whether CPU usage exceeds 90%."""
     return psutil.cpu_percent() > 90  # 90% usage is the limit
 
 
-def split_works(num_works, num_buckets=None):
+def split_works(num_works: int, num_buckets: tp.Optional[int] = None):
     """Splits a number of works randomly into a few buckets, returning the work id per bucket.
 
     Parameters
@@ -46,7 +50,7 @@ def split_works(num_works, num_buckets=None):
 
     Returns
     -------
-    work_id_list_list : list
+    ll_workIds : list
         a nested list of work id lists. The work ids, in interval [0, num_works), are split
         approximately evenly and randomly into the buckets
     """
@@ -64,7 +68,7 @@ def split_works(num_works, num_buckets=None):
     return retval
 
 
-def serial_work_generator(func, num_work_ids):
+def serial_work_generator(func, num_work_ids: int):
     """A generator that serially does some works and yields the work results.
 
     This function complements the WorkIterator class to deal with cases when the number of works is
