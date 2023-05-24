@@ -16,8 +16,7 @@ MAX_MISS_CNT = 240  # number of times before we declare that the other process h
 
 
 def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
-    """
-    The worker process.
+    """The worker process.
 
     The worker process operates in the following way. There is a pipe, named `heartbeat_pipe` to
     communicate between the worker and its parent process about their heartbeats. Each side of the
