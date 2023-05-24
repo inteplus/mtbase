@@ -9,7 +9,7 @@ import queue as _q
 
 from mt import tp, logg
 
-from ..bg_invoke import BgInvoke, BgThread, BgException
+from mt.base.bg_invoke import BgInvoke, BgThread, BgException
 from .base import used_memory_too_much
 
 
