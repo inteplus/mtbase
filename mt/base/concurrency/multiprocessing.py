@@ -1,4 +1,4 @@
-'''Concurrency using multiprocessing only.'''
+"""Concurrency using multiprocessing only."""
 
 import os
 from time import sleep
@@ -10,17 +10,13 @@ from ..bg_invoke import BgInvoke, BgThread, BgException
 from .base import used_memory_too_much
 
 
-__all__ = ['ProcessParalleliser', 'WorkIterator']
-
-
-INTERVAL = 0.5 # 0.5 seconds interval
-HEARTBEAT_PERIOD = 5 # send a heart beat every 5 intervals
-MAX_MISS_CNT = 240 # number of times before we declare that the other process has died
+INTERVAL = 0.5  # 0.5 seconds interval
+HEARTBEAT_PERIOD = 5  # send a heart beat every 5 intervals
+MAX_MISS_CNT = 240  # number of times before we declare that the other process has died
 
 
 def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
-
-    '''
+    """
     The worker process.
 
     The worker process operates in the following way. There is a pipe, named `heartbeat_pipe` to
@@ -58,7 +54,9 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
         queue containing results `(work_id, ...)`
     logger : IndentedLoggerAdapter
         logger for debugging purposes
-    '''.format(INTERVAL, MAX_MISS_CNT*INTERVAL)
+    """.format(
+        INTERVAL, MAX_MISS_CNT * INTERVAL
+    )
 
     to_die = False
     miss_cnt = 0
@@ -70,26 +68,27 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
     result_list = []
 
     while True:
-
-        if to_die: # die as soon as we have the opportunity
+        if to_die:  # die as soon as we have the opportunity
             if (not has_work) and (len(result_list) == 0):
-                #print("  dying gracefully!", work_id)
+                # print("  dying gracefully!", work_id)
                 break
 
         # check the background thread
         if has_work and (not bg_thread.is_running()):
             try:
                 result_list.append((work_id, bg_thread.result))
-            except BgException: # premature death
+            except BgException:  # premature death
                 if logger:
                     logger.warn_last_exception()
-                    logger.warn("Uncaught exception killed worker pid {}.".format(os.getpid()))
+                    logger.warn(
+                        "Uncaught exception killed worker pid {}.".format(os.getpid())
+                    )
                 to_die = True
             has_work = False
 
         # attempt to put some result to queue_out
         while result_list:
-            #print("result_list",result_list)
+            # print("result_list",result_list)
             try:
                 queue_out.put_nowait(result_list[-1])
                 result_list.pop()
@@ -97,7 +96,7 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
                 break
 
         # get a work id
-        if (not to_die) and (not has_work): # and not used_memory_too_much():
+        if (not to_die) and (not has_work):  # and not used_memory_too_much():
             work_id = -1
             try:
                 work_id = queue_in.get_nowait()
@@ -105,9 +104,9 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
                 pass
 
             if work_id >= 0:
-                #print("work_id", work_id)
+                # print("work_id", work_id)
                 has_work = True
-                bg_thread.invoke(work_id) # do the work in background
+                bg_thread.invoke(work_id)  # do the work in background
 
         # heartbeats
         hb_cnt += 1
@@ -118,13 +117,17 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
             miss_cnt = 0
             buf = heartbeat_pipe.recv_bytes(16384)
             for x in buf:
-                if x == 1: # request from parent to die
+                if x == 1:  # request from parent to die
                     to_die = True
         elif not to_die:
             miss_cnt += 1
-            if miss_cnt >= MAX_MISS_CNT: # seppuku
+            if miss_cnt >= MAX_MISS_CNT:  # seppuku
                 if logger:
-                    logger.warn("Lack of parent's heartbeat killed worker pid {}.".format(os.getpid()))
+                    logger.warn(
+                        "Lack of parent's heartbeat killed worker pid {}.".format(
+                            os.getpid()
+                        )
+                    )
                 to_die = True
 
         # sleep until next time
@@ -144,7 +147,7 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
 
 class ProcessParalleliser(object):
 
-    '''Run a function with different inputs in parallel using multiprocessing.
+    """Run a function with different inputs in parallel using multiprocessing.
 
     Parameters
     ----------
@@ -155,7 +158,7 @@ class ProcessParalleliser(object):
         maximum number of concurrent workers or equivalently processes to be allocated
     logger : IndentedLoggerAdapter, optional
         for logging messages
-    '''
+    """
 
     def __init__(self, func, max_num_workers=None, logger=None):
         if max_num_workers is None:
@@ -166,7 +169,7 @@ class ProcessParalleliser(object):
         self.queue_in = _mp.Queue()
         self.queue_out = _mp.Queue()
         self.num_workers = max_num_workers
-        self.miss_cnt_list = [0]*self.num_workers
+        self.miss_cnt_list = [0] * self.num_workers
         self.pipe_list = []
         self.process_list = []
         for i in range(self.num_workers):
@@ -175,23 +178,22 @@ class ProcessParalleliser(object):
             pipe = _mp.Pipe()
             self.pipe_list.append(pipe[0])
             p = _mp.Process(
-                    target=worker_process,
-                    args=(func, pipe[1], self.queue_in, self.queue_out),
-                    kwargs={'logger': logger})
-            p.start() # start the process
+                target=worker_process,
+                args=(func, pipe[1], self.queue_in, self.queue_out),
+                kwargs={"logger": logger},
+            )
+            p.start()  # start the process
             self.process_list.append(p)
         self.num_workers = len(self.process_list)
 
         # launch a background thread to communicate constantly with the worker processes
-        self.state = 'living'
+        self.state = "living"
         self.bg_thread = BgInvoke(self._process)
 
-
     def _process(self):
+        """A background process to communicate with the worker processes."""
 
-        '''A background process to communicate with the worker processes.'''
-
-        death_code = 'normal'
+        death_code = "normal"
         hb_cnt = 0
         while True:
             try:
@@ -199,50 +201,56 @@ class ProcessParalleliser(object):
                 for i, p in enumerate(self.process_list):
                     try:
                         if not p.is_alive():
-                            self.state = 'dying'
+                            self.state = "dying"
                             continue
 
                         # heartbeats
                         pipe = self.pipe_list[i]
-                        val = int(self.state != 'living')
+                        val = int(self.state != "living")
                         if hb_cnt == 0:
                             pipe.send_bytes(bytes((val,)))
                         if pipe.poll():
                             all_dead = False
                             self.miss_cnt_list[i] = 0
-                            buf = pipe.recv_bytes(16384) # cleanse the pipe
-                            #self.logger.debug("Pipe from {}: {}".format(p.pid, buf))
+                            buf = pipe.recv_bytes(16384)  # cleanse the pipe
+                            # self.logger.debug("Pipe from {}: {}".format(p.pid, buf))
                             for x in buf:
                                 if x == 1:
                                     if self.logger:
-                                        self.logger.debug("Worker {} wanted parent to die.".format(p.pid))
-                                    if death_code == 'normal':
-                                        death_code = 'keyboard_interrupted'
-                                    self.state = 'dying'
+                                        self.logger.debug(
+                                            "Worker {} wanted parent to die.".format(
+                                                p.pid
+                                            )
+                                        )
+                                    if death_code == "normal":
+                                        death_code = "keyboard_interrupted"
+                                    self.state = "dying"
                                     break
                         else:
                             self.miss_cnt_list[i] += 1
-                            if self.miss_cnt_list[i] >= MAX_MISS_CNT: # no heartbeat for too long
-                                if death_code == 'normal':
-                                    death_code = 'worker_died_prematurely'
-                                self.state = 'dying'
+                            if (
+                                self.miss_cnt_list[i] >= MAX_MISS_CNT
+                            ):  # no heartbeat for too long
+                                if death_code == "normal":
+                                    death_code = "worker_died_prematurely"
+                                self.state = "dying"
                                 if p.is_alive():
                                     pipe.send_bytes(bytes((1,)))
                                 self.miss_cnt_list[i] = 0
-                            else: # assume the current worker still lives
+                            else:  # assume the current worker still lives
                                 all_dead = False
                     except (EOFError, BrokenPipeError, ConnectionResetError):
-                        if death_code == 'normal':
-                            death_code = 'broken_pipe_or_something'
-                        self.state = 'dying'
-                    except: # broken pipe or something, assume worker process is dead
+                        if death_code == "normal":
+                            death_code = "broken_pipe_or_something"
+                        self.state = "dying"
+                    except:  # broken pipe or something, assume worker process is dead
                         if self.logger:
                             self.logger.warn_last_exception()
-                        if death_code == 'normal':
-                            death_code = 'uncaught_exception'
-                        self.state = 'dying'
+                        if death_code == "normal":
+                            death_code = "uncaught_exception"
+                        self.state = "dying"
 
-                #self.logger.debug("  -- main process", all_dead)
+                # self.logger.debug("  -- main process", all_dead)
                 if all_dead:
                     break
 
@@ -255,49 +263,52 @@ class ProcessParalleliser(object):
                     sleep(INTERVAL)
                 except KeyboardInterrupt:
                     if logger:
-                        logger.warn("Process {} interrupted by keyboard.".format(os.getpid()))
-                    if death_code == 'normal':
-                        death_code = 'keyboard_interrupted'
-                    self.state = 'dying'
+                        logger.warn(
+                            "Process {} interrupted by keyboard.".format(os.getpid())
+                        )
+                    if death_code == "normal":
+                        death_code = "keyboard_interrupted"
+                    self.state = "dying"
             except:
                 if logger:
                     logger.warn_last_exception()
-                    logger.warn("Uncaught exception above killed process.".format(os.getpid()))
+                    logger.warn(
+                        "Uncaught exception above killed process.".format(os.getpid())
+                    )
                 break
 
-        if death_code != 'normal':
+        if death_code != "normal":
             if logger:
-                logger.warn("Process {} died with reason: {}.".format(os.getpid(), death_code))
+                logger.warn(
+                    "Process {} died with reason: {}.".format(os.getpid(), death_code)
+                )
 
-        #self.logger.debug("  -- main process closing")
+        # self.logger.debug("  -- main process closing")
         self._close()
-
 
     def __del__(self):
         self.close()
 
-        
     def _close(self):
-        '''Closes the instance when all worker processes have died.'''
+        """Closes the instance when all worker processes have died."""
 
-        if self.state == 'dead':
+        if self.state == "dead":
             return
 
         for p in self.process_list:
             p.join()
-            
-        self.state = 'dead'
+
+        self.state = "dead"
 
     def close(self):
-        '''Closes the instance properly.'''
-        if self.state == 'living':
-            self.state = 'dying'
-        #while self.state != 'dead':
-            #sleep(INTERVAL)
-
+        """Closes the instance properly."""
+        if self.state == "living":
+            self.state = "dying"
+        # while self.state != 'dead':
+        # sleep(INTERVAL)
 
     def push(self, work_id, timeout=30):
-        '''Pushes a work id to the background to run the provided function in parallel.
+        """Pushes a work id to the background to run the provided function in parallel.
 
         Parameters
         ----------
@@ -314,8 +325,8 @@ class ProcessParalleliser(object):
         Notes
         -----
         You should use :func:`pop` or :func:`empty` to check for the output of each work.
-        '''
-        if self.state != 'living': # we can't accept more work when we're not living
+        """
+        if self.state != "living":  # we can't accept more work when we're not living
             return False
         if not isinstance(work_id, int):
             raise ValueError("Work id is not an integer. Got {}.".format(work_id))
@@ -328,17 +339,17 @@ class ProcessParalleliser(object):
             return False
 
     def empty(self):
-        '''Returns whether the output queue is empty.'''
+        """Returns whether the output queue is empty."""
         return self.queue_out.empty()
 
-    def pop(self, timeout=60*60):
-        '''Returns a pair (work_id, result) when at least one such pair is available.
+    def pop(self, timeout=60 * 60):
+        """Returns a pair (work_id, result) when at least one such pair is available.
 
         Parameters
         ----------
         timeout : float
             number of seconds to wait to pop a work result from the queue before bailing output
-        
+
         Returns
         -------
         int
@@ -350,9 +361,11 @@ class ProcessParalleliser(object):
         ------
         queue.Empty
             if there is no work result after the timeout
-        '''
-        if self.state == 'dead':
-            raise RuntimeError("The process paralleliser has been closed. Please reinstantiate.")
+        """
+        if self.state == "dead":
+            raise RuntimeError(
+                "The process paralleliser has been closed. Please reinstantiate."
+            )
         return self.queue_out.get(block=True, timeout=timeout)
 
 
@@ -360,7 +373,7 @@ class ProcessParalleliser(object):
 
 
 class WorkIterator(object):
-    '''Iterates work from id 0 to infinity, returning the work result in each iteration.
+    """Iterates work from id 0 to infinity, returning the work result in each iteration.
 
     By default, the class invokes ProcessParalleliser to do a few works ahead of time. It switches
     to serial mode if requested.
@@ -402,9 +415,19 @@ class WorkIterator(object):
 
     As of 2021/08/13, the class has been extended to do work in serial if the number of works is
     provided and is less than or equal a provided threshold.
-    '''
+    """
 
-    def __init__(self, func, buffer_size=None, skip_null: bool = True, push_timeout=30, pop_timeout=60*60, max_num_workers=None, serial_mode=False, logger=None):
+    def __init__(
+        self,
+        func,
+        buffer_size=None,
+        skip_null: bool = True,
+        push_timeout=30,
+        pop_timeout=60 * 60,
+        max_num_workers=None,
+        serial_mode=False,
+        logger=None,
+    ):
         self.skip_null = skip_null
         self.send_counter = 0
         self.recv_counter = 0
@@ -414,19 +437,25 @@ class WorkIterator(object):
             self.func = func
         else:
             self.serial_mode = False
-            self.paralleliser = ProcessParalleliser(func, max_num_workers=max_num_workers, logger=logger)        
+            self.paralleliser = ProcessParalleliser(
+                func, max_num_workers=max_num_workers, logger=logger
+            )
             self.push_timeout = push_timeout
             self.pop_timeout = pop_timeout
             self.push_timeout = push_timeout
             self.pop_timeout = pop_timeout
-            self.buffer_size = len(self.paralleliser.process_list)*2 if buffer_size is None else buffer_size
+            self.buffer_size = (
+                len(self.paralleliser.process_list) * 2
+                if buffer_size is None
+                else buffer_size
+            )
             self.lock = _t.Lock()
             self.alive = True
 
     # ----- cleaning up resources -----
 
     def close(self):
-        '''Closes the iterator for further use.'''
+        """Closes the iterator for further use."""
         if self.serial_mode:
             return
         with self.lock:
@@ -462,20 +491,30 @@ class WorkIterator(object):
 
         with self.lock:
             if not self.alive:
-                raise RuntimeError("The instance has been closed. Please reinstantiate.")
+                raise RuntimeError(
+                    "The instance has been closed. Please reinstantiate."
+                )
 
             while True:
-                if self.paralleliser.state == 'dead':
-                    raise RuntimeError("Cannot get the next item because the internal paralleliser has been dead.")
+                if self.paralleliser.state == "dead":
+                    raise RuntimeError(
+                        "Cannot get the next item because the internal paralleliser has been dead."
+                    )
 
-                max_items = max(self.recv_counter + self.buffer_size - self.send_counter, 0)
+                max_items = max(
+                    self.recv_counter + self.buffer_size - self.send_counter, 0
+                )
                 for i in range(max_items):
-                    if not self.paralleliser.push(self.send_counter, timeout=self.push_timeout):
-                        break # can't push, maybe timeout?
+                    if not self.paralleliser.push(
+                        self.send_counter, timeout=self.push_timeout
+                    ):
+                        break  # can't push, maybe timeout?
                     self.send_counter += 1
 
                 if self.send_counter <= self.recv_counter:
-                    raise RuntimeError("Unable to push some work to background processes.")
+                    raise RuntimeError(
+                        "Unable to push some work to background processes."
+                    )
 
                 work_id, result = self.paralleliser.pop(timeout=self.pop_timeout)
                 self.recv_counter += 1
@@ -485,7 +524,6 @@ class WorkIterator(object):
 
                 self.retr_counter += 1
                 return result
-
 
     def next(self):
         return self.__next__()
