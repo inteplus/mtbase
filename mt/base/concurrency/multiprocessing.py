@@ -6,6 +6,8 @@ import multiprocessing as _mp
 import threading as _t
 import queue as _q
 
+from mt import tp, logg
+
 from ..bg_invoke import BgInvoke, BgThread, BgException
 from .base import used_memory_too_much
 
@@ -15,15 +17,21 @@ HEARTBEAT_PERIOD = 5  # send a heart beat every 5 intervals
 MAX_MISS_CNT = 240  # number of times before we declare that the other process has died
 
 
-def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
+def worker_process(
+    func,
+    heartbeat_pipe: _mp.Connection,
+    queue_in: _mp.Queue,
+    queue_out: _mp.Queue,
+    logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
+):
     """The worker process.
 
     The worker process operates in the following way. There is a pipe, named `heartbeat_pipe` to
     communicate between the worker and its parent process about their heartbeats. Each side of the
-    pipe constantly sends a heartbeat in every {} seconds. If one side does not hear any heartbeat
-    within {} seconds, then it can assume the other side has died for some unexpected reason. After
-    detecting this fateful event, the parent process can abruptly kill the worker process, but in
-    contrast, the worker can only finish its own fate.
+    pipe constantly sends a heartbeat in every 0.5 seconds. If one side does not hear any heartbeat
+    within 5*240 seconds, then it can assume the other side has died for some unexpected reason.
+    After detecting this fateful event, the parent process can abruptly kill the worker process,
+    but in contrast, the worker can only finish its own fate.
 
     A heart beat from the parent process is a byte. If the heartbeat is 0, the parent is alive. If
     it is 1, the worker process must do a seppuku.
@@ -51,11 +59,9 @@ def worker_process(func, heartbeat_pipe, queue_in, queue_out, logger=None):
         queue containing work ids
     queue_out : multiprocessing.Queue
         queue containing results `(work_id, ...)`
-    logger : IndentedLoggerAdapter
+    logger : IndentedLoggerAdapter, optional
         logger for debugging purposes
-    """.format(
-        INTERVAL, MAX_MISS_CNT * INTERVAL
-    )
+    """
 
     to_die = False
     miss_cnt = 0
