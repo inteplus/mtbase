@@ -8,8 +8,6 @@ from mt.base.version import version
 install_requires = [
     "packaging",  # for comparing versions
     "psutil",
-    "getmac<0.9",  # a bug at getmac>=0.9 is stopping us from using get_mac_address properly
-    "netifaces",
     "colorama",  # for colored text
     "Cython",  # for fast speed on tiny objects
     "numpy",  # common ndarray
@@ -20,7 +18,6 @@ install_requires = [
     "filetype",  # to determine the type of a file
     "halo",  # for nice spinners
     "tqdm",  # for nice progress bars
-    "sshtunnel",  # for ssh tunnelling
     "func-timeout",  # for mt.base.path.exists with timeout
     #'matplotlib', # for drawing stuff, optional
     #'nest_asyncio', # for running asyncio inside an IPython environment
