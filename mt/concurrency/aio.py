@@ -292,10 +292,12 @@ async def asyn_work_generator(
         profile=None,
     ):
         import asyncio
-        from .base.s3 import create_context_vars
+        from mt.base import s3
 
         async def asyn_func():
-            async with create_context_vars(asyn=True, profile=profile) as context_vars:
+            async with s3.create_context_vars(
+                asyn=True, profile=profile
+            ) as context_vars:
                 content = await run_asyn_works_in_context(
                     progress_queue,
                     func,
