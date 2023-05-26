@@ -292,7 +292,7 @@ async def asyn_work_generator(
         profile=None,
     ):
         import asyncio
-        from ..s3 import create_context_vars
+        from .s3 import create_context_vars
 
         async def asyn_func():
             async with create_context_vars(asyn=True, profile=profile) as context_vars:
