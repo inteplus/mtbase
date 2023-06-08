@@ -684,7 +684,7 @@ def subprocess_workerbee(
         max_concurrency: int = 1024,
         logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
     ):
-        from ..s3 import create_context_vars
+        from ..base.s3 import create_context_vars
 
         async with create_context_vars(profile=s3_profile, asyn=True) as context_vars:
             bee = workerbee_class(
@@ -727,7 +727,9 @@ def subprocess_workerbee(
                     logger=logger,
                 )
             )
-        except Exception as e:  # tell the queen bee that the worker bee has been killed by an unexpected exception
+        except (
+            Exception
+        ) as e:  # tell the queen bee that the worker bee has been killed by an unexpected exception
             msg = {
                 "msg_type": "dead",
                 "death_type": "killed",
