@@ -47,6 +47,7 @@ __api__ = [
     "sigmoid",
     "asigmoid",
     "frombytes",
+    "divide_no_nan",
     "SparseNdarray",
     "psd_approx",
     "sqrtm",

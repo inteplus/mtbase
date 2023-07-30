@@ -51,3 +51,9 @@ def asigmoid(y) -> np.ndarray:
 def frombytes(data: bytes) -> np.ndarray:
     """Converts a `bytes` instance into a 1D uint8 array."""
     return np.frombuffer(data, dtype=np.uint8)
+
+
+def divide_no_nan(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Computes a safe divide which returns 0 if y (denominator) is zero."""
+    cond = y != 0
+    return np.where(cond, np.divide(x, y, where=cond), 0)
