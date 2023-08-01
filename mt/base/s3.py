@@ -9,7 +9,7 @@ import botocore
 import botocore.session
 import botocore.exceptions
 from halo import Halo
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from mt import ctx, aio, tp, logg
 
