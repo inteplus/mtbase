@@ -3,6 +3,8 @@
 
 import math
 import numpy as np
+import base64
+from io import BytesIO
 
 
 def ndarray_repr(a: np.ndarray) -> str:
@@ -57,3 +59,18 @@ def divide_no_nan(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     """Computes a safe divide which returns 0 if y (denominator) is zero."""
     cond = y != 0
     return np.where(cond, np.divide(x, y, where=cond), 0)
+
+
+def to_b85(x: np.ndarray) -> str:
+    """Converts a primitve numpy array into a b85-encoded string."""
+    f = BytesIO()
+    np.save(f, x, allow_pickle=False)
+    encoded = base64.b85encode(f.getbuffer())
+    return encoded.decode("ascii")
+
+
+def from_b85(b85: str) -> np.ndarray:
+    """Converts a b85-encoded string back to a numpy array."""
+    x = base64.b85decode(b85)
+    f = BytesIO(x)
+    return np.load(f, allow_pickle=False)

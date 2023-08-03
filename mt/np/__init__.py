@@ -48,6 +48,8 @@ __api__ = [
     "asigmoid",
     "frombytes",
     "divide_no_nan",
+    "to_b85",
+    "from_b85",
     "SparseNdarray",
     "psd_approx",
     "sqrtm",
