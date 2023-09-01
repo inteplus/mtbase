@@ -55,10 +55,18 @@ def frombytes(data: bytes) -> np.ndarray:
     return np.frombuffer(data, dtype=np.uint8)
 
 
-def divide_no_nan(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """Computes a safe divide which returns 0 if y (denominator) is zero."""
+def divide_no_nan(
+    x: tp.Union[np.ndarray, float], y: tp.Union[np.ndarray, float]
+) -> tp.Union[np.ndarray, float]:
+    """Computes a safe divide which returns 0 if y (denominator) is zero.
+
+    The returning object is scalar if and only if both `x` and `y` are scalar.
+    """
     cond = y != 0
-    return np.where(cond, np.divide(x, y, where=cond), 0)
+    res = np.where(cond, np.divide(x, y, where=cond), 0)
+    if np.isscalar(x) and np.isscalar(y):
+        res = float(res)
+    return res
 
 
 def to_b85(x: np.ndarray) -> str:
