@@ -1,6 +1,6 @@
 """Useful functions dealing with numpy array."""
 
-
+import typing as tp
 import math
 import numpy as np
 import base64
