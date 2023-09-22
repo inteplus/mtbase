@@ -7,6 +7,7 @@ import queue as _q
 import itertools
 
 from .base import split_works
+from ..ctx import nullcontext
 
 
 async def aio_work_generator(
@@ -441,28 +442,30 @@ def pool_initializer(
 
     pool_func.asyncio = asyncio
     if cvc_func is not None:
-        pool_func.context_vars = cvc_func(*cvc_func_args, **cvc_func_kwargs)
+        pool_func.context_vars_ctx = cvc_func(*cvc_func_args, **cvc_func_kwargs)
     else:
-        pool_func.context_vars = {"async": True}
+        pool_func.context_vars_ctx = nullcontext({"async": True})
 
 
 def pool_func(
     t_items: tuple,
 ):
-    async def func(t_items: tuple):
-        l_outputs = []
-        for item in t_items:
-            output = await pool_func.asyn_func(
-                item,
-                *pool_func.asyn_func_args,
-                context_vars=pool_func.context_vars,
-                **pool_func.asyn_func_kwargs,
-            )
-            l_outputs.append(output)
+    async with pool_func.context_vars_ctx as context_vars:
 
-        return l_outputs
+        async def func(t_items: tuple):
+            l_outputs = []
+            for item in t_items:
+                output = await pool_func.asyn_func(
+                    item,
+                    *pool_func.asyn_func_args,
+                    context_vars=context_vars,
+                    **pool_func.asyn_func_kwargs,
+                )
+                l_outputs.append(output)
 
-    return asyncio.run(func(t_items))
+            return l_outputs
+
+        return asyncio.run(func(t_items))
 
 
 def asyn_pmap(
