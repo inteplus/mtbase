@@ -450,9 +450,8 @@ def pool_initializer(
 def pool_func(
     t_items: tuple,
 ):
-    async with pool_func.context_vars_ctx as context_vars:
-
-        async def func(t_items: tuple):
+    async def func(t_items: tuple):
+        async with pool_func.context_vars_ctx as context_vars:
             l_outputs = []
             for item in t_items:
                 output = await pool_func.asyn_func(
@@ -465,7 +464,7 @@ def pool_func(
 
             return l_outputs
 
-        return asyncio.run(func(t_items))
+    return asyncio.run(func(t_items))
 
 
 def asyn_pmap(
