@@ -17,4 +17,5 @@ __api__ = [
     "worker_process",
     "ProcessParalleliser",
     "WorkIterator",
+    "asyn_pmap",
 ]

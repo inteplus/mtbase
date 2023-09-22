@@ -1,8 +1,10 @@
 """Concurrency using asyncio and multiprocessing."""
 
+import typing as tp
 import asyncio
-import multiprocessing as _mp
+import multiprocessing as mp
 import queue as _q
+import itertools
 
 from .base import split_works
 
@@ -79,7 +81,7 @@ async def aio_work_generator(
 
 
 async def run_asyn_works_in_context(
-    progress_queue: _mp.Queue,
+    progress_queue: mp.Queue,
     func,
     func_args: tuple = (),
     func_kwargs: dict = {},
@@ -193,7 +195,7 @@ async def run_asyn_works_in_context(
                                 work_id,
                                 *func_args,
                                 context_vars=context_vars,
-                                **func_kwargs
+                                **func_kwargs,
                             )
                         )
                         progress_queue.put_nowait(
@@ -276,13 +278,13 @@ async def asyn_work_generator(
         return
 
     # for communicating between processes
-    queue = _mp.Queue() if progress_queue is None else progress_queue
+    queue = mp.Queue() if progress_queue is None else progress_queue
 
-    num_buckets = _mp.cpu_count() if num_processes is None else num_processes
+    num_buckets = mp.cpu_count() if num_processes is None else num_processes
     work_id_list_list = split_works(num_works, num_buckets)
 
     def worker_process(
-        progress_queue: _mp.Queue,
+        progress_queue: mp.Queue,
         func,
         func_args: tuple = (),
         func_kwargs: dict = {},
@@ -335,7 +337,7 @@ async def asyn_work_generator(
     # launch the concurrency suite
     process_list = []
     for context_id in range(num_buckets):
-        p = _mp.Process(
+        p = mp.Process(
             target=worker_process,
             args=(queue, func),
             kwargs={
@@ -397,3 +399,167 @@ async def asyn_work_generator(
         raise KeyboardInterrupt(
             "Keyboard interrupted while asyn_work_generator() is running."
         )
+
+
+def batched(iterable, n):
+    "Batch data into tuples of length n. The last batch may be shorter."
+    # batched('ABCDEFG', 3) --> ABC DEF G
+    if n < 1:
+        raise ValueError("n must be at least one")
+    it = iter(iterable)
+    while batch := tuple(itertools.islice(it, n)):
+        yield batch
+
+
+def unbatched(iterable):
+    "Unbatch tuples of data into just data."
+    for x in iterable:
+        for y in x:
+            yield y
+
+
+def pool_initializer(
+    pool_func: tp.Callable,
+    asyn_func: tp.Callable,
+    asyn_func_args: tuple = (),
+    asyn_func_kwargs: dict = {},
+    init_func: tp.Optional[tp.Callable] = None,
+    init_func_args: tuple = (),
+    init_func_kwargs: dict = {},
+    cvc_func: tp.Optional[tp.Callable] = None,
+    cvc_func_args: tuple = (),
+    cvc_func_kwargs: dict = {},
+):
+    pool_func.asyn_func = asyn_func
+    pool_func.asyn_func_args = asyn_func_args
+    pool_func.asyn_func_kwargs = asyn_func_kwargs
+
+    if init_func is not None:
+        init_func(*init_func_args, **init_func_kwargs)
+
+    import asyncio
+
+    pool_func.asyncio = asyncio
+    if cvc_func is not None:
+        pool_func.context_vars = cvc_func(*cvc_func_args, **cvc_func_kwargs)
+    else:
+        pool_func.context_vars = {"async": True}
+
+
+def pool_func(
+    t_items: tuple,
+):
+    async def func(t_items: tuple):
+        l_outputs = []
+        for item in t_items:
+            output = await pool_func.asyn_func(
+                item,
+                *pool_func.asyn_func_args,
+                context_vars=pool_func.context_vars,
+                **pool_func.asyn_func_kwargs,
+            )
+            l_outputs.append(output)
+
+        return l_outputs
+
+    return asyncio.run(func(t_items))
+
+
+def asyn_pmap(
+    asyn_func: tp.Callable,
+    input_iterable: tp.Iterable,
+    batch_size: int = 1024,
+    asyn_func_args: tuple = (),
+    asyn_func_kwargs: dict = {},
+    pool_processes: tp.Optional[int] = None,
+    pool_maxtasksperchild: tp.Optional[int] = None,
+    pool_ordered: bool = True,
+    init_func: tp.Optional[tp.Callable] = None,
+    init_func_args: tuple = (),
+    init_func_kwargs: dict = {},
+    cvc_func: tp.Optional[tp.Callable] = None,
+    cvc_func_args: tuple = (),
+    cvc_func_kwargs: dict = {},
+) -> tp.Iterable:
+    """pmap over an iterator with an asyn function.
+
+    Internally, the iterator is batched into a batch iterator. Each batch is sent to one worker for
+    processing. The worker goes through every item of a batch and invokes asyn function `asyn_func`
+    providing the `context_vars` dictionary. Each batch of results is then unbatched. The output
+    iterator yield resultant items, which may or may not in order depending on the `pool_ordered`
+    argument.
+
+    Parameters
+    ----------
+    asyn_func : function
+        an asyn function that returns something. The first positional argument of function is the
+        item to be processed. The keyword argument 'context_vars' is provided to the function.
+    input_iterable : iterable
+        any iterable object to act as the input iterator
+    batch_size : int
+        number of batch items in each batch. It should be chosen by the user to balance between the
+        benefit of iterating over the items of a batch in async mode and the cost of allocated
+        memory to store pending transformed items of the batch
+    asyn_func_args : tuple, optional
+        additional positional arguments to be passed to the asyn function as-is
+    asyn_func_kwargs : dict, optional
+        additional keyword arguments to be passed to the asyn function as-is
+    pool_processes : int, optional
+        the number of processes to be created. If not specified, it is equal to the number of CPUs.
+        Passed as-is to :class:`multiprocessing.Pool`.
+    pool_maxtasksperchild : int, optional
+        the number of tasks a worker process can complete before it will exit and be replaced with
+        a fresh worker process, to enable unused resources to be freed. The default
+        `maxtasksperchild` is None, which means worker processes will live as long as the pool.
+        Passed as-is to :class:`multiprocessing.Pool`.
+    pool_ordered : bool
+        whether the output iterator provides the same order as the input iterator or not
+    init_func : function, optional
+        a function returning None that is invoked after a worker process is created
+    init_func_args : tuple, optional
+        additional positional arguments to be passed to the init function as-is
+    init_func_kwargs : dict, optional
+        additional keyword arguments to be passed to the init function as-is
+    cvc_func : function, optional
+        a function returning the `context_vars` dictionary to be provided to the asyn function as a
+        keyword argument. If not provided, `context_vars={"async": True}`.
+    cvc_func_args : tuple, optional
+        additional positional arguments to be passed to the cvc function as-is
+    cvc_func_kwargs : dict, optional
+        additional keyword arguments to be passed to the cvc function as-is
+
+    Returns
+    -------
+    output_iterable : iterable
+        the output iterator
+    """
+
+    iterable = batched(input_iterable, batch_size)
+
+    initargs = (
+        pool_func,
+        asyn_func,
+        asyn_func_args,
+        asyn_func_kwargs,
+        init_func,
+        init_func_args,
+        init_func_kwargs,
+        cvc_func,
+        cvc_func_args,
+        cvc_func_kwargs,
+    )
+    pool = mp.Pool(
+        processes=pool_processes,
+        initializer=pool_initializer,
+        initargs=initargs,
+        maxtasksperchild=pool_maxtasksperchild,
+    )
+
+    if pool_ordered:
+        iterable = pool.imap(pool_func, iterable)
+    else:
+        iterable = pool.imap_unordered(pool_func, iterable)
+
+    output_iterable = unbatched(iterable)
+
+    return output_iterable

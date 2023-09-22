@@ -1,11 +1,10 @@
 """Extra subroutines using package 'filetype' asynchronously."""
 
 
-import aiofiles
 from filetype import *
 import filetype
 
-from mt.aio import srun, read_binary
+from mt.aio import read_binary
 
 
 __all__ = ["read_file_header", "is_image_asyn", "image_match_asyn"]
