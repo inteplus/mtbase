@@ -435,23 +435,27 @@ def pool_initializer(
     pool_func.asyn_func_args = asyn_func_args
     pool_func.asyn_func_kwargs = asyn_func_kwargs
 
+    pool_func.cvc_func = cvc_func
+    pool_func.cvc_func_args = cvc_func_args
+    pool_func.cvc_func_kwargs = cvc_func_kwargs
+
     if init_func is not None:
         init_func(*init_func_args, **init_func_kwargs)
-
-    import asyncio
-
-    pool_func.asyncio = asyncio
-    if cvc_func is not None:
-        pool_func.context_vars_ctx = cvc_func(*cvc_func_args, **cvc_func_kwargs)
-    else:
-        pool_func.context_vars_ctx = nullcontext({"async": True})
 
 
 def pool_func(
     t_items: tuple,
 ):
+    import asyncio
+
     async def func(t_items: tuple):
-        async with pool_func.context_vars_ctx as context_vars:
+        if pool_func.cvc_func is None:
+            ctx = nullcontext({"async": True})
+        else:
+            ctx = pool_func.cvc_func(
+                *pool_func.cvc_func_args, **pool_func.cvc_func_kwargs
+            )
+        async with ctx as context_vars:
             l_outputs = []
             for item in t_items:
                 output = await pool_func.asyn_func(
@@ -524,7 +528,8 @@ def asyn_pmap(
         additional keyword arguments to be passed to the init function as-is
     cvc_func : function, optional
         a function returning the `context_vars` dictionary to be provided to the asyn function as a
-        keyword argument. If not provided, `context_vars={"async": True}`.
+        keyword argument. The context is consistent throughout the lifecycle of one block. If not
+        provided, `context_vars={"async": True}`.
     cvc_func_args : tuple, optional
         additional positional arguments to be passed to the cvc function as-is
     cvc_func_kwargs : dict, optional
