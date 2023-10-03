@@ -24,7 +24,7 @@ from mt.logg import make_logger, logger, init as _log_init
 from .with_utils import dummy_scope
 from .deprecated import deprecated_func
 from .casting import cast, castable
-from .exec import debug_exec
+from .exec import debug_exec, debug_on
 
 home_dirpath = _log_init._home_dirpath
 temp_dirpath = _log_init._temp_dirpath
@@ -37,6 +37,7 @@ __api__ = [
     "cast",
     "castable",
     "debug_exec",
+    "debug_on",
     "is_ndarray",
     "is_jaxarray",
     "is_tftensor",

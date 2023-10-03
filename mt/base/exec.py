@@ -1,6 +1,9 @@
 """Exec utils."""
 
 
+import sys
+import pdb
+import functools
 import threading as _t
 from mt.logg import logger
 
@@ -56,3 +59,27 @@ def debug_exec(func, *args, **kwargs):
                 if len(cmd) == 0:
                     raise
                 exec(cmd)
+
+
+def debug_on(*exceptions):
+    """A decorator that uses pdb to inspect the cause of an unhandled exception.
+
+    >>> @debug_on(TypeError)
+    ... def buggy_function():
+    ...    raise TypeError
+    """
+
+    if not exceptions:
+        exceptions = (AssertionError,)
+
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            try:
+                return f(*args, **kwargs)
+            except exceptions:
+                pdb.post_mortem(sys.exc_info()[2])
+
+        return wrapper
+
+    return decorator
