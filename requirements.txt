@@ -2,5 +2,3 @@ sphinx-autoapi
 sphinx-rtd-theme
 colorama
 Cython
-dask[distributed]
-streamz
