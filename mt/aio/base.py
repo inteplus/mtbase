@@ -3,14 +3,7 @@
 import time
 import asyncio
 
-
-def inside_ipython():
-    """Checks whether we are inside an IPython environment."""
-    try:
-        __IPYTHON__
-        return True
-    except NameError:
-        return False
+from ..ipython import inside_ipython
 
 
 if inside_ipython():
