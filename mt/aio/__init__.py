@@ -31,6 +31,7 @@ from .multiprocessing import *
 from .procedure import *
 
 __api__ = [
+    "ipython",  # for backward compatibility
     "srun",
     "arun",
     "arun2",
