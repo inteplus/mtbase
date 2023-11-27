@@ -1,6 +1,9 @@
 """Common tools for ipython."""
 
 
+import os
+
+
 def inside_ipython():
     """Checks whether we are inside an IPython environment."""
     try:
@@ -28,6 +31,8 @@ def get_ipython_type():
     if "TerminalInteractiveShell" in s:
         return "ipython"
     if "ZMQInteractiveShell" in s:
+        if "SAGEMAKER_LOG_FILE" in os.environ:
+            return "sagemaker"
         return "jupyter"
     if "google.colab" in s:
         return "colab"
