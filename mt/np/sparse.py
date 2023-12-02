@@ -3,6 +3,8 @@
 
 import numpy as np
 
+from .ndarray import to_b85, from_b85
+
 
 class SparseNdarray:
     """A sparse ndarray, following TensorFlow's convention.
@@ -30,15 +32,63 @@ class SparseNdarray:
             len(self.indices),
         )
 
+    # ----- serialisation -----
+
+    def to_ndarray(self) -> str:
+        arr = np.zeros(self.dense_shape, dtype=self.values.dtype)
+        arr[tuple(self.indices.T)] = self.values
+        return arr
+
     @staticmethod
-    def from_ndarray(arr: np.ndarray):
+    def from_ndarray(arr: np.ndarray) -> "SparseNdarray":
         nonzero = np.nonzero(arr)
         values = arr[nonzero]
         indices = np.stack(nonzero, axis=-1)
         dense_shape = arr.shape
         return SparseNdarray(values, indices, dense_shape)
 
-    def to_ndarray(self):
-        arr = np.zeros(self.dense_shape, dtype=self.values.dtype)
-        arr[tuple(self.indices.T)] = self.values
-        return arr
+    def to_json(self) -> str:
+        """Serialises to a dictionary."""
+        return {
+            "shape": self.dense_shape.tolist(),
+            "indices": to_b85(self.indices),
+            "values": to_b85(self.values),
+        }
+
+    @staticmethod
+    def from_json(json_obj: str) -> "SparseNdarray":
+        """Deserialises from a dictionary"""
+        values = from_b85(json_obj["values"])
+        indices = from_b85(json_obj["indices"])
+        shape = tuple(json_obj["shape"])
+        return SparseNdarray(values, indices, shape)
+
+    def to_spcoo(self) -> "scipy.sparse.coo_array":
+        """Serialises to a :class:`scipy.sparse.coo_array` instance.
+
+        Only works with a matrix or a vector, the latter is treated as a matrix with 1 column.
+        """
+        rank = len(self.dense_shape)
+        if rank > 2 or rank < 1:
+            msg = f"Only matrices or vectors are accepted. The array has shape {self.dense_shape}."
+            raise ValueError(msg)
+
+        import scipy.sparse as ss
+
+        if rank == 2:
+            return ss.coo_array(
+                (self.values, (self.indices[:, 0], self.indices[:, 1])),
+                shape=self.dense_shape,
+            )
+
+        if rank == 1:
+            return ss.coo_array(
+                (self.values, (self.indices[:, 0], [0] * len(self.values))),
+                shape=self.dense_shape + (1,),
+            )
+
+    @staticmethod
+    def from_spcoo(arr) -> "SparseNdarray":
+        """Deserialises from a sparse matrix of type :class:`scipy.sparse.coo_array`."""
+        indices = np.stack([arr.row, arr.col], axis=1)
+        return SparseNdarray(arr.data, indices, (len(arr.row), 2))
