@@ -91,4 +91,4 @@ class SparseNdarray:
     def from_spcoo(arr) -> "SparseNdarray":
         """Deserialises from a sparse matrix of type :class:`scipy.sparse.coo_array`."""
         indices = np.stack([arr.row, arr.col], axis=1)
-        return SparseNdarray(arr.data, indices, (len(arr.row), 2))
+        return SparseNdarray(arr.data, indices, arr.shape)
