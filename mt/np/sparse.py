@@ -1,6 +1,7 @@
 """Useful functions dealing with sparse numpy arrays."""
 
 
+import typing as tp
 import numpy as np
 
 from .ndarray import to_b85, from_b85
@@ -92,3 +93,36 @@ class SparseNdarray:
         """Deserialises from a sparse matrix of type :class:`scipy.sparse.coo_array`."""
         indices = np.stack([arr.row, arr.col], axis=1)
         return SparseNdarray(arr.data, indices, arr.shape)
+
+
+def sparse_vector(
+    values: np.ndarray, indices: np.ndarray, dim: tp.Optional[int] = None
+) -> "scipy.sparse.coo_array":
+    """Makes a sparse vector as a single-column sparse matrix in COO format of scipy.
+
+    Invoking the function may require importing scipy.
+
+    Attributes
+    ----------
+    values : array_like
+        A 1D ndarray with shape (N,) containing all nonzero values. The dtype of 'values' specifies
+        the dtype of the sparse ndarray.
+    indices : array_like
+        A 1D ndarray with shape (N,), containing the indices of the nonzero values. Let D be th
+        maximum value of any element of `indices`, plus 1.
+    dim : int
+        the dimensionality of the sparse vector. Must be greater than or equal to D if provided.
+        Otherwise, it is set to D.
+    """
+
+    D = max(indices) + 1
+    if dim is None:
+        dim = D
+    elif dim < D:
+        raise ValueError(f"Argument 'dim' must be at least {D}. Got {dim} instead.")
+
+    import scipy.sparse as ss  # need scipy
+
+    N = len(values)
+    arg1 = (values, (indices, np.zeros(N, dtype=int)))
+    return ss.coo_array(arg1, shape=(dim, 1))
