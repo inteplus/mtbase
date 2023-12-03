@@ -115,7 +115,7 @@ def sparse_vector(
         Otherwise, it is set to D.
     """
 
-    D = max(indices) + 1
+    D = max(indices) + 1 if indices else 1
     if dim is None:
         dim = D
     elif dim < D:
