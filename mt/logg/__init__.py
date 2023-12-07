@@ -178,10 +178,19 @@ class IndentedLoggerAdapter(LoggerAdapter):
 
     # ----- useful warning messages -----
 
-    def warn_last_exception(self):
+    def warn_last_exception(self, **kwargs):
+        """Warns last exception, printing out any keyword arguments."""
+
         lines = traceback.format_exc_info(*_sys.exc_info())
         for x in lines:
             self.warning(x)
+
+        if kwargs:
+            self.warning("Keyword arguments")
+            self.warning("-----------------")
+            for key, value in kwargs.items():
+                self.warning(f"{key}:")
+                self.warning(value)
 
     def warn_module_move(self, old_module, new_module):
         """Warns that an old module has been moved to a new module.
@@ -412,7 +421,7 @@ def log(
     msg: tp.Union[str, bytes],
     logger: tp.Optional[Logger] = logger,
     *args,
-    **kwargs
+    **kwargs,
 ):
     """Wraps :func:`logging.log` with additional logger keyword.
 
