@@ -189,8 +189,8 @@ class IndentedLoggerAdapter(LoggerAdapter):
             self.warning("Keyword arguments")
             self.warning("-----------------")
             for key, value in kwargs.items():
-                self.warning(f"{key}:")
-                self.warning(value)
+                with self.scoped_warning(f"{key}"):
+                    self.warning(value)
 
     def warn_module_move(self, old_module, new_module):
         """Warns that an old module has been moved to a new module.
