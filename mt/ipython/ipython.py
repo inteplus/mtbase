@@ -18,7 +18,7 @@ def get_ipython_type():
 
     Returns
     -------
-    {"ipython", "jupyter", "colab", "ipython-others", None}
+    {"ipython", "jupyter", "colab", "sagemaker", "sagipython", "ipython-others", None}
         the type of IPython we are in
     """
 
@@ -29,6 +29,8 @@ def get_ipython_type():
 
     s = str(getipython.get_ipython())
     if "TerminalInteractiveShell" in s:
+        if "SAGEMAKER_LOG_FILE" in os.environ:
+            return "sagipython"
         return "ipython"
     if "ZMQInteractiveShell" in s:
         if "SAGEMAKER_LOG_FILE" in os.environ:
