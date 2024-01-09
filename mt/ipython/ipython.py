@@ -13,6 +13,10 @@ def inside_ipython():
         return False
 
 
+def inside_sagemaker():
+    return "SAGEMAKER_LOG_FILE" in os.environ
+
+
 def get_ipython_type():
     """Returns which type of IPython we are in.
 
@@ -29,13 +33,9 @@ def get_ipython_type():
 
     s = str(getipython.get_ipython())
     if "TerminalInteractiveShell" in s:
-        if "SAGEMAKER_LOG_FILE" in os.environ:
-            return "sagipython"
-        return "ipython"
+        return "sagipython" if inside_sagemaker() else "ipython"
     if "ZMQInteractiveShell" in s:
-        if "SAGEMAKER_LOG_FILE" in os.environ:
-            return "sagemaker"
-        return "jupyter"
+        return "sagemaker" if inside_sagemaker() else "jupyter"
     if "google.colab" in s:
         return "colab"
     return "ipython-others"
