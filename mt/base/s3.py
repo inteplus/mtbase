@@ -111,8 +111,9 @@ def get_session(
     This function is used as part of :func:`create_s3_client` to create an s3 client.
     """
 
-    klass = aioboto3.session.Session if asyn else botocore.session.Session
-    return klass(profile=profile)
+    if asyn:
+        return aioboto3.session.Session(profile_name=profile)
+    return botocore.session.Session(profile=profile)
 
 
 @ctx.asynccontextmanager
