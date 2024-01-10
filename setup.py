@@ -13,7 +13,7 @@ install_requires = [
     "numpy",  # common ndarray
     "aiofiles",  # for loading/saving files asynchronously
     "aiohttp",  # for downloading http and https urls
-    "aiobotocore",  # for dealing with S3 files
+    "aioboto3",  # for dealing with S3 files
     "s3transfer",  # for fast uploading of massive files
     "filetype",  # to determine the type of a file
     "halo",  # for nice spinners

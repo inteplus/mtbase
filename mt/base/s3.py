@@ -1,10 +1,11 @@
-"""Useful subroutines dealing with S3 files via botocore and aiobotocore."""
+"""Useful subroutines dealing with S3 files via botocore and aioboto3."""
 
 
 import errno
 import asyncio
 import aiobotocore
-import aiobotocore.session
+import aioboto3
+import aioboto3.session
 import botocore
 import botocore.session
 import botocore.exceptions
@@ -89,7 +90,7 @@ def split(s3cmd_url: str):
 
 def get_session(
     profile=None, asyn: bool = True
-) -> tp.Union[aiobotocore.session.AioSession, botocore.session.Session]:
+) -> tp.Union[aioboto3.session.Session, botocore.session.Session]:
     """Gets a botocore session, for either asynchronous mode or synchronous mode.
 
     Parameters
@@ -101,8 +102,8 @@ def get_session(
 
     Returns
     -------
-    botocore_session: aiobotocore.session.AioSession or botocore.session.Session
-        In asynchronous mode, an aiobotocore.session.AioSession instance is returned. In synchronous mode,
+    botocore_session: aioboto3.session.Session or botocore.session.Session
+        In asynchronous mode, an aioboto3.session.Session instance is returned. In synchronous mode,
         a botocore.session.Session instance is returned.
 
     Notes
@@ -110,7 +111,7 @@ def get_session(
     This function is used as part of :func:`create_s3_client` to create an s3 client.
     """
 
-    klass = aiobotocore.session.AioSession if asyn else botocore.session.Session
+    klass = aioboto3.session.Session if asyn else botocore.session.Session
     return klass(profile=profile)
 
 
@@ -135,7 +136,7 @@ async def create_s3_client(
     session = get_session(profile=profile, asyn=asyn)
     config = botocore.config.Config(max_pool_connections=20)
     if asyn:
-        async with session.create_client("s3", config=config) as s3_client:
+        async with session.client("s3", config=config) as s3_client:
             yield s3_client
     else:
         yield session.create_client("s3", config=config)
