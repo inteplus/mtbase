@@ -9,7 +9,6 @@ import aioboto3.session
 import boto3
 import boto3.session
 import botocore
-import botocore.session
 import botocore.exceptions
 from halo import Halo
 from tqdm.auto import tqdm
@@ -118,14 +117,11 @@ def get_session(
     return boto3.session.Session(profile_name=profile)
 
 
-# MT-TODO: continue from here, adding aioboto3.session.Session
-
-
 @ctx.asynccontextmanager
 async def create_s3_client(
     profile=None, asyn: bool = True
 ) -> tp.Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
-    """An asyn context manager that creates an s3 client for a given profile, maximizing the number of connections.
+    """An asyn context manager that creates an s3 client for a given profile.
 
     Parameters
     ----------
@@ -145,7 +141,10 @@ async def create_s3_client(
         async with session.client("s3", config=config) as s3_client:
             yield s3_client
     else:
-        yield session.create_client("s3", config=config)
+        if isinstance(session, boto3.session.Session):
+            yield session.client("s3", config=config)
+        else:
+            yield session.create_client("s3", config=config)
 
 
 @ctx.asynccontextmanager
