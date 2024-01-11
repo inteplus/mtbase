@@ -6,6 +6,8 @@ import asyncio
 import aiobotocore
 import aioboto3
 import aioboto3.session
+import boto3
+import boto3.session
 import botocore
 import botocore.session
 import botocore.exceptions
@@ -90,8 +92,8 @@ def split(s3cmd_url: str):
 
 def get_session(
     profile=None, asyn: bool = True
-) -> tp.Union[aioboto3.session.Session, botocore.session.Session]:
-    """Gets a botocore session, for either asynchronous mode or synchronous mode.
+) -> tp.Union[aioboto3.session.Session, boto3.session.Session]:
+    """Gets a boto3 session, for either asynchronous mode or synchronous mode.
 
     Parameters
     ----------
@@ -102,9 +104,9 @@ def get_session(
 
     Returns
     -------
-    botocore_session: aioboto3.session.Session or botocore.session.Session
-        In asynchronous mode, an aioboto3.session.Session instance is returned. In synchronous mode,
-        a botocore.session.Session instance is returned.
+    session: aioboto3.session.Session or boto3.session.Session
+        In asynchronous mode, an aioboto3.session.Session instance is returned. In synchronous
+        mode, a boto3.session.Session instance is returned.
 
     Notes
     -----
@@ -113,7 +115,10 @@ def get_session(
 
     if asyn:
         return aioboto3.session.Session(profile_name=profile)
-    return botocore.session.Session(profile=profile)
+    return boto3.session.Session(profile_name=profile)
+
+
+# MT-TODO: continue from here, adding aioboto3.session.Session
 
 
 @ctx.asynccontextmanager
