@@ -26,9 +26,13 @@ import atexit as _ex
 
 try:
     import glfw
-    from glfw import *
 except ImportError:
     raise ImportError("Alias 'mt.glfw' requires package 'pyglfw' be installed.")
+
+from glfw import *
+
+if not glfw.init():
+    raise ImportError("Unable to initialise glfw.")
 
 
 # exit function
