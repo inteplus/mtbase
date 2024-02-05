@@ -55,6 +55,18 @@ class Base(abc.ABC):
 
 
 class VAO(Base):
+    """A single vertex array object (VAO).
+
+    The class owns and manages the VAO.
+
+    Examples
+    --------
+    >>> from mt import gl
+    >>> vao = gl.VAO()
+    >>> with vao:
+    >>>     pass # do something while the VAO is binded
+    """
+
     def __init__(self):
         super().__init__(gl.glGenVertexArrays(1))
 
@@ -69,6 +81,18 @@ class VAO(Base):
 
 
 class VBO(Base):
+    """A single vertex buffer object (VBO).
+
+    The class owns and manages the VBO.
+
+    Examples
+    --------
+    >>> from mt import gl
+    >>> vbo = gl.VBO()
+    >>> with vbo:
+    >>>     pass # do something while the VBO is binded
+    """
+
     def __init__(self):
         super().__init__(gl.glGenBuffers(1))
 
