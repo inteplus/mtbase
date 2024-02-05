@@ -317,11 +317,11 @@ class ShaderProgram(gl.shaders.ShaderProgram):
         elif isinstance(value, glm.vec4):
             gl.glUniform4f(loc, value.x, value.y, value.z, value.w)
         elif isinstance(value, glm.mat2):
-            gl.glUniformMatrix2fv(loc, 1, gl.GL_FALSE, np.array(value))
+            gl.glUniformMatrix2fv(loc, 1, gl.GL_TRUE, np.array(value))
         elif isinstance(value, glm.mat3):
-            gl.glUniformMatrix3fv(loc, 1, gl.GL_FALSE, np.array(value))
+            gl.glUniformMatrix3fv(loc, 1, gl.GL_TRUE, np.array(value))
         elif isinstance(value, glm.mat4):
-            gl.glUniformMatrix4fv(loc, 1, gl.GL_FALSE, np.array(value))
+            gl.glUniformMatrix4fv(loc, 1, gl.GL_TRUE, np.array(value))
         else:
             raise NotImplementedError
 
