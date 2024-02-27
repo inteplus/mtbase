@@ -28,7 +28,6 @@ if V.parse(platform.python_version()) < V.parse("3.7"):
     install_requires.append("asyncio37")  # to have asyncio 3.7
 
 VERSION_FILE = os.path.join(os.path.dirname(__file__), "VERSION.txt")
-version_from_file = open(VERSION_FILE).read()
 
 setup(
     name="mtbase",
