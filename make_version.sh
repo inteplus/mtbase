@@ -12,36 +12,33 @@
 # from packaging import version
 # print(version.parse("1.1.3") > version.parse("1.100.4a"))
 # ```
-
-MAJOR_VERSION=4
-MINOR_VERSION=25
-
-VERSION_YEAR=`date -u +'%Y'`
-VERSION_MONTH=`date -u +'%m'`
-VERSION_DAY=`date -u +'%d'`
-VERSION_DATE=`date -u +'%Y%m%d'`
-VERSION_HOUR=`date -u +'%H'`
-VERSION_MINUTE=`date -u +'%M'`
-
-PATCH_VERSION=${VERSION_YEAR}${VERSION_MONTH}${VERSION_DAY}${VERSION_HOUR}${VERSION_MINUTE}
-
 SCRIPT_PATH="$( cd "$(dirname "$0")" ; pwd -P )"
+
+# VERSION.txt
+VERSION_FILEPATH=${SCRIPT_PATH}/VERSION.txt
+
+IFS=. read -r MAJOR_VERSION MINOR_VERSION PATCH_VERSION <<< $(cat ${VERSION_FILEPATH})
+((PATCH_VERSION++))
+
+echo "Updating ${VERSION_FILEPATH}..."
+echo "${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}" > ${VERSION_FILEPATH}
+
+# version.py
 VERSION_DIRPATH=${SCRIPT_PATH}/mt/base
 VERSION_FILEPATH=${VERSION_DIRPATH}/version.py
 
 # version.py
 mkdir -p ${VERSION_DIRPATH}
 echo "Updating ${VERSION_FILEPATH}..."
-echo "VERSION_YEAR = ${VERSION_YEAR}"$'\r' > ${VERSION_FILEPATH}
-echo "VERSION_MONTH = int('${VERSION_MONTH}')"$'\r' >> ${VERSION_FILEPATH}
-echo "VERSION_DAY = int('${VERSION_DAY}')"$'\r' >> ${VERSION_FILEPATH}
-echo "VERSION_HOUR = int('${VERSION_HOUR}')"$'\r' >> ${VERSION_FILEPATH}
-echo "VERSION_MINUTE = int('${VERSION_MINUTE}')"$'\r\r' >> ${VERSION_FILEPATH}
 
-echo "MAJOR_VERSION = ${MAJOR_VERSION}"$'\r' >> ${VERSION_FILEPATH}
+echo "MAJOR_VERSION = ${MAJOR_VERSION}"$'\r' > ${VERSION_FILEPATH}
 echo "MINOR_VERSION = ${MINOR_VERSION}"$'\r' >> ${VERSION_FILEPATH}
 echo "PATCH_VERSION = ${PATCH_VERSION}"$'\r' >> ${VERSION_FILEPATH}
-echo "version_date = '${VERSION_YEAR}/${VERSION_MONTH}/${VERSION_DAY} ${VERSION_HOUR}:${VERSION_MINUTE}'"$'\r' >> ${VERSION_FILEPATH}
 echo "version = '{}.{}.{}'.format(MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION)"$'\r' >> ${VERSION_FILEPATH}
 
-echo "__all__  = ['MAJOR_VERSION', 'MINOR_VERSION', 'PATCH_VERSION', 'version_date', 'version']"$'\r' >> ${VERSION_FILEPATH}
+echo "__all__  = ['MAJOR_VERSION', 'MINOR_VERSION', 'PATCH_VERSION', 'version']"$'\r' >> ${VERSION_FILEPATH}
+
+git add -A
+git commit -m "updated version.py"
+git tag "${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}"
+echo "Repository has been tagged as version ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}"
