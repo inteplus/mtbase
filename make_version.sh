@@ -13,21 +13,19 @@
 # print(version.parse("1.1.3") > version.parse("1.100.4a"))
 # ```
 SCRIPT_PATH="$( cd "$(dirname "$0")" ; pwd -P )"
-
-# VERSION.txt
 VERSION_FILEPATH=${SCRIPT_PATH}/VERSION.txt
 
 IFS=. read -r MAJOR_VERSION MINOR_VERSION PATCH_VERSION <<< $(cat ${VERSION_FILEPATH})
 ((PATCH_VERSION++))
+FULL_VERSION="${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}"
 
 echo "Updating ${VERSION_FILEPATH}..."
-echo "${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}" > ${VERSION_FILEPATH}
+echo "${FULL_VERSION}" > ${VERSION_FILEPATH}
 
 # version.py
 VERSION_DIRPATH=${SCRIPT_PATH}/mt/base
 VERSION_FILEPATH=${VERSION_DIRPATH}/version.py
 
-# version.py
 mkdir -p ${VERSION_DIRPATH}
 echo "Updating ${VERSION_FILEPATH}..."
 
@@ -39,6 +37,6 @@ echo "version = '{}.{}.{}'.format(MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION)"$
 echo "__all__  = ['MAJOR_VERSION', 'MINOR_VERSION', 'PATCH_VERSION', 'version']"$'\r' >> ${VERSION_FILEPATH}
 
 git add -A
-git commit -m "updated version.py"
+git commit -m "updated version.py to ${FULL_VERSION}"
 git tag "${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}"
 echo "Repository has been tagged as version ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}"
