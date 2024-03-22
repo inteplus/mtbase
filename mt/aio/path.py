@@ -44,7 +44,7 @@ async def exists_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
         return exists(path)
 
     try:
-        retval = await aiofiles.os.path.exists(path)
+        return await aiofiles.os.path.exists(path)
     except OSError as e:
         from pathlib import _ignore_error
 
@@ -54,7 +54,6 @@ async def exists_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
     except ValueError:
         # Non-encodable path
         return False
-    return retval
 
 
 async def remove_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
@@ -108,6 +107,40 @@ def make_dirs(path: tp.Union[Path, str], shared: bool = True):
         if shared:
             stack = []
             while not exists(path):
+                head, tail = split(path)
+                if not head:  # no slash in path
+                    stack.append(tail)
+                    path = "."
+                elif not tail:  # slash at the end of path
+                    path = head
+                else:  # normal case
+                    stack.append(tail)
+                    path = head
+            while stack:
+                tail = stack.pop()
+                path = join(path, tail)
+                try:
+                    _os.mkdir(path, 0o775)
+                except FileExistsError:
+                    pass
+                _os.chmod(path, mode=0o775)
+        else:
+            _os.makedirs(path, mode=0o775, exist_ok=True)
+
+
+def make_dirs_asyn(
+    path: tp.Union[Path, str], shared: bool = True, context_vars: dict = {}
+):
+    """An asyn version of :func:`make_dirs`."""
+    if not context_vars["async"]:
+        return make_dirs(path, shared=shared)
+
+    if not path:  # empty path, just ignore
+        return
+    with _path_lock:
+        if shared:
+            stack = []
+            while not await exists_asyn(path):
                 head, tail = split(path)
                 if not head:  # no slash in path
                     stack.append(tail)
@@ -203,7 +236,7 @@ async def rename_asyn(
         if the target file exists
     """
 
-    if exists(dst):
+    if await exists_asyn(dst):
         if overwrite:
             await remove_asyn(dst, context_vars=context_vars)
         else:
@@ -217,8 +250,7 @@ async def rename_asyn(
             )
 
     if context_vars["async"]:
-        retval = await aiofiles.os.rename(src, dst)
-        return retval
+        return await aiofiles.os.rename(src, dst)
 
     return _os.rename(src, dst)
 
@@ -275,10 +307,9 @@ async def stat_asyn(
     """
 
     if context_vars["async"]:
-        retval = await aiofiles.os.stat(
+        return await aiofiles.os.stat(
             path, dir_fd=dir_fd, follow_symlinks=follow_symlinks
         )
-        return retval
 
     return _os.stat(path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
 
