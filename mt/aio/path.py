@@ -2,7 +2,6 @@
 
 
 import errno
-import asyncio
 import os as _os
 import shutil as _su
 import atexit as _ex
@@ -45,8 +44,7 @@ async def exists_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
         return exists(path)
 
     try:
-        task = asyncio.ensure_future(aiofiles.os.path.exists(path))
-        retval = await asyncio.wait_for(task, timeout=timeout)
+        retval = await aiofiles.os.path.exists(path)
     except OSError as e:
         from pathlib import _ignore_error
 
