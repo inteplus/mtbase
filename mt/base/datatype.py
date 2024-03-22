@@ -38,3 +38,13 @@ def is_h5group(a) -> bool:
     import h5py
 
     return isinstance(a, h5py.Group)
+
+
+class LogicError(RuntimeError):
+    """An error in the logic, defined by a message and a debugging dictionary."""
+
+    def __init__(self, msg, debug={}):
+        super().__init__(msg, debug)
+
+    def __str__(self):
+        return f"{self.args[0]}\nData:\n{self.args[1]}"

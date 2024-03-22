@@ -41,6 +41,7 @@ __api__ = [
     "is_jaxarray",
     "is_tftensor",
     "is_h5group",
+    "LogicError",
 ]
 
 
