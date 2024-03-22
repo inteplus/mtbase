@@ -128,7 +128,7 @@ def make_dirs(path: tp.Union[Path, str], shared: bool = True):
             _os.makedirs(path, mode=0o775, exist_ok=True)
 
 
-def make_dirs_asyn(
+async def make_dirs_asyn(
     path: tp.Union[Path, str], shared: bool = True, context_vars: dict = {}
 ):
     """An asyn version of :func:`make_dirs`."""
@@ -140,7 +140,7 @@ def make_dirs_asyn(
     with _path_lock:
         if shared:
             stack = []
-            while not await exists_asyn(path):
+            while not await exists_asyn(path, context_vars=context_vars):
                 head, tail = split(path)
                 if not head:  # no slash in path
                     stack.append(tail)
@@ -236,7 +236,7 @@ async def rename_asyn(
         if the target file exists
     """
 
-    if await exists_asyn(dst):
+    if await exists_asyn(dst, context_vars=context_vars):
         if overwrite:
             await remove_asyn(dst, context_vars=context_vars)
         else:
