@@ -9,7 +9,8 @@ import aiofiles
 
 from mt import ctx
 
-from .path import rename_asyn, rename, dirname, make_dirs, make_dirs_asyn
+from .base import sleep
+from .path import rename_asyn, rename, dirname, make_dirs, make_dirs_asyn, exists_asyn
 
 
 async def safe_chmod(filepath: str, file_mode: int = 0o664):
@@ -106,6 +107,8 @@ async def write_binary(
             if make_dirs:
                 dirpath = dirname(filepath)
                 await make_dirs_asyn(dirpath, context_vars=context_vars)
+                if not await exists_asyn(dirpath, context_vars=context_vars):
+                    await sleep(0.1, context_vars=context_vars)
             filepath2 = filepath + ".mttmp"
             async with aiofiles.open(filepath2, mode="wb") as f:
                 retval = await f.write(buf)
@@ -200,6 +203,8 @@ async def write_text(
             if make_dirs:
                 dirpath = dirname(filepath)
                 await make_dirs_asyn(dirpath, context_vars=context_vars)
+                if not await exists_asyn(dirpath, context_vars=context_vars):
+                    await sleep(0.1, context_vars=context_vars)
             filepath2 = filepath + ".mttmp"
             async with aiofiles.open(filepath2, mode="wt") as f:
                 retval = await f.write(buf)
