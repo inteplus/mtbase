@@ -14,7 +14,7 @@ from os.path import *
 
 from mt import tp, logg
 from mt.threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
-from .base import srun
+from .base import srun, sleep
 
 
 _path_lock = Lock()
@@ -160,6 +160,10 @@ async def make_dirs_asyn(
                 _os.chmod(path, mode=0o775)
         else:
             _os.makedirs(path, mode=0o775, exist_ok=True)
+
+        for i in range(3):
+            if not await exists_asyn(path, context_vars=context_vars):
+                await sleep(0.1, context_vars=context_vars)
 
 
 def lock(path: tp.Union[Path, str], to_write: bool = False):
