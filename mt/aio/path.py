@@ -137,33 +137,32 @@ async def make_dirs_asyn(
 
     if not path:  # empty path, just ignore
         return
-    with _path_lock:
-        if shared:
-            stack = []
-            while not await exists_asyn(path, context_vars=context_vars):
-                head, tail = split(path)
-                if not head:  # no slash in path
-                    stack.append(tail)
-                    path = "."
-                elif not tail:  # slash at the end of path
-                    path = head
-                else:  # normal case
-                    stack.append(tail)
-                    path = head
-            while stack:
-                tail = stack.pop()
-                path = join(path, tail)
-                try:
-                    _os.mkdir(path, 0o775)
-                except FileExistsError:
-                    pass
-                _os.chmod(path, mode=0o775)
-        else:
-            _os.makedirs(path, mode=0o775, exist_ok=True)
+    if shared:
+        stack = []
+        while not await exists_asyn(path, context_vars=context_vars):
+            head, tail = split(path)
+            if not head:  # no slash in path
+                stack.append(tail)
+                path = "."
+            elif not tail:  # slash at the end of path
+                path = head
+            else:  # normal case
+                stack.append(tail)
+                path = head
+        while stack:
+            tail = stack.pop()
+            path = join(path, tail)
+            try:
+                _os.mkdir(path, 0o775)
+            except FileExistsError:
+                pass
+            _os.chmod(path, mode=0o775)
+    else:
+        _os.makedirs(path, mode=0o775, exist_ok=True)
 
-        for i in range(3):
-            if not await exists_asyn(path, context_vars=context_vars):
-                await sleep(0.1, context_vars=context_vars)
+    for i in range(3):
+        if not await exists_asyn(path, context_vars=context_vars):
+            await sleep(0.1, context_vars=context_vars)
 
 
 def lock(path: tp.Union[Path, str], to_write: bool = False):
