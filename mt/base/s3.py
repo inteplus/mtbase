@@ -10,10 +10,10 @@ import boto3
 import boto3.session
 import botocore
 import botocore.exceptions
-from halo import Halo
 from tqdm.auto import tqdm
 
 from mt import ctx, aio, tp, logg
+from mt.halo import Halo
 
 from .http import create_http_session
 
