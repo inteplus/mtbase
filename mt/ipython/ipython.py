@@ -14,7 +14,9 @@ def inside_ipython():
 
 
 def inside_sagemaker():
-    return "SAGEMAKER_LOG_FILE" in os.environ
+    return ("SAGEMAKER_LOG_FILE" in os.environ) or (
+        "SAGEMAKER_LOGGING_DIR" in os.environ
+    )
 
 
 def get_ipython_type():
