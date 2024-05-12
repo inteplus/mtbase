@@ -21,7 +21,6 @@ images of vectors of things.
 
 from mt.logg import make_logger, logger, init as _log_init
 
-from .with_utils import dummy_scope
 from .deprecated import deprecated_func
 from .casting import cast, castable
 from .exec import debug_exec, debug_on

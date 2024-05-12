@@ -1,6 +1,5 @@
 """Wrapper around threading for running things in background."""
 
-
 from collections import deque
 import multiprocessing as _mp
 import threading as _t
@@ -63,19 +62,18 @@ class BgInvoke:
     def _wrapper(self, g, *args, **kwargs):
         try:
             self._result = True, g(*args, **kwargs)
-        except Exception as e:
+        except Exception:
             self._result = False, _sys.exc_info()
 
     @property
     def result(self):
+        """The result of invoking a function."""
         if hasattr(self, "_result"):
             if self._result[0]:  # succeeded
                 return self._result[1]  # returning object
             else:  # thread generated an exception
                 raise BgException(
-                    "Exception raised in background thread {}".format(
-                        self.thread.ident
-                    ),
+                    f"Exception raised in background thread {self.thread.ident}",
                     self._result[1],
                 )
         else:
@@ -184,7 +182,7 @@ class BgThread(_t.Thread):
         self.join(30)
         if self.is_alive():
             raise TimeoutError(
-                "Background thread {} takes too long to close.".format(self.ident)
+                f"Background thread {self.ident} takes too long to close."
             )
 
     def __del__(self):
@@ -209,7 +207,7 @@ class BgThread(_t.Thread):
             self.func_running = True
             try:
                 result = True, self.func(*args, **kwargs)
-            except:
+            except Exception:
                 result = False, _sys.exc_info()
             self.func_running = False
 
@@ -271,7 +269,7 @@ class BgThread(_t.Thread):
             return func_result[1]  # returning object
         else:  # thread generated an exception
             raise BgException(
-                "Exception raised in background thread {}".format(self.ident),
+                f"Exception raised in background thread {self.ident}",
                 func_result[1],
             )
 
@@ -284,7 +282,7 @@ def parallelise(
     bg_exception="raise",
     logger=None,
     pass_logger=False,
-    **fn_kwargs
+    **fn_kwargs,
 ):
     """Embarrasingly parallelises to excecute many jobs with a limited number of threads.
 
@@ -366,29 +364,25 @@ def parallelise(
                     i += 1
 
             indices = []  # list of threads that have completed their job
-            for i2 in threads:
-                if not threads[i2].is_running():
+            for i2, v2 in threads.items():
+                if not v2.is_running():
                     indices.append(i2)
 
             for i2 in indices:
                 try:
                     thread_outputs[i2] = threads[i2].result
-                except BgException as e:
+                except BgException:
                     if bg_exception == "raise":
                         raise
-                    elif bg_exception == "warn":
+                    if bg_exception == "warn":
                         with logg.scoped_warning(
-                            "Caught an exception from job {}:".format(i2),
-                            logger=logger,
-                            curly=False,
+                            f"Caught an exception from job {i2}:", logger=logger
                         ):
                             if logger:
                                 logger.warn_last_exception()
                     else:
                         raise ValueError(
-                            "Argument 'bg_exception' has an unknown value '{}'.".format(
-                                bg_exception
-                            )
+                            f"Argument 'bg_exception' has an unknown value '{bg_exception}'."
                         )
                 threads.pop(i2)
 
