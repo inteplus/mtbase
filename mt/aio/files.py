@@ -9,7 +9,7 @@ import aiofiles
 
 from mt import ctx
 
-from .path import rename_asyn, rename, dirname, make_dirs
+from .path import rename_asyn, rename, dirname, make_dirs, make_dirs_asyn
 
 
 async def safe_chmod(filepath: str, file_mode: int = 0o664):
@@ -66,6 +66,7 @@ async def write_binary(
     file_mode: int = 0o664,
     context_vars: dict = {},
     file_write_delayed: bool = False,
+    make_dirs: bool = False,
 ):
     """An asyn function that creates a binary file and writes the content.
 
@@ -84,6 +85,8 @@ async def write_binary(
     file_write_delayed : bool
         Only valid in asynchronous mode. If True, wraps the file write task into a future and
         returns the future. In all other cases, proceeds as usual.
+    make_dirs : bool
+        Whether or not to make the folders containing the path before writing to the file.
 
     Returns
     -------
@@ -100,6 +103,9 @@ async def write_binary(
     if context_vars["async"]:
 
         async def func(filepath, buf, file_mode):
+            if make_dirs:
+                dirpath = dirname(filepath)
+                await make_dirs_asyn(dirpath, context_vars=context_vars)
             filepath2 = filepath + ".mttmp"
             async with aiofiles.open(filepath2, mode="wb") as f:
                 retval = await f.write(buf)
@@ -154,6 +160,7 @@ async def write_text(
     file_mode: int = 0o664,
     context_vars: dict = {},
     file_write_delayed: bool = False,
+    make_dirs: bool = False,
 ):
     """An asyn function that creates a text file and writes the content.
 
@@ -172,6 +179,8 @@ async def write_text(
     file_write_delayed : bool
         Only valid in asynchronous mode. If True, wraps the file write task into a future and
         returns the future. In all other cases, proceeds as usual.
+    make_dirs : bool
+        Whether or not to make the folders containing the path before writing to the file.
 
     Returns
     -------
@@ -188,6 +197,9 @@ async def write_text(
     if context_vars["async"]:
 
         async def func(filepath, buf, file_mode):
+            if make_dirs:
+                dirpath = dirname(filepath)
+                await make_dirs_asyn(dirpath, context_vars=context_vars)
             filepath2 = filepath + ".mttmp"
             async with aiofiles.open(filepath2, mode="wt") as f:
                 retval = await f.write(buf)
@@ -237,6 +249,7 @@ async def json_save(
     file_mode: int = 0o664,
     context_vars: dict = {},
     file_write_delayed: bool = False,
+    make_dirs: bool = False,
     **kwargs
 ):
     """An asyn function that saves a json-like object to a file.
@@ -256,6 +269,8 @@ async def json_save(
     file_write_delayed : bool
         Only valid in asynchronous mode. If True, wraps the file write task into a future and
         returns the future. In all other cases, proceeds as usual.
+    make_dirs : bool
+        Whether or not to make the folders containing the path before writing to the file.
     kwargs : dict
         keyword arguments passed as-is to :func:`json.dumps`
 
@@ -273,6 +288,7 @@ async def json_save(
         file_mode=file_mode,
         context_vars=context_vars,
         file_write_delayed=file_write_delayed,
+        make_dirs=make_dirs,
     )
 
 
@@ -368,7 +384,7 @@ class CreateFileH5:
         return self.__enter__()
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        if not exc_value is None:  # successful
+        if exc_value is not None:  # successful
             if self.logger:
                 self.logger.warn("File '{}' not removed.".format(self.tmp_filepath))
             return

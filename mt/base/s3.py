@@ -1,17 +1,19 @@
-"""Useful subroutines dealing with S3 files via botocore and aiobotocore."""
+"""Useful subroutines dealing with S3 files via botocore and aioboto3."""
 
 
 import errno
 import asyncio
 import aiobotocore
-import aiobotocore.session
+import aioboto3
+import aioboto3.session
+import boto3
+import boto3.session
 import botocore
-import botocore.session
 import botocore.exceptions
-from halo import Halo
 from tqdm.auto import tqdm
 
 from mt import ctx, aio, tp, logg
+from mt.halo import Halo
 
 from .http import create_http_session
 
@@ -89,8 +91,8 @@ def split(s3cmd_url: str):
 
 def get_session(
     profile=None, asyn: bool = True
-) -> tp.Union[aiobotocore.session.AioSession, botocore.session.Session]:
-    """Gets a botocore session, for either asynchronous mode or synchronous mode.
+) -> tp.Union[aioboto3.session.Session, boto3.session.Session]:
+    """Gets a boto3 session, for either asynchronous mode or synchronous mode.
 
     Parameters
     ----------
@@ -101,24 +103,25 @@ def get_session(
 
     Returns
     -------
-    botocore_session: aiobotocore.session.AioSession or botocore.session.Session
-        In asynchronous mode, an aiobotocore.session.AioSession instance is returned. In synchronous mode,
-        a botocore.session.Session instance is returned.
+    session: aioboto3.session.Session or boto3.session.Session
+        In asynchronous mode, an aioboto3.session.Session instance is returned. In synchronous
+        mode, a boto3.session.Session instance is returned.
 
     Notes
     -----
     This function is used as part of :func:`create_s3_client` to create an s3 client.
     """
 
-    klass = aiobotocore.session.AioSession if asyn else botocore.session.Session
-    return klass(profile=profile)
+    if asyn:
+        return aioboto3.session.Session(profile_name=profile)
+    return boto3.session.Session(profile_name=profile)
 
 
 @ctx.asynccontextmanager
 async def create_s3_client(
     profile=None, asyn: bool = True
 ) -> tp.Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
-    """An asyn context manager that creates an s3 client for a given profile, maximizing the number of connections.
+    """An asyn context manager that creates an s3 client for a given profile.
 
     Parameters
     ----------
@@ -135,10 +138,13 @@ async def create_s3_client(
     session = get_session(profile=profile, asyn=asyn)
     config = botocore.config.Config(max_pool_connections=20)
     if asyn:
-        async with session.create_client("s3", config=config) as s3_client:
+        async with session.client("s3", config=config) as s3_client:
             yield s3_client
     else:
-        yield session.create_client("s3", config=config)
+        if isinstance(session, boto3.session.Session):
+            yield session.client("s3", config=config)
+        else:
+            yield session.create_client("s3", config=config)
 
 
 @ctx.asynccontextmanager

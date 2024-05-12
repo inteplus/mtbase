@@ -2,7 +2,6 @@
 
 
 import errno
-import asyncio
 import os as _os
 import shutil as _su
 import atexit as _ex
@@ -15,7 +14,7 @@ from os.path import *
 
 from mt import tp, logg
 from mt.threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
-from .base import srun
+from .base import srun, sleep
 
 
 _path_lock = Lock()
@@ -45,8 +44,7 @@ async def exists_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
         return exists(path)
 
     try:
-        task = asyncio.ensure_future(aiofiles.os.path.exists(path))
-        retval = await asyncio.wait_for(task, timeout=timeout)
+        return await aiofiles.os.path.exists(path)
     except OSError as e:
         from pathlib import _ignore_error
 
@@ -56,7 +54,6 @@ async def exists_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
     except ValueError:
         # Non-encodable path
         return False
-    return retval
 
 
 async def remove_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
@@ -129,6 +126,43 @@ def make_dirs(path: tp.Union[Path, str], shared: bool = True):
                 _os.chmod(path, mode=0o775)
         else:
             _os.makedirs(path, mode=0o775, exist_ok=True)
+
+
+async def make_dirs_asyn(
+    path: tp.Union[Path, str], shared: bool = True, context_vars: dict = {}
+):
+    """An asyn version of :func:`make_dirs`."""
+    if not context_vars["async"]:
+        return make_dirs(path, shared=shared)
+
+    if not path:  # empty path, just ignore
+        return
+    if shared:
+        stack = []
+        while not await exists_asyn(path, context_vars=context_vars):
+            head, tail = split(path)
+            if not head:  # no slash in path
+                stack.append(tail)
+                path = "."
+            elif not tail:  # slash at the end of path
+                path = head
+            else:  # normal case
+                stack.append(tail)
+                path = head
+        while stack:
+            tail = stack.pop()
+            path = join(path, tail)
+            try:
+                _os.mkdir(path, 0o775)
+            except FileExistsError:
+                pass
+            _os.chmod(path, mode=0o775)
+    else:
+        _os.makedirs(path, mode=0o775, exist_ok=True)
+
+    for i in range(3):
+        if not await exists_asyn(path, context_vars=context_vars):
+            await sleep(0.1, context_vars=context_vars)
 
 
 def lock(path: tp.Union[Path, str], to_write: bool = False):
@@ -205,7 +239,7 @@ async def rename_asyn(
         if the target file exists
     """
 
-    if exists(dst):
+    if await exists_asyn(dst, context_vars=context_vars):
         if overwrite:
             await remove_asyn(dst, context_vars=context_vars)
         else:
@@ -219,8 +253,7 @@ async def rename_asyn(
             )
 
     if context_vars["async"]:
-        retval = await aiofiles.os.rename(src, dst)
-        return retval
+        return await aiofiles.os.rename(src, dst)
 
     return _os.rename(src, dst)
 
@@ -277,10 +310,9 @@ async def stat_asyn(
     """
 
     if context_vars["async"]:
-        retval = await aiofiles.os.stat(
+        return await aiofiles.os.stat(
             path, dir_fd=dir_fd, follow_symlinks=follow_symlinks
         )
-        return retval
 
     return _os.stat(path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
 

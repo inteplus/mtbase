@@ -14,6 +14,7 @@ async def aio_work_generator(
     func,
     num_work_ids,
     skip_null: bool = True,
+    func_args: tuple = (),
     func_kwargs: dict = {},
     max_concurrency: int = 1024,
 ):
@@ -33,6 +34,8 @@ async def aio_work_generator(
         number of works to iterate over without using multiprocessing or multithreading.
     skip_null : bool, optional
         whether or not to skip the iteration that contains None as the work result.
+    func_args : tuple
+        additional positional arguments to be passed to the function as-is
     func_kwargs : dict
         additional keyword arguments to be passed to the function as-is
     max_concurrency : int
@@ -45,7 +48,9 @@ async def aio_work_generator(
         an asynchronous generator yielding each result in the form `(work_id, ...)`
     """
 
-    coros = [func(work_id, **func_kwargs) for work_id in range(num_work_ids)]
+    coros = [
+        func(work_id, *func_args, **func_kwargs) for work_id in range(num_work_ids)
+    ]
 
     if max_concurrency is None:
         for coro in asyncio.as_completed(coros):

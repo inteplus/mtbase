@@ -98,6 +98,7 @@ async def download(url, context_vars: dict = {}):
                 )
             content = await response.read()
     except (
+        aiohttp.client_exceptions.ClientOSError,
         aiohttp.client_exceptions.ServerDisconnectedError,
         asyncio.exceptions.TimeoutError,
     ):
@@ -114,6 +115,7 @@ async def download(url, context_vars: dict = {}):
                     )
                 content = await response.read()
         except (
+            aiohttp.client_exceptions.ClientOSError,
             aiohttp.client_exceptions.ServerDisconnectedError,
             asyncio.exceptions.TimeoutError,
         ):

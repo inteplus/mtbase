@@ -38,3 +38,23 @@ if version.parse(platform.python_version()) < version.parse("3.7"):
     from contextlib2 import *
 else:
     from contextlib import *
+
+if version.parse(platform.python_version()) < version.parse("3.10"):
+    _nullcontext = nullcontext
+
+    class nullcontext(_nullcontext):
+        """Context manager that does no additional processing.
+
+        Used as a stand-in for a normal context manager, when a particular
+        block of code is only sometimes used with a normal context manager:
+
+        cm = optional_cm if condition else nullcontext()
+        with cm:
+            # Perform operation, using optional_cm if condition is True
+        """
+
+        async def __aenter__(self):
+            return self.enter_result
+
+        async def __aexit__(self, *excinfo):
+            pass

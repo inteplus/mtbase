@@ -51,6 +51,7 @@ __api__ = [
     "to_b85",
     "from_b85",
     "SparseNdarray",
+    "sparse_vector",
     "psd_approx",
     "sqrtm",
     "powm",
