@@ -9,7 +9,6 @@ install_requires = [
     "packaging",  # for comparing versions
     "psutil",
     "colorama",  # for colored text
-    "Cython",  # for fast speed on tiny objects
     "numpy",  # common ndarray
     "aiofiles",  # for loading/saving files asynchronously
     "aiohttp",  # for downloading http and https urls

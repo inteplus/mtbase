@@ -1,0 +1,19 @@
+# ------------------------------------------------------------------------- #
+# DEBIAN PACKAGE CONTROL FILE                                               #
+#                                                                           #
+# This file is a Debian control file. For more information on the config in #
+# this file, please run `man deb-control`.                                  #
+# ------------------------------------------------------------------------- #
+
+Package: python3-mtbase
+Architecture: all
+Depends: ${python3:Depends}, ${misc:Depends}
+Homepage: https://mtdoc.readthedocs.io/
+Priority: extra
+Maintainer: Minh-Tri Pham, <pmtri80@gmail.com>
+Build-Depends: debhelper (>= 11~), dh-python3, python3-all, python3-setuptools
+Standards-Version: 3.9.5
+X-Python3-Version: >= 3.8
+Pre-Depends: dpkg (>= 1.16.1),  python3
+Description: The most fundamental Python modules for Minh-Tri Pham
+ This package contains only the most basic modules like logging, multi-threading, etc.
