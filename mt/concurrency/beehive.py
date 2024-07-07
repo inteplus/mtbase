@@ -433,36 +433,39 @@ class Bee:
                 },
             )
         elif task.exception() is not None:
+            stacktrace = task.get_stack()
+            extracted_list = []
+            checked = set()
+            for f in stacktrace:
+                lineno = f.f_lineno
+                co = f.f_code
+                filename = co.co_filename
+                name = co.co_name
+                if filename not in checked:
+                    checked.add(filename)
+                    linecache.checkcache(filename)
+                line = linecache.getline(filename, lineno, f.f_globals)
+                extracted_list.append((filename, lineno, name, line))
+            stacktrace = extracted_list
             if True:
-                stacktrace = task.get_stack()
-                extracted_list = []
-                checked = set()
-                for f in stacktrace:
-                    lineno = f.f_lineno
-                    co = f.f_code
-                    filename = co.co_filename
-                    name = co.co_name
-                    if filename not in checked:
-                        checked.add(filename)
-                        linecache.checkcache(filename)
-                    line = linecache.getline(filename, lineno, f.f_globals)
-                    extracted_list.append((filename, lineno, name, line))
-                stacktrace = extracted_list
-                stacktrace = [str(stacktrace)]
+                msg = {
+                    "msg_type": "task_done",
+                    "task_id": task_id,
+                    "status": "raised",
+                    "exception": task.exception(),
+                    "exception_traceback": stacktrace,
+                    "traceback": [str(stacktrace)],
+                    "other_details": None,
+                }
             else:
-                import io
-
-                stacktrace = io.StringIO()
-                task.print_stack(file=stacktrace)
-                stacktrace = stacktrace.getvalue().split("\n")
-            msg = {
-                "msg_type": "task_done",
-                "task_id": task_id,
-                "status": "raised",
-                "exception": task.exception(),
-                "traceback": stacktrace,
-                "other_details": None,
-            }
+                msg = {
+                    "msg_type": "task_done",
+                    "task_id": task_id,
+                    "status": "raised",
+                    "exception": task.exception(),
+                    "traceback": [str(stacktrace)],
+                    "other_details": None,
+                }
             self._put_msg(-1, msg)
         else:
             self._put_msg(
@@ -520,6 +523,7 @@ class Bee:
                     "other_details": {"child_id": child_id, "reason": msg["reason"]},
                 }
             elif status == "raised":
+                causing_traceback = msg.get("exception_traceback", None)
                 e = traceback.LogicError(
                     "Delegated task raised an exception.",
                     debug={
@@ -528,6 +532,7 @@ class Bee:
                         "other_details": msg["other_details"],
                     },
                     causing_error=msg["exception"],
+                    causing_traceback=causing_traceback,
                 )
 
                 self.done_dtask_map[task_id] = {

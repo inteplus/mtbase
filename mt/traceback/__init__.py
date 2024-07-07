@@ -45,10 +45,11 @@ def extract_stack_compact():
 class LogicError(RuntimeError):
     """An error in the logic, defined by a message and a debugging dictionary.
 
-    As of 2024/07/07, the user can optionally provide the error that caused this error.
+    As of 2024/07/07, the user can optionally provide the error that caused this error together
+    with optionally the corresponding traceback.
     """
 
-    def __init__(self, msg, debug={}, causing_error=None):
+    def __init__(self, msg, debug={}, causing_error=None, causing_traceback=None):
         super().__init__(msg, debug, causing_error)
 
     def __str__(self):
@@ -58,7 +59,10 @@ class LogicError(RuntimeError):
         if causing_error:
             msg = f"With the following {type(causing_error).__name__}:"
             l_lines.append(msg)
-            causing_stacktrace = causing_error.__traceback__
+            if causing_traceback is None:
+                causing_stacktrace = causing_error.__traceback__
+            else:
+                causing_stacktrace = causing_traceback
             if causing_stacktrace:
                 causing_stacktrace = _tb.format_tb(causing_stacktrace)
                 causing_stacktrace = "".join(causing_stacktrace).split("\n")
