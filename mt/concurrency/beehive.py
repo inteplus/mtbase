@@ -16,7 +16,7 @@ import queue
 import multiprocessing as mp
 from copy import copy
 
-from mt import tp, logg
+from mt import tp, logg, traceback
 
 
 __all__ = [
@@ -36,12 +36,12 @@ def logger_debug_msg(msg, logger=None):
 
     msg = copy(msg)  # because we are going to modify it
     exception = msg.pop("exception", None)
-    traceback = msg.pop("traceback", None)
+    stacktrace = msg.pop("traceback", None)
     other_details = msg.pop("other_details", None)
 
-    if traceback is not None:
+    if stacktrace is not None:
         with logger.scoped_debug("Traceback", curly=False):
-            for x in traceback:
+            for x in stacktrace:
                 logger.debug(x)
     if msg:
         with logger.scoped_debug("Message", curly=False):
@@ -434,15 +434,15 @@ class Bee:
         elif task.exception() is not None:
             import io
 
-            traceback = io.StringIO()
-            task.print_stack(file=traceback)
-            traceback = traceback.getvalue().split("\n")
+            stacktrace = io.StringIO()
+            task.print_stack(file=stacktrace)
+            stacktrace = stacktrace.getvalue().split("\n")
             msg = {
                 "msg_type": "task_done",
                 "task_id": task_id,
                 "status": "raised",
                 "exception": task.exception(),
-                "traceback": traceback,
+                "traceback": stacktrace,
                 "other_details": None,
             }
             self._put_msg(-1, msg)
@@ -502,11 +502,20 @@ class Bee:
                     "other_details": {"child_id": child_id, "reason": msg["reason"]},
                 }
             elif status == "raised":
+                e = traceback.LogicError(
+                    "Delegated task raised an exception.",
+                    debug={
+                        "child_id": child_id,
+                        "traceback": msg["traceback"],
+                        "other_details": msg["other_details"],
+                    },
+                    causing_error=msg["exception"],
+                )
+
                 self.done_dtask_map[task_id] = {
                     "status": "raised",
-                    "exception": RuntimeError("Delegated task raised an exception."),
+                    "exception": e,
                     "traceback": extract_stack_compact(),
-                    "other_details": {"child_id": child_id, "msg": msg},
                 }
             else:
                 self.done_dtask_map[task_id] = {
