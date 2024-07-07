@@ -457,8 +457,6 @@ class Bee:
                     "traceback": [str(stacktrace)],
                     "other_details": None,
                 }
-                if self.logger:
-                    self.logger.critical(stacktrace)
             else:
                 msg = {
                     "msg_type": "task_done",
@@ -530,7 +528,6 @@ class Bee:
                     "Delegated task raised an exception.",
                     debug={
                         "child_id": child_id,
-                        "traceback": msg["traceback"],
                         "other_details": msg["other_details"],
                     },
                     causing_error=msg["exception"],

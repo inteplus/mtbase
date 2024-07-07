@@ -50,7 +50,7 @@ class LogicError(RuntimeError):
     """
 
     def __init__(self, msg, debug={}, causing_error=None, causing_traceback=None):
-        super().__init__(msg, debug, causing_error)
+        super().__init__(msg, debug, causing_error, causing_traceback)
 
     def __str__(self):
         l_lines = []
@@ -59,6 +59,7 @@ class LogicError(RuntimeError):
         if causing_error:
             msg = f"With the following {type(causing_error).__name__}:"
             l_lines.append(msg)
+            causing_traceback = self.args[3]
             if causing_traceback is None:
                 causing_stacktrace = causing_error.__traceback__
                 if causing_stacktrace:
@@ -69,7 +70,7 @@ class LogicError(RuntimeError):
                     causing_stacktrace = _tb.format_list(causing_stacktrace)
             if causing_stacktrace:
                 causing_stacktrace = "".join(causing_stacktrace).split("\n")
-                l_lines.append("  Stack trace:")
+                l_lines.append("  Traceback:")
                 for line in causing_stacktrace:
                     l_lines.append("  " + line)
             for line in str(causing_error).split("\n"):
