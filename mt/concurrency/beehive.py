@@ -457,6 +457,8 @@ class Bee:
                     "traceback": [str(stacktrace)],
                     "other_details": None,
                 }
+                if self.logger:
+                    self.logger.critical(stacktrace)
             else:
                 msg = {
                     "msg_type": "task_done",

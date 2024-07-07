@@ -61,10 +61,13 @@ class LogicError(RuntimeError):
             l_lines.append(msg)
             if causing_traceback is None:
                 causing_stacktrace = causing_error.__traceback__
+                if causing_stacktrace:
+                    causing_stacktrace = _tb.format_tb(causing_stacktrace)
             else:
                 causing_stacktrace = causing_traceback
+                if causing_stacktrace:
+                    causing_stacktrace = _tb.format_list(causing_stacktrace)
             if causing_stacktrace:
-                causing_stacktrace = _tb.format_tb(causing_stacktrace)
                 causing_stacktrace = "".join(causing_stacktrace).split("\n")
                 l_lines.append("  Stack trace:")
                 for line in causing_stacktrace:
