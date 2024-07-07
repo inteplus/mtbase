@@ -1,6 +1,5 @@
 """Submodules dealing with datatypes."""
 
-
 import sys
 
 
@@ -41,10 +40,34 @@ def is_h5group(a) -> bool:
 
 
 class LogicError(RuntimeError):
-    """An error in the logic, defined by a message and a debugging dictionary."""
+    """An error in the logic, defined by a message and a debugging dictionary.
 
-    def __init__(self, msg, debug={}):
-        super().__init__(msg, debug)
+    As of 2024/07/07, the user can optionally provide the error that caused this error and
+    optionally the callstack (in list of lines) of the causing error.
+    """
+
+    def __init__(self, msg, debug={}, causing_error=None, causing_callstack=[]):
+        super().__init__(msg, debug, causing_error, causing_callstack)
 
     def __str__(self):
-        return f"{self.args[0]}\nData:\n{self.args[1]}"
+        l_lines = []
+
+        causing_error = self.args[2]
+        if causing_error:
+            msg = f"With the following {type(causing_error).__name__}:"
+            l_lines.append(msg)
+            causing_callstack = self.args[3]
+            if causing_callstack:
+                l_lines.append("  Callstack:")
+                for line in causing_callstack:
+                    l_lines.append("  " + line)
+            for line in str(causing_error).split("\n"):
+                l_lines.append("  " + line)
+
+        l_lines.append(f"{self.args[0]}")
+        debug = self.args[1]
+        if debug:
+            l_lines.append("Debugging dictionary:")
+            for k, v in debug.items():
+                l_lines.append(f"  {k}: {v}")
+        return "\n".join(l_lines)
