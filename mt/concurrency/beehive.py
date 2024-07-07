@@ -11,6 +11,7 @@ potentially IO-related preprocessing and postprocessing tasks of every row of th
 worker bees, and deals with making batch predictions from the model.
 """
 
+import linecache
 import random
 import queue
 import multiprocessing as mp
@@ -434,6 +435,19 @@ class Bee:
         elif task.exception() is not None:
             if True:
                 stacktrace = task.get_stack()
+                extracted_list = []
+                checked = set()
+                for f in stacktrace:
+                    lineno = f.f_lineno
+                    co = f.f_code
+                    filename = co.co_filename
+                    name = co.co_name
+                    if filename not in checked:
+                        checked.add(filename)
+                        linecache.checkcache(filename)
+                    line = linecache.getline(filename, lineno, f.f_globals)
+                    extracted_list.append((filename, lineno, name, line))
+                stacktrace = extracted_list
                 stacktrace = [str(stacktrace)]
             else:
                 import io
