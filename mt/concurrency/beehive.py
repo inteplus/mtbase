@@ -448,6 +448,7 @@ class Bee:
                     line = linecache.getline(filename, lineno, f.f_globals)
                     extracted_list.append((filename, lineno, name, line))
                 stacktrace = extracted_list
+                task.exception().__traceback__ = stacktrace
                 stacktrace = [str(stacktrace)]
             else:
                 import io
