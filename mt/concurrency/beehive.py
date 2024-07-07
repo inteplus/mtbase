@@ -432,11 +432,15 @@ class Bee:
                 },
             )
         elif task.exception() is not None:
-            import io
+            if True:
+                stacktrace = task.get_stack()
+                stacktrace = traceback.format_list(stacktrace)
+            else:
+                import io
 
-            stacktrace = io.StringIO()
-            task.print_stack(file=stacktrace)
-            stacktrace = stacktrace.getvalue().split("\n")
+                stacktrace = io.StringIO()
+                task.print_stack(file=stacktrace)
+                stacktrace = stacktrace.getvalue().split("\n")
             msg = {
                 "msg_type": "task_done",
                 "task_id": task_id,
