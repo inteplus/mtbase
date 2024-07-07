@@ -21,6 +21,8 @@ images of vectors of things.
 
 from mt.logg import make_logger, logger, init as _log_init
 
+from mt.traceback import LogicError  # for backward compatibility
+
 from .deprecated import deprecated_func
 from .casting import cast, castable
 from .exec import debug_exec, debug_on
@@ -41,7 +43,6 @@ __api__ = [
     "is_jaxarray",
     "is_tftensor",
     "is_h5group",
-    "LogicError",
 ]
 
 
