@@ -434,7 +434,7 @@ class Bee:
         elif task.exception() is not None:
             if True:
                 stacktrace = task.get_stack()
-                stacktrace = traceback.format_list(stacktrace)
+                stacktrace = [str(stacktrace)]
             else:
                 import io
 
