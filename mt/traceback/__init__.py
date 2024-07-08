@@ -58,7 +58,7 @@ class LogicError(RuntimeError):
 
         causing_error = self.args[2]
         if causing_error:
-            msg = f"With the following {type(causing_error).__name__}" + " {"
+            msg = f"With {type(causing_error).__name__}" + " {"
             l_lines.append(msg)
 
             causing_traceback = self.args[3]

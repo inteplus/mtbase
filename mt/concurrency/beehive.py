@@ -401,14 +401,15 @@ class Bee:
             if child_id != self.started_dtask_map[task_id]:
                 continue
             del self.started_dtask_map[task_id]  # pop it
+            e = traceback.LogicError(
+                "Delegated task cancelled as the delegated bee has been killed.",
+                debug={"child_id": child_id},
+            )
             self.done_dtask_map[task_id] = {
                 "status": "raised",
-                "exception": asyncio.CancelledError(
-                    "Delegated task cancelled as the delegated bee has been killed."
-                ),
+                "exception": e,
                 "traceback": extract_stack_compact(),
                 "other_details": {
-                    "child_id": child_id,
                     "msg": msg,
                 },
             }
@@ -489,11 +490,8 @@ class Bee:
                 if child_id in candidate_children_set:
                     candidate_children_set.remove(child_id)
                 elif self.logger:  # log a warning
-                    self.logger.warn(
-                        "Bee {}: Child bee {} has denied task {}.".format(
-                            self.my_id, child_id, task_id
-                        )
-                    )
+                    msg2 = f"Bee {self.my_id}: Child bee {child_id} has denied task {task_id}."
+                    self.logger.warn(msg2)
                     self.logger.warn(
                         "But the child is no longer a candidate for the task."
                     )
@@ -502,19 +500,21 @@ class Bee:
             status = msg["status"]
             child_id = self.started_dtask_map.pop(task_id)
             if status == "cancelled":
+                e = traceback.LogicError(
+                    "Delegated task has been cancelled.",
+                    debug={"child_id": child_id, "reason": msg["reason"]},
+                )
                 self.done_dtask_map[task_id] = {
                     "status": "raised",
-                    "exception": asyncio.CancelledError("Delegated task cancelled."),
+                    "exception": e,
                     "traceback": extract_stack_compact(),
-                    "other_details": {"child_id": child_id, "reason": msg["reason"]},
                 }
             elif status == "raised":
                 causing_traceback = msg.get("traceback", None)
-                debug = {
-                    "child_id": child_id,
-                }
-                if "other_details" in msg:
-                    debug["other_details"] = msg["other_details"]
+                debug = {"child_id": child_id}
+                other_details = msg.get("other_details", None)
+                if other_details is not None:
+                    debug["other_details"] = other_details
                 e = traceback.LogicError(
                     "Delegated task raised an exception.",
                     debug=debug,
