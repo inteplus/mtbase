@@ -430,10 +430,9 @@ class Bee:
                 },
             )
         elif task.exception() is not None:
-            stacktrace = task.get_stack()
             stacktrace = []
             checked = set()
-            for f in stacktrace:
+            for f in task.get_stack():
                 lineno = f.f_lineno
                 co = f.f_code
                 filename = co.co_filename
