@@ -46,7 +46,8 @@ class LogicError(RuntimeError):
     """An error in the logic, defined by a message and a debugging dictionary.
 
     As of 2024/07/07, the user can optionally provide the error that caused this error together
-    with optionally the corresponding traceback.
+    with optionally the corresponding traceback (as a list of strings, each string respresenting
+    one line without the carriage return symbol).
     """
 
     def __init__(self, msg, debug={}, causing_error=None, causing_traceback=None):
@@ -57,29 +58,34 @@ class LogicError(RuntimeError):
 
         causing_error = self.args[2]
         if causing_error:
-            msg = f"With the following {type(causing_error).__name__}:"
+            msg = f"With the following {type(causing_error).__name__}" + " \{"
             l_lines.append(msg)
+
             causing_traceback = self.args[3]
             if causing_traceback is None:
-                causing_stacktrace = causing_error.__traceback__
-                if causing_stacktrace:
-                    causing_stacktrace = _tb.format_tb(causing_stacktrace)
+                causing_traceback = causing_error.__traceback__
+                if causing_traceback:
+                    causing_traceback = _tb.format_tb(causing_traceback)
+                    causing_traceback = "".join(causing_traceback).split("\n")
             else:
-                causing_stacktrace = causing_traceback
-                if causing_stacktrace:
-                    causing_stacktrace = _tb.format_list(causing_stacktrace)
-            if causing_stacktrace:
-                causing_stacktrace = "".join(causing_stacktrace).split("\n")
+                causing_traceback = causing_traceback
+            if causing_traceback:
                 l_lines.append("  Traceback:")
-                for line in causing_stacktrace:
+                for line in causing_traceback:
                     l_lines.append("  " + line)
+
             for line in str(causing_error).split("\n"):
                 l_lines.append("  " + line)
 
+            msg = "\} " + f"{type(causing_error).__name__}"
+            l_lines.append(msg)
+
         l_lines.append(f"{self.args[0]}")
+
         debug = self.args[1]
         if debug:
-            l_lines.append("Debugging dictionary:")
+            l_lines.append("Where:")
             for k, v in debug.items():
                 l_lines.append(f"  {k}: {v}")
+
         return "\n".join(l_lines)

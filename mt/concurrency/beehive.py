@@ -434,7 +434,7 @@ class Bee:
             )
         elif task.exception() is not None:
             stacktrace = task.get_stack()
-            extracted_list = []
+            stacktrace = []
             checked = set()
             for f in stacktrace:
                 lineno = f.f_lineno
@@ -445,27 +445,17 @@ class Bee:
                     checked.add(filename)
                     linecache.checkcache(filename)
                 line = linecache.getline(filename, lineno, f.f_globals)
-                extracted_list.append((filename, lineno, name, line))
-            stacktrace = extracted_list
-            if True:
-                msg = {
-                    "msg_type": "task_done",
-                    "task_id": task_id,
-                    "status": "raised",
-                    "exception": task.exception(),
-                    "exception_traceback": stacktrace,
-                    "traceback": [str(stacktrace)],
-                    "other_details": None,
-                }
-            else:
-                msg = {
-                    "msg_type": "task_done",
-                    "task_id": task_id,
-                    "status": "raised",
-                    "exception": task.exception(),
-                    "traceback": [str(stacktrace)],
-                    "other_details": None,
-                }
+                stacktrace.append((filename, lineno, name, line))
+            stacktrace = traceback.format_list(stacktrace)
+            stacktrace = "".join(stacktrace).split("\n")
+            msg = {
+                "msg_type": "task_done",
+                "task_id": task_id,
+                "status": "raised",
+                "exception": task.exception(),
+                "traceback": stacktrace,
+                "other_details": None,
+            }
             self._put_msg(-1, msg)
         else:
             self._put_msg(
@@ -523,7 +513,7 @@ class Bee:
                     "other_details": {"child_id": child_id, "reason": msg["reason"]},
                 }
             elif status == "raised":
-                causing_traceback = msg.get("exception_traceback", None)
+                causing_traceback = msg.get("traceback", None)
                 e = traceback.LogicError(
                     "Delegated task raised an exception.",
                     debug={
