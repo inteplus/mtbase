@@ -141,11 +141,8 @@ class Bee:
         self.child_alive_list = []
         self.num_children = 0
         if not isinstance(max_concurrency, int) and max_concurrency is not None:
-            raise ValueError(
-                "Argument 'max_concurrency' is not an integer: {}.".format(
-                    max_concurrency
-                )
-            )
+            msg = f"Argument 'max_concurrency' is not an integer: {max_concurrency}."
+            raise ValueError(msg)
         self.max_concurrency = max_concurrency
         self.logger = logger
 
@@ -514,12 +511,14 @@ class Bee:
                 }
             elif status == "raised":
                 causing_traceback = msg.get("traceback", None)
+                debug = {
+                    "child_id": child_id,
+                }
+                if "other_details" in msg:
+                    debug["other_details"] = msg["other_details"]
                 e = traceback.LogicError(
                     "Delegated task raised an exception.",
-                    debug={
-                        "child_id": child_id,
-                        "other_details": msg["other_details"],
-                    },
+                    debug=debug,
                     causing_error=msg["exception"],
                     causing_traceback=causing_traceback,
                 )
@@ -893,7 +892,13 @@ class QueenBee(WorkerBee):
                         self._spawn_new_workerbee()
                     inited = True
                 else:
-                    raise RuntimeError("All children bee have been killed.")
+                    raise traceback.LogicError(
+                        "All children bee have been killed.",
+                        debug={
+                            "num_workers": num_workers,
+                            "min_num_workers": min_num_workers,
+                        },
+                    )
             elif (num_workers > min_num_workers) and (
                 (num_workers > max_num_workers)
                 or used_cpu_too_much()

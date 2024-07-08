@@ -58,7 +58,7 @@ class LogicError(RuntimeError):
 
         causing_error = self.args[2]
         if causing_error:
-            msg = f"With the following {type(causing_error).__name__}" + " \{"
+            msg = f"With the following {type(causing_error).__name__}" + " {"
             l_lines.append(msg)
 
             causing_traceback = self.args[3]
@@ -67,8 +67,6 @@ class LogicError(RuntimeError):
                 if causing_traceback:
                     causing_traceback = _tb.format_tb(causing_traceback)
                     causing_traceback = "".join(causing_traceback).split("\n")
-            else:
-                causing_traceback = causing_traceback
             if causing_traceback:
                 l_lines.append("  Traceback:")
                 for line in causing_traceback:
@@ -77,7 +75,7 @@ class LogicError(RuntimeError):
             for line in str(causing_error).split("\n"):
                 l_lines.append("  " + line)
 
-            msg = "\} " + f"{type(causing_error).__name__}"
+            msg = "} " + f"{type(causing_error).__name__}"
             l_lines.append(msg)
 
         l_lines.append(f"{self.args[0]}")
