@@ -269,11 +269,12 @@ class Bee:
         )  # child case: m2c
         try:
             conn.put_nowait(msg)
-        except:
-            if self.logger:
-                self.logger.warn_last_exception()
-                self.logger.warn("Unexpected exception above while sending a message.")
-            raise
+        except Exception as e:
+            raise traceback.LogicError(
+                "Unexpected exception while sending a message.",
+                debug={"child_id": child_id},
+                causing_error=e,
+            )
 
     async def _run_initialise(self):
         """Initialises the life cycle of the bee."""
@@ -374,11 +375,12 @@ class Bee:
         try:
             func = getattr(self, name)
             return await func(*args, **kwargs)
-        except:
-            if self.logger:
-                self.logger.warn_last_exception()
-                self.logger.warn("Caught the exception above while executing a task.")
-            raise
+        except Exception as e:
+            raise traceback.LogicError(
+                "Caught an error while executing a task.",
+                debug={"name": name, "args": args, "kwargs": kwargs},
+                causing_error=e,
+            )
 
     def _mourn_death(self, child_id, msg):  # msg = {'death_type': str, ...}
         """Processes the death wish of a child bee."""
