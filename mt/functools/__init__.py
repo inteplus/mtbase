@@ -29,10 +29,12 @@ from functools import *
 
 
 # Purely functional, no descriptor behaviour
-class rpartial(partial):
+class rpartial:
     """New function with rpartial application of the given arguments
     and keywords.
     """
+
+    __slots__ = "func", "args", "keywords", "__dict__", "__weakref__"
 
     def __new__(cls, func, /, *args, **keywords):
         if not callable(func):
@@ -54,9 +56,53 @@ class rpartial(partial):
         keywords = {**self.keywords, **keywords}
         return self.func(*args, *self.args, **keywords)
 
+    @recursive_repr()
+    def __repr__(self):
+        qualname = type(self).__qualname__
+        args = [repr(self.func)]
+        args.extend(repr(x) for x in self.args)
+        args.extend(f"{k}={v!r}" for (k, v) in self.keywords.items())
+        if type(self).__module__ == "functools":
+            return f"functools.{qualname}({', '.join(args)})"
+        return f"{qualname}({', '.join(args)})"
+
+    def __reduce__(self):
+        return (
+            type(self),
+            (self.func,),
+            (self.func, self.args, self.keywords or None, self.__dict__ or None),
+        )
+
+    def __setstate__(self, state):
+        if not isinstance(state, tuple):
+            raise TypeError("argument to __setstate__ must be a tuple")
+        if len(state) != 4:
+            raise TypeError(f"expected 4 items in state, got {len(state)}")
+        func, args, kwds, namespace = state
+        if (
+            not callable(func)
+            or not isinstance(args, tuple)
+            or (kwds is not None and not isinstance(kwds, dict))
+            or (namespace is not None and not isinstance(namespace, dict))
+        ):
+            raise TypeError("invalid rpartial state")
+
+        args = tuple(args)  # just in case it's a subclass
+        if kwds is None:
+            kwds = {}
+        elif type(kwds) is not dict:  # XXX does it need to be *exactly* dict?
+            kwds = dict(kwds)
+        if namespace is None:
+            namespace = {}
+
+        self.__dict__ = namespace
+        self.func = func
+        self.args = args
+        self.keywords = kwds
+
 
 # Descriptor version
-class rpartialmethod(partialmethod):
+class rpartialmethod(object):
     """Method descriptor with rpartial application of the given arguments
     and keywords.
 
@@ -75,12 +121,24 @@ class rpartialmethod(partialmethod):
             # other arguments
             # it's also more efficient since only one function will be called
             self.func = func.func
-            self.args = args + func.args
+            self.args = func.args + args
             self.keywords = {**func.keywords, **keywords}
         else:
             self.func = func
             self.args = args
             self.keywords = keywords
+
+    def __repr__(self):
+        args = ", ".join(map(repr, self.args))
+        keywords = ", ".join("{}={!r}".format(k, v) for k, v in self.keywords.items())
+        format_string = "{module}.{cls}({func}, {args}, {keywords})"
+        return format_string.format(
+            module=self.__class__.__module__,
+            cls=self.__class__.__qualname__,
+            func=self.func,
+            args=args,
+            keywords=keywords,
+        )
 
     def _make_unbound_method(self):
         def _method(cls_or_self, /, *args, **keywords):
@@ -109,3 +167,9 @@ class rpartialmethod(partialmethod):
             # like an instance method
             result = self._make_unbound_method().__get__(obj, cls)
         return result
+
+    @property
+    def __isabstractmethod__(self):
+        return getattr(self.func, "__isabstractmethod__", False)
+
+    __class_getitem__ = classmethod(GenericAlias)
