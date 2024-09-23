@@ -22,7 +22,6 @@ Please see Python package `functools`_ for more details.
 
 from functools import *
 from reprlib import recursive_repr
-from types import GenericAlias
 
 
 ################################################################################
@@ -173,5 +172,3 @@ class rpartialmethod(object):
     @property
     def __isabstractmethod__(self):
         return getattr(self.func, "__isabstractmethod__", False)
-
-    __class_getitem__ = classmethod(GenericAlias)
