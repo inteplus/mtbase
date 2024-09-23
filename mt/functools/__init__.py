@@ -34,8 +34,6 @@ class rpartial(partial):
     and keywords.
     """
 
-    __slots__ = "func", "args", "keywords", "__dict__", "__weakref__"
-
     def __new__(cls, func, /, *args, **keywords):
         if not callable(func):
             raise TypeError("the first argument must be callable")
