@@ -22,6 +22,7 @@ Please see Python package `functools`_ for more details.
 
 from functools import *
 from reprlib import recursive_repr
+from types import GenericAlias
 
 
 ################################################################################
