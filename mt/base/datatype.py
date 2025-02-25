@@ -21,6 +21,15 @@ def is_jaxarray(a) -> bool:
     return isinstance(a, jnp.ndarray)
 
 
+def is_torchtensor(a) -> bool:
+    """Checks if the object is a torch tensor or not."""
+    if "torch" not in sys.modules:
+        return False
+    import torch
+
+    return isinstance(a, torch.Tensor)
+
+
 def is_tftensor(a) -> bool:
     """Checks if the object is a tensorflow tensor or not."""
     if "tensorflow" not in sys.modules:

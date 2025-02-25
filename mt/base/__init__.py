@@ -40,6 +40,7 @@ __api__ = [
     "debug_exec",
     "debug_on",
     "is_ndarray",
+    "is_torchtensor",
     "is_jaxarray",
     "is_tftensor",
     "is_h5group",
