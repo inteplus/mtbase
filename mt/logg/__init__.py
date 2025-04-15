@@ -64,6 +64,7 @@ __all__ = [
     "scoped_debug",
     "scoped_log_if",
     "warn_uncaught_exception",
+    "awarn_uncaught_exception",
 ]
 
 
@@ -692,6 +693,21 @@ def warn_uncaught_exception(func):
     def func_wrapper(*args, logger=None, **kwargs):
         try:
             return func(*args, **kwargs, logger=logger)
+        except Exception:
+            if logger:
+                logger.warn_last_exception()
+            raise
+
+    return func_wrapper
+
+
+def awarn_uncaught_exception(func):
+    """An decorator that warns any uncaught exception when invoking an async function accepting keyword argument 'logger'."""
+
+    @functools.wraps(func)
+    async def func_wrapper(*args, logger=None, **kwargs):
+        try:
+            return await func(*args, **kwargs, logger=logger)
         except Exception:
             if logger:
                 logger.warn_last_exception()
