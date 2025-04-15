@@ -63,6 +63,7 @@ __all__ = [
     "scoped_warning",
     "scoped_debug",
     "scoped_log_if",
+    "warn_uncaught_exception",
 ]
 
 
@@ -552,7 +553,6 @@ def debug(
 
 
 class ScopedLog:
-
     """Scoped-log a message.
 
     >>> from mt import logg
@@ -683,3 +683,18 @@ def scoped_log_if(
         return return_value_if_false
     with scoped_log(indented_logger_adapter, level, msg=msg, curly=curly):
         return func(*func_args, **func_kwargs)
+
+
+def warn_uncaught_exception(func):
+    """A decorator that warns any uncaught exception when invoking a function accepting keyword argument 'logger'."""
+
+    @functools.wraps(func)
+    def func_wrapper(*args, logger=None, **kwargs):
+        try:
+            return func(*args, **kwargs, logger=logger)
+        except Exception:
+            if logger:
+                logger.warn_last_exception()
+            raise
+
+    return func_wrapper
