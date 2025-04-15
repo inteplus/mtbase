@@ -52,4 +52,6 @@ setup(
         "dev_template": "{tag}.dev{ccount}+{branch}",
         "dirty_template": "{tag}.post{ccount}",
     },
+    license="MIT",
+    license_files=["LICENSE"],
 )
