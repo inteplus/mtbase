@@ -6,6 +6,7 @@ from packaging import version as V
 from setuptools import setup, find_namespace_packages
 
 install_requires = [
+    "uv",  # for Python package management
     "packaging",  # for comparing versions
     "psutil",
     "colorama",  # for colored text
