@@ -28,3 +28,6 @@ for key in _tp.__dict__:
     if key == "__doc__":
         continue
     globals()[key] = _tp.__dict__[key]
+
+# MT-NOTE: To debug, create a file called 'debug.txt' in the home dirpath and write
+# 'winnow wins now' in it.

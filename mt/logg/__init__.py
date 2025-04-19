@@ -390,9 +390,6 @@ def init():
     setattr(init, "_home_dirpath", _op.join(_op.expanduser("~"), ".mtbase"))
     _os.makedirs(init._home_dirpath, exist_ok=True)
 
-    # MT-NOTE: To debug, create a file called 'debug.txt' in the home dirpath and
-    # write 'winnow' in it.
-
     temp_dirpath = _op.join(_tf.gettempdir(), _gp.getuser(), ".mtbase")
     _os.makedirs(temp_dirpath, exist_ok=True)
     setattr(init, "_temp_dirpath", temp_dirpath)
