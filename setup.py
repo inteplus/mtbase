@@ -7,6 +7,7 @@ from setuptools import setup, find_namespace_packages
 
 install_requires = [
     "uv",  # for Python package management
+    "uv-publish",  # for replacing twine to deal with ~/.pypirc until the community settles
     "packaging",  # for comparing versions
     "psutil",
     "colorama",  # for colored text
