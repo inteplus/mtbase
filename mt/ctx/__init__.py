@@ -31,15 +31,15 @@ Please see Python packages `contextlib`_ for more details.
    https://contextlib2.readthedocs.io/en/stable/
 """
 
-from packaging import version
+from packaging.version import Version
 import platform
 
-if version.parse(platform.python_version()) < version.parse("3.7"):
+if Version(platform.python_version()) < Version("3.7"):
     from contextlib2 import *
 else:
     from contextlib import *
 
-if version.parse(platform.python_version()) < version.parse("3.10"):
+if Version(platform.python_version()) < Version("3.10"):
     _nullcontext = nullcontext
 
     class nullcontext(_nullcontext):
