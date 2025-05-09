@@ -5,6 +5,7 @@ import asyncio
 import multiprocessing as mp
 import queue as _q
 import itertools
+import functools
 
 from .base import split_works
 from ..ctx import nullcontext
@@ -448,7 +449,7 @@ def pool_initializer(
         init_func(*init_func_args, **init_func_kwargs)
 
 
-def pool_func(
+def serial_pool_func(
     t_items: tuple,
 ):
     import asyncio
@@ -476,10 +477,62 @@ def pool_func(
     return asyncio.run(func(t_items))
 
 
+def parallel_pool_func(
+    t_items: tuple,
+    max_concurency: int = 1,
+):
+    import asyncio
+
+    async def func(t_items: tuple):
+        if pool_func.cvc_func is None:
+            ctx = nullcontext({"async": True})
+        else:
+            ctx = pool_func.cvc_func(
+                *pool_func.cvc_func_args, **pool_func.cvc_func_kwargs
+            )
+        async with ctx as context_vars:
+            i = 0
+            N = len(t_items)
+            l_outputs = [None] * N
+            d_tasks = {}
+
+            while i < N:
+                # push
+                while i < N and len(s_tasks) < max_concurency:
+                    coro = pool_func.asyn_func(
+                        t_items[i],
+                        *pool_func.asyn_func_args,
+                        context_vars=context_vars,
+                        **pool_func.asyn_func_kwargs,
+                    )
+                    task = asyncio.create_task(coro)
+                    d_tasks[task] = i
+                    i += 1
+
+                # pop
+                if len(d_tasks) > 0:
+                    # await for maximum 10 minutes for at least 1 task to finish
+                    s_done, _ = await asyncio.wait_for(
+                        d_tasks.keys(), timeout=600, return_when=asyncio.FIRST_COMPLETED
+                    )
+
+                    if len(s_done) == 0:
+                        raise TimeoutError("No task has been done for 10 minutes.")
+
+                    for task in s_done:
+                        l_outputs[d_tasks.pop(task)] = task.result()
+
+            return l_outputs
+
+    return asyncio.run(func(t_items))
+
+
 def asyn_pmap(
     asyn_func: tp.Callable,
     input_iterable: tp.Iterable,
-    batch_size: int = 1024,
+    block_size: int = 1024,
+    max_concurrency_for_block_items: int = 1,
+    batch_size: tp.Optional[int] = None,
     asyn_func_args: tuple = (),
     asyn_func_kwargs: dict = {},
     pool_processes: tp.Optional[int] = None,
@@ -494,9 +547,9 @@ def asyn_pmap(
 ) -> tp.Iterable:
     """pmap over an iterator with an asyn function.
 
-    Internally, the iterator is batched into a batch iterator. Each batch is sent to one worker for
-    processing. The worker goes through every item of a batch and invokes asyn function `asyn_func`
-    providing the `context_vars` dictionary. Each batch of results is then unbatched. The output
+    Internally, the iterator is batched into a block iterator. Each block is sent to one worker for
+    processing. The worker goes through every item of a block and invokes asyn function `asyn_func`
+    providing the `context_vars` dictionary. Each block of results is then unbatched. The output
     iterator yield resultant items, which may or may not in order depending on the `pool_ordered`
     argument.
 
@@ -507,10 +560,17 @@ def asyn_pmap(
         item to be processed. The keyword argument 'context_vars' is provided to the function.
     input_iterable : iterable
         any iterable object to act as the input iterator
-    batch_size : int
-        number of batch items in each batch. It should be chosen by the user to balance between the
-        benefit of iterating over the items of a batch in async mode and the cost of allocated
-        memory to store pending transformed items of the batch
+    block_size : int
+        number of items in each block. It should be chosen by the user to balance between the
+        benefit of iterating over the items of a block in async mode and the cost of allocated
+        memory to store pending transformed items of the block
+    max_concurrency_for_block_items : int, optional
+        the maximum number of concurrent items in a block to be processed by any worker. If the
+        value is greater than 1. :func:`asyncio.create_tasks` is used. Otherwise, an async for loop
+        is used instead.
+    batch_size : int, optional
+        same as block_size. For backward compatibility only. Takes priority over block_size due to
+        backward compatibility. New invocations should not use this argument.
     asyn_func_args : tuple, optional
         additional positional arguments to be passed to the asyn function as-is
     asyn_func_kwargs : dict, optional
@@ -546,7 +606,17 @@ def asyn_pmap(
         the output iterator
     """
 
-    iterable = batched(input_iterable, batch_size)
+    if batch_size is not None:
+        block_size = batch_size
+
+    iterable = batched(input_iterable, block_size)
+
+    if max_concurrency_for_block_items > 1:
+        pool_func = functools.partial(
+            parallel_pool_func, max_concurrency=max_concurrency_for_block_items
+        )
+    else:
+        pool_func = serial_pool_func
 
     initargs = (
         pool_func,
