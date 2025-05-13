@@ -37,6 +37,7 @@ setup(
     packages=find_namespace_packages(include=["mt.*"]),
     scripts=[
         "scripts/path_exists",
+        "scripts/pipi",
     ],
     install_requires=install_requires,
     python_requires=">=3.6",  # we still need to support TX2 modules coming with JetPack 4
