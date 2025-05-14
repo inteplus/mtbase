@@ -9,7 +9,7 @@ install_requires = [
     "mtuv",  # for Python package management
     "psutil",
     "colorama",  # for colored text
-    "numpy",  # common ndarray
+    "numpy<2",  # common ndarray, to avoid recent issues with numpy 2.2.5, only valid for 2025.
     "aiofiles",  # for loading/saving files asynchronously
     "aiohttp",  # for downloading http and https urls
     "aioboto3",  # for dealing with S3 files
