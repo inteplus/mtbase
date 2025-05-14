@@ -564,8 +564,9 @@ def asyn_pmap(
     Parameters
     ----------
     asyn_func : function
-        an asyn function that returns something. The first positional argument of function is the
-        item to be processed. The keyword argument 'context_vars' is provided to the function.
+        an asyn, picklable function that returns something. The first positional argument of
+        function is the item to be processed. The keyword argument 'context_vars' is provided to
+        the function.
     input_iterable : iterable
         any iterable object to act as the input iterator
     block_size : int
