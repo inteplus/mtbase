@@ -427,48 +427,38 @@ def unbatched(iterable):
 
 def pool_initializer(
     pool_func: tp.Callable,
-    asyn_func: tp.Callable,
-    asyn_func_args: tuple = (),
-    asyn_func_kwargs: dict = {},
     init_func: tp.Optional[tp.Callable] = None,
     init_func_args: tuple = (),
     init_func_kwargs: dict = {},
-    cvc_func: tp.Optional[tp.Callable] = None,
-    cvc_func_args: tuple = (),
-    cvc_func_kwargs: dict = {},
 ):
-    pool_func.asyn_func = asyn_func
-    pool_func.asyn_func_args = asyn_func_args
-    pool_func.asyn_func_kwargs = asyn_func_kwargs
-
-    pool_func.cvc_func = cvc_func
-    pool_func.cvc_func_args = cvc_func_args
-    pool_func.cvc_func_kwargs = cvc_func_kwargs
-
     if init_func is not None:
         init_func(*init_func_args, **init_func_kwargs)
 
 
 def serial_pool_func(
     t_items: tuple,
+    asyn_func: tp.Optional[tp.Callable] = None,
+    asyn_func_args: tuple = (),
+    asyn_func_kwargs: dict = {},
+    cvc_func: tp.Optional[tp.Callable] = None,
+    cvc_func_args: tuple = (),
+    cvc_func_kwargs: dict = {},
 ):
     import asyncio
 
     async def func(t_items: tuple):
-        if pool_func.cvc_func is None:
+        if cvc_func is None:
             ctx = nullcontext({"async": True})
         else:
-            ctx = pool_func.cvc_func(
-                *pool_func.cvc_func_args, **pool_func.cvc_func_kwargs
-            )
+            ctx = cvc_func(*cvc_func_args, **cvc_func_kwargs)
         async with ctx as context_vars:
             l_outputs = []
             for item in t_items:
-                output = await pool_func.asyn_func(
+                output = await asyn_func(
                     item,
-                    *pool_func.asyn_func_args,
+                    *asyn_func_args,
                     context_vars=context_vars,
-                    **pool_func.asyn_func_kwargs,
+                    **asyn_func_kwargs,
                 )
                 l_outputs.append(output)
 
@@ -479,17 +469,21 @@ def serial_pool_func(
 
 def parallel_pool_func(
     t_items: tuple,
+    asyn_func: tp.Optional[tp.Callable] = None,
+    asyn_func_args: tuple = (),
+    asyn_func_kwargs: dict = {},
+    cvc_func: tp.Optional[tp.Callable] = None,
+    cvc_func_args: tuple = (),
+    cvc_func_kwargs: dict = {},
     max_concurency: int = 1,
 ):
     import asyncio
 
     async def func(t_items: tuple):
-        if pool_func.cvc_func is None:
+        if cvc_func is None:
             ctx = nullcontext({"async": True})
         else:
-            ctx = pool_func.cvc_func(
-                *pool_func.cvc_func_args, **pool_func.cvc_func_kwargs
-            )
+            ctx = cvc_func(*cvc_func_args, **cvc_func_kwargs)
         async with ctx as context_vars:
             i = 0
             N = len(t_items)
@@ -499,11 +493,11 @@ def parallel_pool_func(
             while i < N:
                 # push
                 while i < N and len(s_tasks) < max_concurency:
-                    coro = pool_func.asyn_func(
+                    coro = asyn_func(
                         t_items[i],
-                        *pool_func.asyn_func_args,
+                        *asyn_func_args,
                         context_vars=context_vars,
-                        **pool_func.asyn_func_kwargs,
+                        **asyn_func_kwargs,
                     )
                     task = asyncio.create_task(coro)
                     d_tasks[task] = i
@@ -613,22 +607,31 @@ def asyn_pmap(
 
     if max_concurrency_for_block_items > 1:
         pool_func = functools.partial(
-            parallel_pool_func, max_concurrency=max_concurrency_for_block_items
+            parallel_pool_func,
+            asyn_func=asyn_func,
+            asyn_func_args=asyn_func_args,
+            asyn_func_kwargs=asyn_func_kwargs,
+            cvc_func=cvc_func,
+            cvc_func_args=cvc_func_args,
+            cvc_func_kwargs=cvc_func_kwargs,
+            max_concurrency=max_concurrency_for_block_items,
         )
     else:
-        pool_func = serial_pool_func
+        pool_func = functools.partial(
+            serial_pool_func,
+            asyn_func=asyn_func,
+            asyn_func_args=asyn_func_args,
+            asyn_func_kwargs=asyn_func_kwargs,
+            cvc_func=cvc_func,
+            cvc_func_args=cvc_func_args,
+            cvc_func_kwargs=cvc_func_kwargs,
+        )
 
     initargs = (
         pool_func,
-        asyn_func,
-        asyn_func_args,
-        asyn_func_kwargs,
         init_func,
         init_func_args,
         init_func_kwargs,
-        cvc_func,
-        cvc_func_args,
-        cvc_func_kwargs,
     )
     pool = mp.Pool(
         processes=pool_processes,
