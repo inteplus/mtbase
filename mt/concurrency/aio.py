@@ -422,12 +422,11 @@ def batched(iterable, n):
 
 def unbatched(iterable):
     "Unbatch tuples of data into just data."
-    for x in iterable:
-        for ok, y in x:
-            if ok:
-                yield y
-            else:
-                raise y
+    for ok, x in iterable:
+        if not ok:
+            raise x
+        for y in x:
+            yield y
 
 
 def pool_initializer(
