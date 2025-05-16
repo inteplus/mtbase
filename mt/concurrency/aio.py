@@ -7,6 +7,8 @@ import queue as _q
 import itertools
 import functools
 
+from mt import traceback
+
 from .base import split_works
 from ..ctx import nullcontext
 
@@ -421,8 +423,11 @@ def batched(iterable, n):
 def unbatched(iterable):
     "Unbatch tuples of data into just data."
     for x in iterable:
-        for y in x:
-            yield y
+        for ok, y in x:
+            if ok:
+                yield y
+            else:
+                raise y
 
 
 def pool_initializer(
@@ -445,32 +450,29 @@ def serial_pool_func(
     cvc_func_kwargs: dict = {},
 ):
     import asyncio
-    from mt import logg
 
     async def func(t_items: tuple):
-        try:
-            if cvc_func is None:
-                ctx = nullcontext({"async": True})
-            else:
-                ctx = cvc_func(*cvc_func_args, **cvc_func_kwargs)
-            async with ctx as context_vars:
-                l_outputs = []
-                for item in t_items:
-                    output = await asyn_func(
-                        item,
-                        *asyn_func_args,
-                        context_vars=context_vars,
-                        **asyn_func_kwargs,
-                    )
-                    l_outputs.append(output)
+        if cvc_func is None:
+            ctx = nullcontext({"async": True})
+        else:
+            ctx = cvc_func(*cvc_func_args, **cvc_func_kwargs)
+        async with ctx as context_vars:
+            l_outputs = []
+            for item in t_items:
+                output = await asyn_func(
+                    item,
+                    *asyn_func_args,
+                    context_vars=context_vars,
+                    **asyn_func_kwargs,
+                )
+                l_outputs.append(output)
 
-                return l_outputs
-        except:
-            logg.logger.warn_last_exception()
-            logg.logger.error("Terminating the inner function of serial_pool_func.")
-            raise
+            return l_outputs
 
-    return asyncio.run(func(t_items))
+    try:
+        return True, asyncio.run(func(t_items))
+    except Exception as e:
+        return False, e
 
 
 def parallel_pool_func(
@@ -484,55 +486,52 @@ def parallel_pool_func(
     max_concurency: int = 1,
 ):
     import asyncio
-    from mt import logg
 
     async def func(t_items: tuple):
-        try:
-            if cvc_func is None:
-                ctx = nullcontext({"async": True})
-            else:
-                ctx = cvc_func(*cvc_func_args, **cvc_func_kwargs)
-            async with ctx as context_vars:
-                i = 0
-                N = len(t_items)
-                l_outputs = [None] * N
-                d_tasks = {}
+        if cvc_func is None:
+            ctx = nullcontext({"async": True})
+        else:
+            ctx = cvc_func(*cvc_func_args, **cvc_func_kwargs)
+        async with ctx as context_vars:
+            i = 0
+            N = len(t_items)
+            l_outputs = [None] * N
+            d_tasks = {}
 
-                while i < N:
-                    # push
-                    while i < N and len(s_tasks) < max_concurency:
-                        coro = asyn_func(
-                            t_items[i],
-                            *asyn_func_args,
-                            context_vars=context_vars,
-                            **asyn_func_kwargs,
-                        )
-                        task = asyncio.create_task(coro)
-                        d_tasks[task] = i
-                        i += 1
+            while i < N:
+                # push
+                while i < N and len(s_tasks) < max_concurency:
+                    coro = asyn_func(
+                        t_items[i],
+                        *asyn_func_args,
+                        context_vars=context_vars,
+                        **asyn_func_kwargs,
+                    )
+                    task = asyncio.create_task(coro)
+                    d_tasks[task] = i
+                    i += 1
 
-                    # pop
-                    if len(d_tasks) > 0:
-                        # await for maximum 10 minutes for at least 1 task to finish
-                        s_done, _ = await asyncio.wait_for(
-                            d_tasks.keys(),
-                            timeout=600,
-                            return_when=asyncio.FIRST_COMPLETED,
-                        )
+                # pop
+                if len(d_tasks) > 0:
+                    # await for maximum 10 minutes for at least 1 task to finish
+                    s_done, _ = await asyncio.wait_for(
+                        d_tasks.keys(),
+                        timeout=600,
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
 
-                        if len(s_done) == 0:
-                            raise TimeoutError("No task has been done for 10 minutes.")
+                    if len(s_done) == 0:
+                        raise TimeoutError("No task has been done for 10 minutes.")
 
-                        for task in s_done:
-                            l_outputs[d_tasks.pop(task)] = task.result()
+                    for task in s_done:
+                        l_outputs[d_tasks.pop(task)] = task.result()
 
-                return l_outputs
-        except:
-            logg.logger.warn_last_exception()
-            logg.logger.error("Terminating the inner function of parallel_pool_func.")
-            raise
+            return l_outputs
 
-    return asyncio.run(func(t_items))
+    try:
+        return True, asyncio.run(func(t_items))
+    except Exception as e:
+        return False, e
 
 
 def asyn_pmap(

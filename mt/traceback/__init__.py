@@ -21,10 +21,16 @@ Please see Python package `traceback`_ for more details.
 """
 
 import traceback as _tb
+import asyncio
 from traceback import *
 
 
-__all__ = ["format_exc_info", "extract_stack_compact", "LogicError"]
+__all__ = [
+    "format_exc_info",
+    "extract_stack_compact",
+    "LogicError",
+    "extract_task_stacktrace",
+]
 
 
 def format_exc_info(exc_type, exc_value, exc_traceback):
@@ -87,3 +93,33 @@ class LogicError(RuntimeError):
                 l_lines.append(f"  {k}: {v}")
 
         return "\n".join(l_lines)
+
+
+def extract_task_stacktrace(task: asyncio.Task) -> list:
+    """Extracts the stacktrace of an asyncio task.
+
+    Parameters
+    ----------
+    task : asyncio.Task
+       the task to extract from
+
+    Returns
+    -------
+    list
+        list or strings representing multiple rows representing the stacktrace
+    """
+    stacktrace = []
+    checked = set()
+    for f in task.get_stack():
+        lineno = f.f_lineno
+        co = f.f_code
+        filename = co.co_filename
+        name = co.co_name
+        if filename not in checked:
+            checked.add(filename)
+            linecache.checkcache(filename)
+        line = linecache.getline(filename, lineno, f.f_globals)
+        stacktrace.append((filename, lineno, name, line))
+    stacktrace = format_list(stacktrace)
+    stacktrace = "".join(stacktrace).split("\n")
+    return stacktrace

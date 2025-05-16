@@ -433,20 +433,7 @@ class Bee:
                 },
             )
         elif task.exception() is not None:
-            stacktrace = []
-            checked = set()
-            for f in task.get_stack():
-                lineno = f.f_lineno
-                co = f.f_code
-                filename = co.co_filename
-                name = co.co_name
-                if filename not in checked:
-                    checked.add(filename)
-                    linecache.checkcache(filename)
-                line = linecache.getline(filename, lineno, f.f_globals)
-                stacktrace.append((filename, lineno, name, line))
-            stacktrace = traceback.format_list(stacktrace)
-            stacktrace = "".join(stacktrace).split("\n")
+            stacktrace = traceback.extract_task_stacktrace(task)
             msg = {
                 "msg_type": "task_done",
                 "task_id": task_id,
