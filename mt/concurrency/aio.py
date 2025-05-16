@@ -439,7 +439,7 @@ def pool_initializer(
         init_func(*init_func_args, **init_func_kwargs)
 
 
-def serial_pool_func(
+def sequential_pool_func(
     t_items: tuple,
     asyn_func: tp.Optional[tp.Callable] = None,
     asyn_func_args: tuple = (),
@@ -474,7 +474,7 @@ def serial_pool_func(
         return False, e
 
 
-def parallel_pool_func(
+def concurrent_pool_func(
     t_items: tuple,
     asyn_func: tp.Optional[tp.Callable] = None,
     asyn_func_args: tuple = (),
@@ -620,7 +620,7 @@ def asyn_pmap(
 
     if max_concurrency_for_block_items > 1:
         pool_func = functools.partial(
-            parallel_pool_func,
+            concurrent_pool_func,
             asyn_func=asyn_func,
             asyn_func_args=asyn_func_args,
             asyn_func_kwargs=asyn_func_kwargs,
@@ -631,7 +631,7 @@ def asyn_pmap(
         )
     else:
         pool_func = functools.partial(
-            serial_pool_func,
+            sequential_pool_func,
             asyn_func=asyn_func,
             asyn_func_args=asyn_func_args,
             asyn_func_kwargs=asyn_func_kwargs,
