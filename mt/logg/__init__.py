@@ -65,6 +65,8 @@ __all__ = [
     "scoped_log_if",
     "warn_uncaught_exception",
     "awarn_uncaught_exception",
+    "return_exception",
+    "areturn_exception",
 ]
 
 
@@ -690,9 +692,9 @@ def warn_uncaught_exception(func):
     """A decorator that warns any uncaught exception when invoking a function accepting keyword argument 'logger'."""
 
     @functools.wraps(func)
-    def func_wrapper(*args, logger=None, **kwargs):
+    def func_wrapper(*args, logger=None, **kwds):
         try:
-            return func(*args, **kwargs, logger=logger)
+            return func(*args, **kwds, logger=logger)
         except Exception:
             if logger:
                 logger.warn_last_exception()
@@ -702,15 +704,41 @@ def warn_uncaught_exception(func):
 
 
 def awarn_uncaught_exception(func):
-    """An decorator that warns any uncaught exception when invoking an async function accepting keyword argument 'logger'."""
+    """A decorator that warns any uncaught exception when invoking an async function accepting keyword argument 'logger'."""
 
     @functools.wraps(func)
-    async def func_wrapper(*args, logger=None, **kwargs):
+    async def func_wrapper(*args, logger=None, **kwds):
         try:
-            return await func(*args, **kwargs, logger=logger)
+            return await func(*args, **kwds, logger=logger)
         except Exception:
             if logger:
                 logger.warn_last_exception()
             raise
+
+    return func_wrapper
+
+
+def return_exception(func):
+    """A decorator catches any raised exception from the function and returns it.."""
+
+    @functools.wraps(func)
+    def func_wrapper(*args, **kwds):
+        try:
+            return func(*args, **kwds)
+        except Exception as e:
+            return e
+
+    return func_wrapper
+
+
+def areturn_exception(func):
+    """A decorator catches any raised exception from the async function and returns it.."""
+
+    @functools.wraps(func)
+    async def func_wrapper(*args, **kwds):
+        try:
+            return await func(*args, **kwds)
+        except Exception as e:
+            return e
 
     return func_wrapper
