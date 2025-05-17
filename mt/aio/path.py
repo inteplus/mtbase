@@ -1,6 +1,5 @@
 """Useful functions dealing with paths and asyncio."""
 
-
 import errno
 import os as _os
 import shutil as _su
@@ -15,9 +14,6 @@ from os.path import *
 from mt import tp, logg
 from mt.threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
 from .base import srun, sleep
-
-
-_path_lock = Lock()
 
 
 async def exists_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
@@ -69,21 +65,20 @@ async def remove_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
     """
-    with _path_lock:
-        if islink(path):
-            _os.unlink(path)
-        elif isfile(path):
-            if context_vars["async"]:
-                await aiofiles.os.remove(path)
-            else:
-                _os.remove(path)
-        elif isdir(path):
-            try:
-                _su.rmtree(path)
-            except OSError as e:
-                if _pl.system() == "Windows":
-                    pass  # this can sometimes fail on Windows
-                raise e
+    if islink(path):
+        _os.unlink(path)
+    elif isfile(path):
+        if context_vars["async"]:
+            await aiofiles.os.remove(path)
+        else:
+            _os.remove(path)
+    elif isdir(path):
+        try:
+            _su.rmtree(path)
+        except OSError as e:
+            if _pl.system() == "Windows":
+                pass  # this can sometimes fail on Windows
+            raise e
 
 
 def remove(path: tp.Union[Path, str]):
@@ -101,40 +96,13 @@ def remove(path: tp.Union[Path, str]):
 
 def make_dirs(path: tp.Union[Path, str], shared: bool = True):
     """Convenient invocation of `os.makedirs(path, exist_ok=True)`. If `shared` is True, every newly created folder will have permission 0o775."""
-    if not path:  # empty path, just ignore
-        return
-    with _path_lock:
-        if shared:
-            stack = []
-            while not exists(path):
-                head, tail = split(path)
-                if not head:  # no slash in path
-                    stack.append(tail)
-                    path = "."
-                elif not tail:  # slash at the end of path
-                    path = head
-                else:  # normal case
-                    stack.append(tail)
-                    path = head
-            while stack:
-                tail = stack.pop()
-                path = join(path, tail)
-                try:
-                    _os.mkdir(path, 0o775)
-                except FileExistsError:
-                    pass
-                _os.chmod(path, mode=0o775)
-        else:
-            _os.makedirs(path, mode=0o775, exist_ok=True)
+    return srun(make_dirs_asyn, shared=shared)
 
 
 async def make_dirs_asyn(
     path: tp.Union[Path, str], shared: bool = True, context_vars: dict = {}
 ):
-    """An asyn version of :func:`make_dirs`."""
-    if not context_vars["async"]:
-        return make_dirs(path, shared=shared)
-
+    """An asyn function wrapping `os.makedirs(path, exist_ok=True)`. If `shared` is True, every newly created folder will have permission 0o775."""
     if not path:  # empty path, just ignore
         return
     if shared:
