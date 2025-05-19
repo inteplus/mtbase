@@ -113,7 +113,7 @@ class rpartialmethod(object):
 
     def __init__(self, func, /, *args, **keywords):
         if not callable(func) and not hasattr(func, "__get__"):
-            raise TypeError("{!r} is not callable or a descriptor".format(func))
+            raise TypeError(f"{func!r} is not callable or a descriptor")
 
         # func could be a descriptor like classmethod which isn't callable,
         # so we can't inherit from rpartial (it verifies func is callable)
@@ -131,15 +131,8 @@ class rpartialmethod(object):
 
     def __repr__(self):
         args = ", ".join(map(repr, self.args))
-        keywords = ", ".join("{}={!r}".format(k, v) for k, v in self.keywords.items())
-        format_string = "{module}.{cls}({func}, {args}, {keywords})"
-        return format_string.format(
-            module=self.__class__.__module__,
-            cls=self.__class__.__qualname__,
-            func=self.func,
-            args=args,
-            keywords=keywords,
-        )
+        keywords = ", ".join(f"{k}={v!r}" for k, v in self.keywords.items())
+        return f"{self.__class__.__module__}.{self.__class__.__qualname__}({self.func}, {args}, {keywords})"
 
     def _make_unbound_method(self):
         def _method(cls_or_self, /, *args, **keywords):

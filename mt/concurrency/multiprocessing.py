@@ -87,7 +87,7 @@ def worker_process(
                 if logger:
                     logger.warn_last_exception()
                     logger.warn(
-                        "Uncaught exception killed worker pid {}.".format(os.getpid())
+                        f"Uncaught exception killed worker pid {os.getpid()}."
                     )
                 to_die = True
             has_work = False
@@ -130,9 +130,7 @@ def worker_process(
             if miss_cnt >= MAX_MISS_CNT:  # seppuku
                 if logger:
                     logger.warn(
-                        "Lack of parent's heartbeat killed worker pid {}.".format(
-                            os.getpid()
-                        )
+                        f"Uncaught exception killed worker pid {os.getpid()}."
                     )
                 to_die = True
 
@@ -224,9 +222,7 @@ class ProcessParalleliser(object):
                                 if x == 1:
                                     if self.logger:
                                         self.logger.debug(
-                                            "Worker {} wanted parent to die.".format(
-                                                p.pid
-                                            )
+                                            f"Worker {p.pid} wanted parent to die."
                                         )
                                     if death_code == "normal":
                                         death_code = "keyboard_interrupted"

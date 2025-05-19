@@ -37,7 +37,7 @@ def create(min_free_mem_pct=0.2, put_policy='rotate'):
         an object store that can be passed to other processes.
     '''
     if not put_policy in ['rotate', 'strict']:
-        raise ValueError("Unknown put policy: '{}'.".format(put_policy))
+        raise ValueError(f"Unknown put policy: '{put_policy}'.")
 
     global server_process
     if not server_process:

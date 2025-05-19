@@ -33,35 +33,29 @@ def deprecated_func(
                 lines = traceback.extract_stack_compact()
                 if len(lines) > 7:
                     logger.warn(
-                        "IMPORT: Deprecated function '{}' invoked at:".format(
-                            func.__name__
-                        )
+                        f"IMPORT: Deprecated function '{func.__name__}' invoked at:"
                     )
                     for x in lines[-7:-5]:
                         logger.warn(x)
                     logger.warn(
-                        "  It has been deprecated since version {}.".format(
-                            deprecated_version
-                        )
+                        f"  It has been deprecated since version {deprecated_version}."
                     )
                 else:
                     logger.warn(
-                        "IMPORT: Function {} has been deprecated since version {}.".format(
-                            func.__name__, deprecated_version
-                        )
+                        f"IMPORT: Function {func.__name__} has been deprecated since version {deprecated_version}."
                     )
                 if removed_version:
                     logger.warn(
-                        "  It will be removed in version {}.".format(removed_version)
+                        f"  It will be removed in version {removed_version}."
                     )
                 if suggested_func:
                     if isinstance(suggested_func, str):
                         logger.warn(
-                            "  Use function '{}' instead.".format(suggested_func)
+                            f"  Use function '{suggested_func}' instead."
                         )
                     else:
                         logger.warn(
-                            "  Use a function in {} instead.".format(suggested_func)
+                            f"  Use a function in {suggested_func} instead."
                         )
                 deprecated_func_warned[func] = True
             return func(*args, **kwargs)
@@ -70,7 +64,7 @@ def deprecated_func(
 
         the_doc = func_wrapper.__doc__
 
-        msg = "{}.. deprecated:: {}\n".format(docstring_prefix, deprecated_version)
+        msg = f"{docstring_prefix}.. deprecated:: {deprecated_version}\n"
         if not the_doc or len(the_doc) == 0:
             the_doc = msg
         else:
@@ -79,16 +73,14 @@ def deprecated_func(
             the_doc += "\n" + msg
 
         if removed_version:
-            the_doc += "{}   It will be removed in version {}.\n".format(
-                docstring_prefix, removed_version
-            )
+            the_doc += f"{docstring_prefix}   It will be removed in version {removed_version}.\n"
 
         if suggested_func:
             if isinstance(suggested_func, str):
-                msg = ":func:`{}`".format(suggested_func)
+                msg = f":func:`{suggested_func}`"
             else:
-                msg = " or ".join([":func:`{}`".format(x) for x in suggested_func])
-            the_doc += "{}   Use {} instead.\n".format(docstring_prefix, msg)
+                msg = " or ".join([f":func:`{x}`" for x in suggested_func])
+            the_doc += f"{docstring_prefix}   Use {msg} instead.\n"
 
         func_wrapper.__doc__ = the_doc
         return func_wrapper
@@ -129,31 +121,29 @@ def deprecated_class(
                 lines = traceback.extract_stack_compact()
                 if len(lines) > 7:
                     logger.warn(
-                        "IMPORT: Deprecated class '{}' invoked at:".format(cls.__name__)
+                        f"IMPORT: Deprecated class '{cls.__name__}' invoked at:"
                     )
                     for x in lines[-7:-5]:
                         logger.warn(x)
                     logger.warn(
-                        "  It has been deprecated since version {}.".format(
-                            deprecated_version
-                        )
+                        f"  It has been deprecated since version {deprecated_version}."
                     )
                 else:
                     logger.warn(
-                        "IMPORT: Class {} has been deprecated since version {}.".format(
-                            cls.__name__, deprecated_version
-                        )
+                        f"IMPORT: Class {cls.__name__} has been deprecated since version {deprecated_version}."
                     )
                 if removed_version:
                     logger.warn(
-                        "  It will be removed in version {}.".format(removed_version)
+                        f"  It will be removed in version {removed_version}."
                     )
                 if suggested_class:
                     if isinstance(suggested_class, str):
-                        logger.warn("  Use class '{}' instead.".format(suggested_class))
+                        logger.warn(
+                            f"  Use class '{suggested_class}' instead."
+                        )
                     else:
                         logger.warn(
-                            "  Use a class in {} instead.".format(suggested_class)
+                            f"  Use a class in {suggested_class} instead."
                         )
 
             return the_init(self, *args, **kwargs)
@@ -162,7 +152,7 @@ def deprecated_class(
 
         the_doc = cls.__doc__
 
-        msg = "{}.. deprecated:: {}\n".format(docstring_prefix, deprecated_version)
+        msg = f"{docstring_prefix}.. deprecated:: {deprecated_version}\n"
         if not the_doc or len(the_doc) == 0:
             the_doc = msg
         else:
@@ -171,16 +161,14 @@ def deprecated_class(
             the_doc += "\n" + msg
 
         if removed_version:
-            the_doc += "{}   It will be removed in version {}.\n".format(
-                docstring_prefix, removed_version
-            )
+            the_doc += f"{docstring_prefix}   It will be removed in version {removed_version}.\n"
 
         if suggested_class:
             if isinstance(suggested_class, str):
-                msg = ":class:`{}`".format(suggested_class)
+                msg = f":class:`{suggested_class}`"
             else:
-                msg = " or ".join([":class:`{}`".format(x) for x in suggested_class])
-            the_doc += "{}   Use {} instead.\n".format(docstring_prefix, msg)
+                msg = " or ".join([f":class:`{x}`" for x in suggested_class])
+            the_doc += f"{docstring_prefix}   Use {msg} instead.\n"
 
         cls.__doc__ = the_doc
         return cls

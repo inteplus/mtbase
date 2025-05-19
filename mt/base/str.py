@@ -37,16 +37,14 @@ def straighten(s, length, align_left=True, delimiter=" "):
     """
 
     if not isinstance(s, str):
-        raise ValueError("Input is not a string: {}".format(s))
+        raise ValueError(f"Input is not a string: {s}")
     if length < 0:
         raise ValueError(
-            "Output length must be non-negative, received {}".format(length)
+            f"Output length must be non-negative, received {length}"
         )
     if not isinstance(delimiter, str) or len(delimiter) != 1:
         raise ValueError(
-            "Expecting delimiter to be a single character, but '{}' received.".format(
-                delimiter
-            )
+            f"Expecting delimiter to be a single character, but '{delimiter}' received."
         )
 
     in_len = len(s)

@@ -57,7 +57,7 @@ class HaloNotebook(Halo):
 
     def _render_frame(self):
         frame = self.frame()
-        output = "\r{}".format(frame)
+        output = f"\r{frame}"
         with self.output:
             self.output.outputs += self._output(output)
 
@@ -114,9 +114,8 @@ class HaloNotebook(Halo):
 
         self.stop()
 
-        output = "\r{} {}\n".format(
-            *[(text, symbol) if self._placement == "right" else (symbol, text)][0]
-        )
+        text_symbol = (text, symbol) if self._placement == "right" else (symbol, text)
+        output = f"\r{text_symbol[0]} {text_symbol[1]}\n"
 
         with self.output:
             self.output.outputs = self._output(output)

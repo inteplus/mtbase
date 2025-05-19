@@ -372,14 +372,14 @@ async def asyn_work_generator(
             msg = queue.get_nowait()
             wait_cnt = 0
             # if debug_logger:
-            # debug_logger.debug("asyn_work_generator: {}".format(msg))
+            # debug_logger.debug(f"asyn_work_generator: {msg}")
             if msg[1] == "context_destroyed":
                 num_running_buckets -= 1
             elif msg[1] in ("task_returned", "task_cancelled", "task_raised"):
                 num_works_done += 1
                 # if num_works_done % 1000 == 0:
                 # if debug_logger:
-                # debug_logger.debug("asyn_work_generator: {}/{} works done".format(num_works_done, num_works))
+                # debug_logger.debug(f"asyn_work_generator: {num_works_done}/{num_works} works done")
                 yield msg[1:]
         except _q.Empty:
             try:
@@ -399,7 +399,7 @@ async def asyn_work_generator(
     else:  # something wrong
         if debug_logger:
             debug_logger.debug(
-                "asyn_work_generator: {:.1f}s timeout reached.".format(0.1 * timeout)
+                f"asyn_work_generator: {0.1 * timeout:.1f}s timeout reached."
             )
         for p in process_list:
             p.terminate()  # ouch!
