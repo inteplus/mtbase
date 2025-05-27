@@ -1,6 +1,5 @@
 """Useful subroutines dealing with S3 files via botocore and aioboto3."""
 
-
 import errno
 import asyncio
 import aiobotocore
@@ -488,9 +487,11 @@ async def put_files(
         if isinstance(progress_bar, tqdm):
             progress_bar.update()
 
-    with tqdm(
-        total=len(filepath2key_map), unit="file"
-    ) if show_progress else ctx.nullcontext() as progress_bar:
+    with (
+        tqdm(total=len(filepath2key_map), unit="file")
+        if show_progress
+        else ctx.nullcontext()
+    ) as progress_bar:
         if context_vars["async"]:
             coros = [
                 process_item(
@@ -517,6 +518,7 @@ def put_files_boto3(
     show_progress: bool = False,
     total_filesize: tp.Optional[int] = None,
     set_acl_public_read: bool = False,
+    checksum_algorithm: tp.Optional[str] = None,
     context_vars: dict = {},
 ):
     """Uploads many files to the same S3 bucket using boto3.
@@ -539,6 +541,8 @@ def put_files_boto3(
         total size of all files in bytes, if you know. Useful for drawing a progress bar.
     set_acl_public_read : bool
         whether or not to set ACL public-read policy on the uploaded object(s)
+    checksum_algorithm : str, optional
+        if specified, the algorithm to generate a checksum. A good one is 'SHA256'.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
@@ -546,7 +550,7 @@ def put_files_boto3(
         statement invoking :func:`mt.base.s3.create_s3_client`.
     """
 
-    from .s3transfer import (
+    from boto3.s3.transfer import (
         TransferConfig,
         create_transfer_manager,
         ProgressCallbackInvoker,
@@ -555,19 +559,33 @@ def put_files_boto3(
     transfer_config = TransferConfig(use_threads=True, max_concurrency=20)
     s3_client = context_vars["s3_client"]
     s3t = create_transfer_manager(s3_client, transfer_config)
-    extra_args = {"ACL": "public-read"} if set_acl_public_read else None
 
-    with tqdm(
-        total=total_filesize, unit="B", unit_scale=True
-    ) if show_progress else ctx.nullcontext() as progress_bar:
+    extra_args = {}
+
+    if set_acl_public_read:
+        extra_args["ACL"] = "public-read"
+
+    if checksum_algorithm is not None:
+        extra_args["ChecksumAlgorithm"] = checksum_algorithm
+
+    if len(extra_args) == 0:
+        extra_args = None
+
+    with (
+        tqdm(total=total_filesize, unit="B", unit_scale=True)
+        if show_progress
+        else ctx.nullcontext()
+    ) as progress_bar:
         for filepath, key in filepath2key_map.items():
             s3t.upload(
                 filepath,
                 bucket,
                 key,
                 extra_args=extra_args,
-                subscribers=[ProgressCallbackInvoker(progress_bar.update)]
-                if show_progress
-                else None,
+                subscribers=(
+                    [ProgressCallbackInvoker(progress_bar.update)]
+                    if show_progress
+                    else None
+                ),
             )
         s3t.shutdown()  # wait for all the upload tasks to finish
