@@ -182,21 +182,43 @@ class IndentedLoggerAdapter(LoggerAdapter):
 
     # ----- useful warning messages -----
 
-    def warn_last_exception(self, **kwargs):
-        """Warns last exception, printing out any keyword arguments."""
+    def warn_last_exception(self, **kwds):
+        """Warns last exception, printing out any keyword arguments.
+
+        Parameters
+        ----------
+        **kwds : dict
+            additional keyword arguments to be included in the warning message
+        """
 
         lines = traceback.format_exc_info(*_sys.exc_info())
         for x in lines:
             self.warning(x)
 
-        if kwargs:
+        if kwds:
             self.warning("Keyword arguments")
             self.warning("-----------------")
-            for key, value in kwargs.items():
+            for key, value in kwds.items():
                 with self.scoped_warning(f"{key}"):
                     self.warning(value)
 
-    def warn_module_move(self, old_module, new_module):
+    def warn_exception(self, e: Exception, **kwds):
+        """Warns an exception exception by raising and catching it, printing out any keyword arguments.
+
+        Parameters
+        ----------
+        e : Exception
+            exception to print out as warning message(s)
+        **kwds : dict
+            additional keyword arguments to be included in the warning message
+        """
+
+        try:
+            raise e
+        except:
+            self.warn_last_exception(**kwds)
+
+    def warn_module_move(self, old_module: str, new_module: str):
         """Warns that an old module has been moved to a new module.
 
         Parameters
@@ -219,7 +241,7 @@ class IndentedLoggerAdapter(LoggerAdapter):
         for x in selected_lines:
             self.warn(x)
 
-    def warn_func_move(self, old_func, new_func):
+    def warn_func_move(self, old_func: str, new_func: str):
         """Warns that an old function has been moved to a new func.
 
         Parameters
@@ -229,11 +251,8 @@ class IndentedLoggerAdapter(LoggerAdapter):
         new_func : str
             short string representing the new function
         """
-        self.warn(
-            "IMPORT: function '{}()' has been deprecated. Please use function '{}()' instead.".format(
-                old_func, new_func
-            )
-        )
+        msg = f"IMPORT: function '{old_func}()' has been deprecated. Please use function '{new_func}()' instead."
+        self.warn(msg)
         lines = traceback.extract_stack_compact()
         if len(lines) > 9:
             selected_lines = lines[-9:-7]
