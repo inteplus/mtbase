@@ -91,7 +91,9 @@ class BgInvoke:
             **kwds : dict
                 dictionary of keyword arguments for the target. Default to {}.
         """
-        self.thread = _t.Thread(target=self._wrapper, args=(target,) + args, kwds=kwds)
+        self.thread = _t.Thread(
+            target=self._wrapper, args=(target,) + args, kwargs=kwds
+        )
         self.thread.daemon = True
         self.thread.start()
 
