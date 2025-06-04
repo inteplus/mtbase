@@ -12,7 +12,7 @@ import botocore.exceptions
 from tqdm.auto import tqdm
 
 from mt import ctx, aio, tp, logg
-from mt.halo import Halo
+from mt.halo import HaloAuto
 
 from .http import create_http_session
 
@@ -218,7 +218,9 @@ async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict =
         paginator = s3_client.get_paginator("list_objects_v2")
         retval = []
         if show_progress:
-            spinner = Halo("listing objects at '{}'".format(s3cmd_url), spinner="dots")
+            spinner = HaloAuto(
+                "listing objects at '{}'".format(s3cmd_url), spinner="dots"
+            )
             spinner.start()
         if context_vars["async"]:
             async for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
@@ -332,7 +334,7 @@ async def get_object(
     bucket, prefix = split(s3cmd_url)
     s3_client = context_vars["s3_client"]
     if show_progress:
-        spinner = Halo("getting object '{}'".format(s3cmd_url), spinner="dots")
+        spinner = HaloAuto("getting object '{}'".format(s3cmd_url), spinner="dots")
         spinner.start()
     if context_vars["async"]:
         response = await s3_client.get_object(Bucket=bucket, Key=prefix)
@@ -403,7 +405,7 @@ async def put_object(
     bucket, prefix = split(s3cmd_url)
     s3_client = context_vars["s3_client"]
     if show_progress:
-        spinner = Halo("putting object '{}'".format(s3cmd_url), spinner="dots")
+        spinner = HaloAuto("putting object '{}'".format(s3cmd_url), spinner="dots")
         spinner.start()
     if context_vars["async"]:
         await s3_client.put_object(Bucket=bucket, Key=prefix, Body=data)
