@@ -53,6 +53,7 @@ class HaloNotebook(Halo):
             self.output.outputs += self._output(self.CLEAR_LINE)
 
         self.output.outputs = self._output()
+        self.output.close()
         return self
 
     def _render_frame(self):
@@ -114,8 +115,9 @@ class HaloNotebook(Halo):
 
         self.stop()
 
-        text_symbol = (text, symbol) if self._placement == "right" else (symbol, text)
-        output = f"\r{text_symbol[0]} {text_symbol[1]}\n"
+        output = "\r{} {}\n".format(
+            *[(text, symbol) if self._placement == "right" else (symbol, text)][0]
+        )
 
         with self.output:
             self.output.outputs = self._output(output)
