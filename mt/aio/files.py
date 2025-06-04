@@ -1,6 +1,5 @@
 """Useful asyn functions dealing with files."""
 
-
 import os
 import json
 import tempfile
@@ -220,7 +219,7 @@ async def write_text(
     return retval
 
 
-async def json_load(filepath, context_vars: dict = {}, **kwargs):
+async def json_load(filepath, context_vars: dict = {}, **kwds):
     """An asyn function that loads the json-like object of a file.
 
     Parameters
@@ -230,7 +229,7 @@ async def json_load(filepath, context_vars: dict = {}, **kwargs):
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
-    kwargs : dict
+    **kwds : dict
         keyword arguments passed as-is to :func:`json.loads`
 
     Returns
@@ -240,7 +239,7 @@ async def json_load(filepath, context_vars: dict = {}, **kwargs):
     """
 
     content = await read_text(filepath, context_vars=context_vars)
-    return json.loads(content, **kwargs)
+    return json.loads(content, **kwds)
 
 
 async def json_save(
@@ -250,7 +249,7 @@ async def json_save(
     context_vars: dict = {},
     file_write_delayed: bool = False,
     make_dirs: bool = False,
-    **kwargs
+    **kwds
 ):
     """An asyn function that saves a json-like object to a file.
 
@@ -271,7 +270,7 @@ async def json_save(
         returns the future. In all other cases, proceeds as usual.
     make_dirs : bool
         Whether or not to make the folders containing the path before writing to the file.
-    kwargs : dict
+    **kwds : dict
         keyword arguments passed as-is to :func:`json.dumps`
 
     Returns
@@ -281,7 +280,7 @@ async def json_save(
         task is delayed or not
     """
 
-    content = json.dumps(obj, **kwargs)
+    content = json.dumps(obj, **kwds)
     await write_text(
         filepath,
         content,

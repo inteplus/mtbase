@@ -1,4 +1,4 @@
-'''File-based resource lock that can be used by multiple processes provided they use the same path.
+"""File-based resource lock that can be used by multiple processes provided they use the same path.
 
 Example
 -------
@@ -31,7 +31,7 @@ See Also
 --------
 https://github.com/mwilliamson/locket.py
 
-'''
+"""
 
 import time
 import errno
@@ -64,6 +64,7 @@ except ImportError:
 
 else:
     _lock_file_blocking_available = True
+
     def _lock_file_blocking(file_):
         fcntl.flock(file_.fileno(), fcntl.LOCK_EX)
 
@@ -85,7 +86,7 @@ _locks_lock = threading.Lock()
 _locks = weakref.WeakValueDictionary()
 
 
-def lock_file(path, **kwargs):
+def lock_file(path, **kwds):
     _locks_lock.acquire()
     try:
         lock = _locks.get(path)
@@ -94,9 +95,9 @@ def lock_file(path, **kwargs):
             _locks[path] = lock
     finally:
         _locks_lock.release()
-    return _Locker(lock, **kwargs)
-    
-    
+    return _Locker(lock, **kwds)
+
+
 def _create_lock_file(path):
     thread_lock = _ThreadLock(path)
     file_lock = _LockFile(path)
@@ -110,14 +111,13 @@ class LockError(Exception):
 def _acquire_non_blocking(acquire, timeout, retry_period, path):
     if retry_period is None:
         retry_period = 0.05
-    
+
     start_time = time.time()
     while True:
         success = acquire()
         if success:
             return
-        elif (timeout is not None and
-                time.time() - start_time > timeout):
+        elif timeout is not None and time.time() - start_time > timeout:
             raise LockError("Couldn't lock {0}".format(path))
         else:
             time.sleep(retry_period)
@@ -126,7 +126,7 @@ def _acquire_non_blocking(acquire, timeout, retry_period, path):
 class _LockSet(object):
     def __init__(self, locks):
         self._locks = locks
-    
+
     def acquire(self, timeout, retry_period):
         acquired_locks = []
         try:
@@ -138,7 +138,7 @@ class _LockSet(object):
                 # TODO: handle exceptions
                 acquired_lock.release()
             raise
-    
+
     def release(self):
         for lock in reversed(self._locks):
             # TODO: Handle exceptions
@@ -149,7 +149,7 @@ class _ThreadLock(object):
     def __init__(self, path):
         self._path = path
         self._lock = threading.Lock()
-    
+
     def acquire(self, timeout=None, retry_period=None):
         if timeout is None:
             self._lock.acquire()
@@ -160,7 +160,7 @@ class _ThreadLock(object):
                 retry_period=retry_period,
                 path=self._path,
             )
-    
+
     def release(self):
         self._lock.release()
 
@@ -182,7 +182,7 @@ class _LockFile(object):
                 retry_period=retry_period,
                 path=self._path,
             )
-    
+
     def release(self):
         _unlock_file(self._file)
         self._file.close()
@@ -194,6 +194,7 @@ class _Locker(object):
     A lock wrapper to always apply the given *timeout* and *retry_period*
     to acquire() calls.
     """
+
     def __init__(self, lock, timeout=None, retry_period=None):
         self._lock = lock
         self._timeout = timeout

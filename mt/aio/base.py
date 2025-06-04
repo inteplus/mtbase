@@ -18,19 +18,19 @@ else:
     ipython = "outside"
 
 
-def srun(asyn_func, *args, extra_context_vars: dict = {}, **kwargs) -> object:
+def srun(asyn_func, *args, extra_context_vars: dict = {}, **kwds) -> object:
     """Invokes an asyn function synchronously, without using keyword 'await'.
 
     Parameters
     ----------
     asyn_func : function
         an asyn function taking 'asyn' as a keyword argument
-    args : list
+    *args : iterable
         postitional arguments to be passed to the function
     extra_context_vars : dict
         additional context variables to be passed to the function. The 'context_vars' keyword to be
         passed to the function will be `{'async': False}.update(extra_context_vars)`
-    kwargs : dict
+    **kwds : dict
         other keyword arguments to be passed to the function
 
     Returns
@@ -42,26 +42,26 @@ def srun(asyn_func, *args, extra_context_vars: dict = {}, **kwargs) -> object:
     try:
         context_vars = {"async": False}
         context_vars.update(extra_context_vars)
-        coro = asyn_func(*args, context_vars=context_vars, **kwargs)
+        coro = asyn_func(*args, context_vars=context_vars, **kwds)
         coro.send(None)
         coro.close()
     except StopIteration as e:
         return e.value
 
 
-def arun(asyn_func, *args, context_vars: dict = {}, **kwargs) -> object:
+def arun(asyn_func, *args, context_vars: dict = {}, **kwds) -> object:
     """Invokes an asyn function from inside an asynch function.
 
     Parameters
     ----------
     asyn_func : function
         an asyn function (declared with 'async def')
-    args : list
+    *args : iterable
         positional arguments of the asyn function
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
-    kwargs : dict
+    **kwds : dict
         other keyword arguments of the asyn function
 
     Returns
@@ -70,29 +70,29 @@ def arun(asyn_func, *args, context_vars: dict = {}, **kwargs) -> object:
         whatver the asyn function returns
     """
 
-    async def async_func(*args, **kwargs):
-        return await asyn_func(*args, **kwargs)
+    async def async_func(*args, **kwds):
+        return await asyn_func(*args, **kwds)
 
-    def sync_func(*args, **kwargs):
-        return srun(asyn_func, *args, **kwargs)
+    def sync_func(*args, **kwds):
+        return srun(asyn_func, *args, **kwds)
 
     func = async_func if context_vars["async"] else sync_func
-    return func(*args, context_vars=context_vars, **kwargs)
+    return func(*args, context_vars=context_vars, **kwds)
 
 
-async def arun2(asynch_func, *args, context_vars: dict = {}, **kwargs) -> object:
+async def arun2(asynch_func, *args, context_vars: dict = {}, **kwds) -> object:
     """Invokes an asynch function from inside an asyn function.
 
     Parameters
     ----------
     asyn_func : function
         an asyn function (declared with 'async def')
-    args : list
+    *args : iterable
         positional arguments of the asyn function
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
-    kwargs : dict
+    **kwds : dict
         other keyword arguments of the asynch function
 
     Returns
@@ -102,9 +102,9 @@ async def arun2(asynch_func, *args, context_vars: dict = {}, **kwargs) -> object
     """
 
     if context_vars["async"]:
-        retval = await asynch_func(*args, context_vars=context_vars, **kwargs)
+        retval = await asynch_func(*args, context_vars=context_vars, **kwds)
     else:
-        retval = asynch_func(*args, context_vars=context_vars, **kwargs)
+        retval = asynch_func(*args, context_vars=context_vars, **kwds)
     return retval
 
 

@@ -29,7 +29,7 @@ class BgException(Exception):
 
 
 class BgInvoke:
-    """Thin wrapper around threading.Thread to run `target(*args, **kwargs)` in background.
+    """Thin wrapper around threading.Thread to run `target(*args, **kwds)` in background.
 
     Once invoked, the thread keeps running in background until function `self.is_running()` returns
     `False`, at which point `self.result` holds the output of the invocation.
@@ -59,9 +59,9 @@ class BgInvoke:
     100000000
     """
 
-    def _wrapper(self, g, *args, **kwargs):
+    def _wrapper(self, g, *args, **kwds):
         try:
-            self._result = True, g(*args, **kwargs)
+            self._result = True, g(*args, **kwds)
         except Exception:
             self._result = False, _sys.exc_info()
 
@@ -79,21 +79,19 @@ class BgInvoke:
         else:
             raise ValueError("Result is not available.")
 
-    def __init__(self, target, *args, **kwargs):
-        """Initialises the invocation of `target(*args, **kwargs)` in background.
+    def __init__(self, target, *args, **kwds):
+        """Initialises the invocation of `target(*args, **kwds)` in background.
 
         Parameters
         ----------
             target : callable
                 callable object to be invoked. Default to None, meaning nothing is called.
-            args : tuple
+            *args : tuple
                 argument tuple for the target invocation. Default to ().
-            kwargs : dict
+            **kwds : dict
                 dictionary of keyword arguments for the target. Default to {}.
         """
-        self.thread = _t.Thread(
-            target=self._wrapper, args=(target,) + args, kwargs=kwargs
-        )
+        self.thread = _t.Thread(target=self._wrapper, args=(target,) + args, kwds=kwds)
         self.thread.daemon = True
         self.thread.start()
 
@@ -103,7 +101,7 @@ class BgInvoke:
 
 
 class BgThread(_t.Thread):
-    """Thin wrapper around threading.Thread to run `func(*args, **kwargs)` in background.
+    """Thin wrapper around threading.Thread to run `func(*args, **kwds)` in background.
 
     Once invoked via :func:`invoke`, the thread waits until the last function call has finished,
     then invokes the function with new arguments in background. The user can do other things.
@@ -159,7 +157,7 @@ class BgThread(_t.Thread):
         self.input_cv = _t.Condition()
         self.new_input = False
         self.func_args = []
-        self.func_kwargs = {}
+        self.func_kwds = {}
         self.is_thread_running = True
 
         self.func_running = False
@@ -199,14 +197,14 @@ class BgThread(_t.Thread):
                 if not self.is_thread_running:
                     return  # die happily
                 args = self.func_args
-                kwargs = self.func_kwargs
+                kwds = self.func_kwds
                 self.new_input = False  # consume the new input
                 self.input_cv.notify()
 
             # execute
             self.func_running = True
             try:
-                result = True, self.func(*args, **kwargs)
+                result = True, self.func(*args, **kwds)
             except Exception:
                 result = False, _sys.exc_info()
             self.func_running = False
@@ -221,7 +219,7 @@ class BgThread(_t.Thread):
         """Returns whether or not the function is running."""
         return self.func_running
 
-    def invoke(self, *args, **kwargs):
+    def invoke(self, *args, **kwds):
         """Invokes the function in a graceful way.
 
         This function blocks until the last function arguments have been consumed and then signals
@@ -231,7 +229,7 @@ class BgThread(_t.Thread):
         ----------
         args : list
             positional arguments of the function
-        kwargs : dict
+        kwds : dict
             keyword arguments of the function
         """
 
@@ -245,7 +243,7 @@ class BgThread(_t.Thread):
                     "Cannot invoke the function when the thread is dead."
                 )
             self.func_args = args
-            self.func_kwargs = kwargs
+            self.func_kwds = kwds
             self.new_input = True
             self.input_cv.notify()
 
@@ -282,14 +280,14 @@ def parallelise(
     bg_exception="raise",
     logger=None,
     pass_logger=False,
-    **fn_kwargs,
+    **fn_kwds,
 ):
     """Embarrasingly parallelises to excecute many jobs with a limited number of threads.
 
     Parameters
     ----------
     func : function
-        a function of the form `def func(job_id, *args, **kwargs)` that can return something
+        a function of the form `def func(job_id, *args, **kwds)` that can return something
     num_jobs : int
         number of jobs to execute, must be positive integer
     num_threads : int, optional
@@ -300,11 +298,11 @@ def parallelise(
     logger : IndentedLoggerAdaptor, optional
         for logging purposes
     pass_logger : bool
-        whether or not to include `logger` to `func_kwargs` if it does not exist in `func_kwargs`
+        whether or not to include `logger` to `func_kwds` if it does not exist in `func_kwds`
         so the function can use the same logger as `parallelise()`
-    fn_args : list
+    *fn_args : iterable
         list of postional arguments for the function
-    fn_kwargs : dict
+    *fn_kwds : dict
         list of keyword arguments for the function
 
     Returns
@@ -331,8 +329,8 @@ def parallelise(
         )
 
     if pass_logger:
-        if not "logger" in fn_kwargs:
-            fn_kwargs["logger"] = logger
+        if not "logger" in fn_kwds:
+            fn_kwds["logger"] = logger
 
     max_num_conns = (
         max(1, _os.cpu_count() * 4 // 5) if num_threads is None else num_threads
@@ -353,7 +351,7 @@ def parallelise(
                     if logger is not None and i % 1000 == 0:
                         logger.info("Job {}/{}...".format(i + 1, num_jobs))
                     # send the job to the thread
-                    threads[i] = BgInvoke(func, i, *fn_args, **fn_kwargs)
+                    threads[i] = BgInvoke(func, i, *fn_args, **fn_kwds)
                     i += 1
                 else:
                     time.sleep(1)
@@ -481,7 +479,7 @@ class BgProcManager:
 bg_proc_manager = BgProcManager(logger=logg.logger)
 
 
-def bg_run_proc(proc, *args, **kwargs):
+def bg_run_proc(proc, *args, **kwds):
     """Runs a procedure in a background thread.
 
     Parameters
@@ -489,9 +487,9 @@ def bg_run_proc(proc, *args, **kwargs):
     proc : function
         procedure (a function returning None) to be executed in a background thread. Any Exception
         raised during the execution will be logged as a warning
-    args : list
+    *args : iterable
         positional arguments to be passed as-is to the procedure
-    kwargs : dict
+    **kwds : dict
         keyword arguments to be passed as-is to the procedure
     """
-    bg_proc_manager.append_new_proc(lambda: proc(*args, **kwargs))
+    bg_proc_manager.append_new_proc(lambda: proc(*args, **kwds))

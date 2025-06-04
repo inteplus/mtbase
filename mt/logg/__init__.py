@@ -98,11 +98,11 @@ class IndentedLoggerAdapter(LoggerAdapter):
         f = IndentedFilter(self)
         self.logger.addFilter(f)
 
-    def process(self, msg: tp.Union[str, bytes], kwargs):
+    def process(self, msg: tp.Union[str, bytes], kwds):
         return (
-            ("  " * self.indent + msg.decode(), kwargs)
+            ("  " * self.indent + msg.decode(), kwds)
             if isinstance(msg, bytes)
-            else ("  " * self.indent + msg, kwargs)
+            else ("  " * self.indent + msg, kwds)
         )
 
     def inc(self):
@@ -119,46 +119,46 @@ class IndentedLoggerAdapter(LoggerAdapter):
 
     # ----- break mutli-line messages -----
 
-    def critical(self, msg: tp.Union[str, bytes], *args, **kwargs):
+    def critical(self, msg: tp.Union[str, bytes], *args, **kwds):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b"\n") if isinstance(msg, bytes) else msg.split("\n"):
             super(IndentedLoggerAdapter, self).critical(
-                Fore.LIGHTRED_EX + m, *args, **kwargs
+                Fore.LIGHTRED_EX + m, *args, **kwds
             )
 
-    def error(self, msg: tp.Union[str, bytes], *args, **kwargs):
+    def error(self, msg: tp.Union[str, bytes], *args, **kwds):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b"\n") if isinstance(msg, bytes) else msg.split("\n"):
             super(IndentedLoggerAdapter, self).error(
-                Fore.LIGHTMAGENTA_EX + m, *args, **kwargs
+                Fore.LIGHTMAGENTA_EX + m, *args, **kwds
             )
 
-    def warning(self, msg: tp.Union[str, bytes], *args, **kwargs):
+    def warning(self, msg: tp.Union[str, bytes], *args, **kwds):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b"\n") if isinstance(msg, bytes) else msg.split("\n"):
             super(IndentedLoggerAdapter, self).warning(
-                Fore.LIGHTYELLOW_EX + m, *args, **kwargs
+                Fore.LIGHTYELLOW_EX + m, *args, **kwds
             )
 
     warn = warning
 
-    def info(self, msg: tp.Union[str, bytes], *args, **kwargs):
+    def info(self, msg: tp.Union[str, bytes], *args, **kwds):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b"\n") if isinstance(msg, bytes) else msg.split("\n"):
             super(IndentedLoggerAdapter, self).info(
-                Fore.LIGHTWHITE_EX + m, *args, **kwargs
+                Fore.LIGHTWHITE_EX + m, *args, **kwds
             )
 
-    def debug(self, msg: tp.Union[str, bytes], *args, **kwargs):
+    def debug(self, msg: tp.Union[str, bytes], *args, **kwds):
         if not isinstance(msg, (str, bytes)):
             msg = str(msg)
         for m in msg.split(b"\n") if isinstance(msg, bytes) else msg.split("\n"):
             super(IndentedLoggerAdapter, self).debug(
-                Fore.LIGHTBLUE_EX + m, *args, **kwargs
+                Fore.LIGHTBLUE_EX + m, *args, **kwds
             )
 
     # ----- scoped logging -----
@@ -290,8 +290,8 @@ _format_str = (
 old_factory = getLogRecordFactory()
 
 
-def record_factory(*args, **kwargs):
-    record = old_factory(*args, **kwargs)
+def record_factory(*args, **kwds):
+    record = old_factory(*args, **kwds)
 
     frames = traceback.extract_stack()
     for frame in reversed(frames):
@@ -444,7 +444,7 @@ def log(
     msg: tp.Union[str, bytes],
     logger: tp.Optional[Logger] = logger,
     *args,
-    **kwargs,
+    **kwds,
 ):
     """Wraps :func:`logging.log` with additional logger keyword.
 
@@ -459,15 +459,15 @@ def log(
         provided, no message will be logged.
     *args : tuple
         positional arguments passed as-is to :func:`logging.log`.
-    *kwargs : dict
+    *kwds : dict
         keyword arguments passed as-is to :func:`logging.log`.
     """
     if logger:
-        logger.log(level, msg, *args, **kwargs)
+        logger.log(level, msg, *args, **kwds)
 
 
 def critical(
-    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwargs
+    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwds
 ):
     """Wraps :func:`logging.critical` with additional logger keyword.
 
@@ -480,15 +480,15 @@ def critical(
         provided, no message will be logged.
     *args : tuple
         positional arguments passed as-is to :func:`logging.critical`.
-    *kwargs : dict
+    *kwds : dict
         keyword arguments passed as-is to :func:`logging.critical`.
     """
     if logger:
-        logger.critical(msg, *args, **kwargs)
+        logger.critical(msg, *args, **kwds)
 
 
 def error(
-    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwargs
+    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwds
 ):
     """Wraps :func:`logging.error` with additional logger keyword.
 
@@ -501,15 +501,15 @@ def error(
         provided, no message will be logged.
     *args : tuple
         positional arguments passed as-is to :func:`logging.error`.
-    *kwargs : dict
+    *kwds : dict
         keyword arguments passed as-is to :func:`logging.error`.
     """
     if logger:
-        logger.error(msg, *args, **kwargs)
+        logger.error(msg, *args, **kwds)
 
 
 def warning(
-    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwargs
+    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwds
 ):
     """Wraps :func:`logging.warning` with additional logger keyword.
 
@@ -522,18 +522,18 @@ def warning(
         provided, no message will be logged.
     *args : tuple
         positional arguments passed as-is to :func:`logging.warning`.
-    *kwargs : dict
+    *kwds : dict
         keyword arguments passed as-is to :func:`logging.warning`.
     """
     if logger:
-        logger.warning(msg, *args, **kwargs)
+        logger.warning(msg, *args, **kwds)
 
 
 warn = warning
 
 
 def info(
-    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwargs
+    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwds
 ):
     """Wraps :func:`logging.info` with additional logger keyword.
 
@@ -546,15 +546,15 @@ def info(
         provided, no message will be logged.
     *args : tuple
         positional arguments passed as-is to :func:`logging.info`.
-    *kwargs : dict
+    *kwds : dict
         keyword arguments passed as-is to :func:`logging.info`.
     """
     if logger:
-        logger.info(msg, *args, **kwargs)
+        logger.info(msg, *args, **kwds)
 
 
 def debug(
-    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwargs
+    msg: tp.Union[str, bytes], logger: tp.Optional[Logger] = logger, *args, **kwds
 ):
     """Wraps :func:`logging.debug` with additional logger keyword.
 
@@ -567,11 +567,11 @@ def debug(
         provided, no message will be logged.
     *args : tuple
         positional arguments passed as-is to :func:`logging.debug`.
-    *kwargs : dict
+    *kwds : dict
         keyword arguments passed as-is to :func:`logging.debug`.
     """
     if logger:
-        logger.debug(msg, *args, **kwargs)
+        logger.debug(msg, *args, **kwds)
 
 
 class ScopedLog:
@@ -698,13 +698,13 @@ def scoped_log_if(
     msg: tp.Union[str, bytes],
     curly: bool = False,
     func_args: tuple = (),
-    func_kwargs: dict = {},
+    func_kwds: dict = {},
     return_value_if_false=None,
 ):
     if not cond:
         return return_value_if_false
     with scoped_log(indented_logger_adapter, level, msg=msg, curly=curly):
-        return func(*func_args, **func_kwargs)
+        return func(*func_args, **func_kwds)
 
 
 def warn_uncaught_exception(func):

@@ -28,7 +28,7 @@ def deprecated_func(
 
     def deprecated_decorator(func):
         @wraps(func)
-        def func_wrapper(*args, **kwargs):
+        def func_wrapper(*args, **kwds):
             if not deprecated_func_warned[func]:
                 lines = traceback.extract_stack_compact()
                 if len(lines) > 7:
@@ -45,20 +45,14 @@ def deprecated_func(
                         f"IMPORT: Function {func.__name__} has been deprecated since version {deprecated_version}."
                     )
                 if removed_version:
-                    logger.warn(
-                        f"  It will be removed in version {removed_version}."
-                    )
+                    logger.warn(f"  It will be removed in version {removed_version}.")
                 if suggested_func:
                     if isinstance(suggested_func, str):
-                        logger.warn(
-                            f"  Use function '{suggested_func}' instead."
-                        )
+                        logger.warn(f"  Use function '{suggested_func}' instead.")
                     else:
-                        logger.warn(
-                            f"  Use a function in {suggested_func} instead."
-                        )
+                        logger.warn(f"  Use a function in {suggested_func} instead.")
                 deprecated_func_warned[func] = True
-            return func(*args, **kwargs)
+            return func(*args, **kwds)
 
         deprecated_func_warned[func] = False  # register the function
 
@@ -114,7 +108,7 @@ def deprecated_class(
         the_init = cls.__init__
 
         @wraps(the_init)
-        def new_init(self, *args, **kwargs):
+        def new_init(self, *args, **kwds):
             if not self.__class__._warn_of_class_deprecation:
                 self.__class__._warn_of_class_deprecation = True
 
@@ -133,20 +127,14 @@ def deprecated_class(
                         f"IMPORT: Class {cls.__name__} has been deprecated since version {deprecated_version}."
                     )
                 if removed_version:
-                    logger.warn(
-                        f"  It will be removed in version {removed_version}."
-                    )
+                    logger.warn(f"  It will be removed in version {removed_version}.")
                 if suggested_class:
                     if isinstance(suggested_class, str):
-                        logger.warn(
-                            f"  Use class '{suggested_class}' instead."
-                        )
+                        logger.warn(f"  Use class '{suggested_class}' instead.")
                     else:
-                        logger.warn(
-                            f"  Use a class in {suggested_class} instead."
-                        )
+                        logger.warn(f"  Use a class in {suggested_class} instead.")
 
-            return the_init(self, *args, **kwargs)
+            return the_init(self, *args, **kwds)
 
         cls.__init__ = new_init
 
