@@ -6,6 +6,7 @@ import tempfile
 import asyncio
 import aiofiles
 import time
+import psutil
 
 from mt import ctx
 
@@ -52,26 +53,22 @@ async def read_binary(filepath, size: int = None, context_vars: dict = {}) -> by
         the content read from file
     """
 
-    if context_vars["async"]:
+    for i in range(3):
         try:
-            async with aiofiles.open(filepath, mode="rb") as f:
-                return await f.read(size)
-        except OSError as e:
-            if e.errno == 24:  # too many open files
-                await asyncio.sleep(1)
+            if context_vars["async"]:
                 async with aiofiles.open(filepath, mode="rb") as f:
                     return await f.read(size)
             else:
-                raise
-    else:
-        try:
-            with open(filepath, mode="rb") as f:
-                return f.read(size)
-        except OSError as e:
-            if e.errno == 24:  # too many open files
-                time.sleep(1)
                 with open(filepath, mode="rb") as f:
                     return f.read(size)
+        except OSError as e:
+            if i < 2 and e.errno == 24:  # too many open files
+                proc = psutil.Process()
+                t = 0.1 * len(proc.open_files())
+                if context_vars["async"]:
+                    await asyncio.sleep(t)
+                else:
+                    time.sleep(t)
             else:
                 raise
 
