@@ -5,6 +5,7 @@ import json
 import tempfile
 import asyncio
 import aiofiles
+import time
 
 from mt import ctx
 
@@ -52,11 +53,27 @@ async def read_binary(filepath, size: int = None, context_vars: dict = {}) -> by
     """
 
     if context_vars["async"]:
-        async with aiofiles.open(filepath, mode="rb") as f:
-            return await f.read(size)
+        try:
+            async with aiofiles.open(filepath, mode="rb") as f:
+                return await f.read(size)
+        except OSError as e:
+            if e.errno == 24:  # too many open files
+                await asyncio.sleep(1)
+                async with aiofiles.open(filepath, mode="rb") as f:
+                    return await f.read(size)
+            else:
+                raise
     else:
-        with open(filepath, mode="rb") as f:
-            return f.read(size)
+        try:
+            with open(filepath, mode="rb") as f:
+                return f.read(size)
+        except OSError as e:
+            if e.errno == 24:  # too many open files
+                time.sleep(1)
+                with open(filepath, mode="rb") as f:
+                    return f.read(size)
+            else:
+                raise
 
 
 async def write_binary(
