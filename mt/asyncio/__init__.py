@@ -38,6 +38,9 @@ if Version(platform.python_version()) < Version("3.11"):
     try:
         from taskgroup import run, TaskGroup, timeout
     except ImportError:
-        raise ImportError(
-            f"For python {platform.python_version()}, mt.asyncio relies on asyncio.timeout of Python 3.12, please pip install package 'taskgroup'."
+        import warnings
+
+        warnings.warn
+        (
+            f"For python {platform.python_version()}, mt.asyncio relies on asyncio.timeout() of Python 3.11+ for efficiency reasons. Please pip install package 'taskgroup' if possible. Otherwise, please ignore this warning message as lack of asyncio.timeout() only affects efficiency."
         )
