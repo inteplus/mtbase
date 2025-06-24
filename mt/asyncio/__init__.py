@@ -36,9 +36,9 @@ for key in _asyncio.__dict__:
     globals()[key] = _asyncio.__dict__[key]
 
 if sys.python_version < (3, 11):
-try:
-    from taskgroup import run, TaskGroup, timeout
-except ImportError:
-    raise ImportError(
-        f"For python version {sys.python_version}, mt.asyncio relies on asyncio.timeout of Python 3.12, please install package 'taskgroup'."
-    )
+    try:
+        from taskgroup import run, TaskGroup, timeout
+    except ImportError:
+        raise ImportError(
+            f"For python version {sys.python_version}, mt.asyncio relies on asyncio.timeout of Python 3.12, please install package 'taskgroup'."
+        )
