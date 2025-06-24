@@ -26,7 +26,6 @@ Please see Python package `asyncio`_ for more details.
 
 import sys
 from asyncio import *
-from asyncio import __version__
 
 import asyncio as _asyncio
 
