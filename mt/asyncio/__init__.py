@@ -24,9 +24,9 @@ Please see Python package `asyncio`_ for more details.
    https://docs.python.org/3/library/asyncio.html
 """
 
-import sys
+from packaging.version import Version
+import platform
 from asyncio import *
-
 import asyncio as _asyncio
 
 for key in _asyncio.__dict__:
@@ -34,7 +34,7 @@ for key in _asyncio.__dict__:
         continue
     globals()[key] = _asyncio.__dict__[key]
 
-if sys.python_version < (3, 11):
+if Version(platform.python_version()) < Version("3.11"):
     try:
         from taskgroup import run, TaskGroup, timeout
     except ImportError:
