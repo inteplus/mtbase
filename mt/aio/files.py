@@ -10,7 +10,15 @@ import psutil
 
 from mt import ctx
 
-from .path import rename_asyn, rename, dirname, make_dirs, make_dirs_asyn
+from .path import (
+    rename_asyn,
+    rename,
+    dirname,
+    make_dirs,
+    make_dirs_asyn,
+    exists_asyn,
+    remove_asyn,
+)
 
 
 async def safe_chmod(filepath: str, file_mode: int = 0o664):
@@ -36,21 +44,21 @@ async def safe_rename(filepath: str, new_filepath: str, context_vars: dict = {})
 async def read_binary(filepath, size: int = None, context_vars: dict = {}) -> bytes:
     """An asyn function that opens a binary file and reads the content.
 
-    Parameters
-    ----------
-    filepath : str
-        path to the file
-    size : int
-        size to read from the beginning of the file, in bytes. If None is given, read the whole
-        file.
-    context_vars : dict
-        a dictionary of context variables within which the function runs. It must include
-        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        Parameters
+    s    ----------
+        filepath : str
+            path to the file
+        size : int
+            size to read from the beginning of the file, in bytes. If None is given, read the whole
+            file.
+        context_vars : dict
+            a dictionary of context variables within which the function runs. It must include
+            `context_vars['async']` to tell whether to invoke the function asynchronously or not.
 
-    Returns
-    -------
-    bytes
-        the content read from file
+        Returns
+        -------
+        bytes
+            the content read from file
     """
 
     for i in range(3):
@@ -119,12 +127,16 @@ async def write_binary(
             if make_dirs:
                 dirpath = dirname(filepath)
                 await make_dirs_asyn(dirpath, context_vars=context_vars)
-            filepath2 = filepath + ".mttmp"
-            async with aiofiles.open(filepath2, mode="wb") as f:
-                retval = await f.write(buf)
-            if file_mode is not None:  # chmod
-                await safe_chmod(filepath2, file_mode=file_mode)
-            await safe_rename(filepath2, filepath, context_vars=context_vars)
+            try:
+                filepath2 = filepath + ".mttmp"
+                async with aiofiles.open(filepath2, mode="wb") as f:
+                    retval = await f.write(buf)
+                if file_mode is not None:  # chmod
+                    await safe_chmod(filepath2, file_mode=file_mode)
+                await safe_rename(filepath2, filepath, context_vars=context_vars)
+            finally:
+                if await exists_asyn(filepath2, context_vars=context_vars):
+                    await remove_asyn(filepath2, context_vars=context_vars)
             return retval
 
         coro = func(filepath, buf, file_mode)
@@ -213,12 +225,16 @@ async def write_text(
             if make_dirs:
                 dirpath = dirname(filepath)
                 await make_dirs_asyn(dirpath, context_vars=context_vars)
-            filepath2 = filepath + ".mttmp"
-            async with aiofiles.open(filepath2, mode="wt") as f:
-                retval = await f.write(buf)
-            if file_mode is not None:  # chmod
-                await safe_chmod(filepath2, file_mode=file_mode)
-            await safe_rename(filepath2, filepath, context_vars=context_vars)
+            try:
+                filepath2 = filepath + ".mttmp"
+                async with aiofiles.open(filepath2, mode="wt") as f:
+                    retval = await f.write(buf)
+                if file_mode is not None:  # chmod
+                    await safe_chmod(filepath2, file_mode=file_mode)
+                await safe_rename(filepath2, filepath, context_vars=context_vars)
+            finally:
+                if await exists_asyn(filepath2, context_vars=context_vars):
+                    await remove_asyn(filepath2, context_vars=context_vars)
             return retval
 
         coro = func(filepath, buf, file_mode)
