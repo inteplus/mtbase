@@ -44,11 +44,16 @@ __api__ = [
     "is_jaxarray",
     "is_tftensor",
     "is_h5group",
+    "TensorError",
+    "ModelSyntaxError",
+    "ModelParams",
+    "NameScope",
 ]
 
 
 from .datatype import *
 from .const import *
+from .model import *
 
 
 # backdoor to debug the process
