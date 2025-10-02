@@ -21,6 +21,7 @@ Please see Python package `typing`_ for more details.
 """
 
 from typing import *
+from numpy.typing import NDArray, ArrayLike, DTypeLike
 
 import typing as _tp
 
