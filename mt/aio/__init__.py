@@ -45,6 +45,8 @@ __api__ = [
     "write_text",
     "json_load",
     "json_save",
+    "npz_load",
+    "npz_save",
     "mkdtemp",
     "CreateFileH5",
     "qput_aio",

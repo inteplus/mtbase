@@ -1,5 +1,6 @@
 """Useful asyn functions dealing with files."""
 
+import io
 import os
 import json
 import tempfile
@@ -8,7 +9,7 @@ import aiofiles
 import time
 import psutil
 
-from mt import ctx
+from mt import tp, ctx
 
 from .path import (
     rename_asyn,
@@ -88,7 +89,7 @@ async def write_binary(
     context_vars: dict = {},
     file_write_delayed: bool = False,
     make_dirs: bool = False,
-):
+) -> tp.Union[asyncio.Future, int]:
     """An asyn function that creates a binary file and writes the content.
 
     Parameters
@@ -186,7 +187,7 @@ async def write_text(
     context_vars: dict = {},
     file_write_delayed: bool = False,
     make_dirs: bool = False,
-):
+) -> tp.Union[asyncio.Future, int]:
     """An asyn function that creates a text file and writes the content.
 
     Parameters
@@ -249,7 +250,7 @@ async def write_text(
     return retval
 
 
-async def json_load(filepath, context_vars: dict = {}, **kwds):
+async def json_load(filepath: str, context_vars: dict = {}, **kwds):
     """An asyn function that loads the json-like object of a file.
 
     Parameters
@@ -273,14 +274,14 @@ async def json_load(filepath, context_vars: dict = {}, **kwds):
 
 
 async def json_save(
-    filepath,
+    filepath: str,
     obj,
     file_mode: int = 0o664,
     context_vars: dict = {},
     file_write_delayed: bool = False,
     make_dirs: bool = False,
     **kwds
-):
+) -> tp.Union[asyncio.Future, int]:
     """An asyn function that saves a json-like object to a file.
 
     Parameters
@@ -311,7 +312,85 @@ async def json_save(
     """
 
     content = json.dumps(obj, **kwds)
-    await write_text(
+    return await write_text(
+        filepath,
+        content,
+        file_mode=file_mode,
+        context_vars=context_vars,
+        file_write_delayed=file_write_delayed,
+        make_dirs=make_dirs,
+    )
+
+
+async def npz_load(filepath: str, context_vars: dict = {}, **kwds) -> dict:
+    """An asyn function that loads a dictionary of arrays from an NPZ file.
+
+    Parameters
+    ----------
+    filepath : str
+        path to the file
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+    **kwds : dict
+        keyword arguments passed as-is to :func:`numpy.load`
+
+    Returns
+    -------
+    dict
+        the loaded dictionary of numpy arrays
+    """
+
+    import numpy as np
+
+    content = await read_binary(filepath, context_vars=context_vars)
+    fid = io.BytesIO(content)
+    with np.load(fid, **kwds) as npz:
+        return dict(npz)
+
+
+async def npz_save(
+    filepath: str,
+    obj: dict,
+    file_mode: int = 0o664,
+    context_vars: dict = {},
+    file_write_delayed: bool = False,
+    make_dirs: bool = False,
+) -> tp.Union[asyncio.Future, int]:
+    """An asyn function that saves a dictionary of arrays to an NPZ file.
+
+    Parameters
+    ----------
+    filepath : str
+        path to the file
+    obj : object
+        json-like object to be written to the file
+    file_mode : int
+        file mode to be set to using :func:`os.chmod`. Only valid if fp is a string. If None is
+        given, no setting of file mode will happen.
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+    file_write_delayed : bool
+        Only valid in asynchronous mode. If True, wraps the file write task into a future and
+        returns the future. In all other cases, proceeds as usual.
+    make_dirs : bool
+        Whether or not to make the folders containing the path before writing to the file.
+
+    Returns
+    -------
+    asyncio.Future or int
+        either a future or the number of bytes written, depending on whether the file write
+        task is delayed or not
+    """
+    import numpy as np
+
+    fid = io.BytesIO()
+    np.savez_compressed(fid, **obj)
+    content = fid.getvalue()
+    fid.close()
+
+    return await write_binary(
         filepath,
         content,
         file_mode=file_mode,
@@ -403,9 +482,7 @@ class CreateFileH5:
         try:
             self.handle = h5py.File(self.tmp_filepath, mode="w")
         except BlockingIOError:  # try again in 1 second
-            from time import sleep
-
-            sleep(1)
+            time.sleep(1)
             self.handle = h5py.File(self.tmp_filepath, mode="w")
         return self
 
