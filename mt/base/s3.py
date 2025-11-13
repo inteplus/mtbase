@@ -9,6 +9,7 @@ import boto3
 import boto3.session
 import botocore
 import botocore.exceptions
+from datetime import datetime
 from tqdm.auto import tqdm
 
 from mt import ctx, aio, tp, logg
@@ -24,6 +25,7 @@ __all__ = [
     "create_s3_client",
     "create_context_vars",
     "list_objects",
+    "list_recent_objects",
     "list_object_info",
     "get_object",
     "get_object_acl",
@@ -238,6 +240,85 @@ async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict =
                 retval.extend(new_list)
         else:
             for result in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                new_list = result.get("Contents", None)
+                if new_list is None:
+                    if not retval:
+                        if show_progress:
+                            spinner.succeed("no object found")
+                        return []
+                    raise ConnectionResetError(
+                        errno.ECONNRESET,
+                        "Unable to get all the records while listing objects.",
+                        s3cmd_url,
+                    )
+                retval.extend(new_list)
+        if show_progress:
+            spinner.succeed("{} objects found".format(len(retval)))
+    except botocore.exceptions.ClientError as e:
+        if e.response["Error"]["Code"] == "NoSuchKey":
+            if show_progress:
+                spinner.succeed("no object found")
+            return []
+        raise
+    return retval
+
+
+async def list_recent_objects(s3cmd_url: str, min_dt: datetime, show_progress=False, context_vars: dict = {}):
+    """An asyn function that lists all recents objects prefixed with a given s3cmd url.
+
+    This is the same as :func:`list_objects`, but with objects later than a certain datetime only.
+
+    Parameters
+    ----------
+    s3cmd_url : str
+        an s3cmd_url in the form 's3://bucket[/prefix]'
+    min_dt : datetime
+        minimum datetime of the objects to be listed. Must be a zone-aware datetime.
+    show_progress : bool
+        show a progress spinner in the terminal
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        In addition, variable 's3_client' must exist and hold an enter-result of an async with
+        statement invoking :func:`mt.base.s3.create_s3_client`.
+
+    Returns
+    -------
+    list
+        list of records, each of which corresponds to an object prefixed with the given s3cmd url.
+        The record has multiple attributes.
+    """
+
+    s3_client = context_vars["s3_client"]
+    try:
+        bucket, prefix = split(s3cmd_url)
+        paginator = s3_client.get_paginator("list_objects_v2")
+        retval = []
+        if show_progress:
+            spinner = HaloAuto(
+                "listing objects at '{}'".format(s3cmd_url), spinner="dots"
+            )
+            spinner.start()
+        if context_vars["async"]:
+            s3_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
+            filtered_iterator = s3_iterator.search("Contents[?LastModified>=`{}`]".format(min_dt.isoformat()))
+            async for result in filtered_iterator:
+                new_list = result.get("Contents", None)
+                if new_list is None:
+                    if not retval:
+                        if show_progress:
+                            spinner.succeed("no object found")
+                        return []
+                    raise ConnectionResetError(
+                        errno.ECONNRESET,
+                        "Unable to get all the records while listing objects.",
+                        s3cmd_url,
+                    )
+                retval.extend(new_list)
+        else:
+            s3_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
+            filtered_iterator = s3_iterator.search("Contents[?LastModified>=`{}`]".format(min_dt.isoformat()))
+            for result in filtered_iterator:
                 new_list = result.get("Contents", None)
                 if new_list is None:
                     if not retval:
