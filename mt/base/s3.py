@@ -198,7 +198,8 @@ async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict =
     Parameters
     ----------
     s3cmd_url : str
-        an s3cmd_url in the form 's3://bucket[/prefix]'
+        an s3cmd_url in the form 's3://bucket/[prefix]'. Note that there must be a slash after the
+        bucket.
     show_progress : bool
         show a progress spinner in the terminal
     context_vars : dict
@@ -271,7 +272,8 @@ async def list_recent_objects(s3cmd_url: str, min_dt: datetime, show_progress=Fa
     Parameters
     ----------
     s3cmd_url : str
-        an s3cmd_url in the form 's3://bucket[/prefix]'
+        an s3cmd_url in the form 's3://bucket/[prefix]'. Note that there must be a slash after the
+        bucket.
     min_dt : datetime
         minimum datetime of the objects to be listed. Must be a zone-aware datetime.
     show_progress : bool
