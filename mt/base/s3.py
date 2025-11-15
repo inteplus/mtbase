@@ -303,7 +303,7 @@ async def list_recent_objects(s3cmd_url: str, min_dt: datetime, show_progress=Fa
             spinner.start()
         if context_vars["async"]:
             s3_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
-            filtered_iterator = s3_iterator.search("Contents[?LastModified>=`{}`]".format(min_dt.isoformat()))
+            filtered_iterator = s3_iterator.search(f"Contents[?LastModified>=`{min_dt.isoformat()}`]")
             async for result in filtered_iterator:
                 new_list = result.get("Contents", None)
                 if new_list is None:
@@ -319,7 +319,7 @@ async def list_recent_objects(s3cmd_url: str, min_dt: datetime, show_progress=Fa
                 retval.extend(new_list)
         else:
             s3_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
-            filtered_iterator = s3_iterator.search("Contents[?LastModified>=`{}`]".format(min_dt.isoformat()))
+            filtered_iterator = s3_iterator.search(f"Contents[?LastModified>=`{min_dt.isoformat()}`]")
             for result in filtered_iterator:
                 new_list = result.get("Contents", None)
                 if new_list is None:
