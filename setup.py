@@ -9,6 +9,7 @@ install_requires = [
     "mtuv",  # for Python package management
     "psutil",
     "colorama",  # for colored text
+    "numpy",  # for numerical computing
     "aiofiles",  # for loading/saving files asynchronously
     "aiohttp",  # for downloading http and https urls
     "aioboto3",  # for dealing with S3 files
@@ -25,11 +26,6 @@ python_version = platform.python_version()
 if V.parse(python_version) < V.parse("3.7"):
     install_requires.append("contextlib2")  # to have nullcontext
     install_requires.append("asyncio37")  # to have asyncio 3.7
-
-if V.parse(python_version) < V.parse("3.12"):
-    install_requires.append("numpy<2")  # numpy <2 for Python <3.12
-else:
-    install_requires.append("numpy>=2.3.3")  # numpy 2.3.3 supports Python 3.12+
 
 VERSION_FILE = os.path.join(os.path.dirname(__file__), "VERSION.txt")
 

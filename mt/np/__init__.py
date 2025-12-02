@@ -20,7 +20,6 @@ Please see the `numpy`_ package for more details.
    https://numpy.org/doc/stable/
 """
 
-
 from numpy import *
 from numpy import __version__
 
@@ -58,3 +57,23 @@ __api__ = [
     "quantise_images",
     "dequantise_images",
 ]
+
+
+def import_test():
+    import platform
+    from packaging import version as V
+    import warnings
+
+    python_version = platform.python_version()
+
+    if V.parse(python_version) < V.parse("3.12"):
+        if V.parse(__version__) >= V.parse("2"):
+            warnings.warn("numpy>=2 is not supported for Python <3.12", UserWarning)
+            raise ImportError("numpy>=2 is not supported for Python <3.12")
+    else:
+        if V.parse(__version__) < V.parse("2.3.3"):
+            warnings.warn("numpy>=2.3.3 is required for Python 3.12+", UserWarning)
+
+
+import_test()
+del import_test
