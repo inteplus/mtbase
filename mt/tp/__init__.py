@@ -20,6 +20,7 @@ Please see Python package `typing`_ for more details.
    https://docs.python.org/3/library/typing.html
 """
 
+from __future__ import annotations
 from typing import *
 from numpy.typing import NDArray, ArrayLike, DTypeLike
 
