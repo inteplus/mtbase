@@ -20,7 +20,7 @@ Please see Python package `shutil`_ for more details.
    https://docs.python.org/3/library/shutil.html
 """
 
-
+import aioshutil as aio
 from shutil import *
 
 
@@ -45,3 +45,27 @@ def stty_imgres():
 
     res = get_terminal_size(fallback=(128, 72))
     return [res[0], res[1]]
+
+
+async def copyfile_asyn(src, dst, *args, follow_symlinks=True, context_vars: dict = {}):
+    """An asyn version of `shutil.copyfile`_.
+
+    Parameters
+    ----------
+    src : str
+        Source file path.
+    dst : str
+        Destination file path.
+    follow_symlinks : bool, optional
+        Whether to follow symlinks. Default is True.
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+
+    .. _shutil.copyfile:
+       https://docs.python.org/3/library/shutil.html#shutil.copyfile
+    """
+    if not context_vars.get("async", True):
+        return copyfile(src, dst, *args, follow_symlinks=follow_symlinks)
+
+    return await aio.copyfile(src, dst, *args, follow_symlinks=follow_symlinks)

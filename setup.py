@@ -11,6 +11,7 @@ install_requires = [
     "colorama",  # for colored text
     "numpy",  # for numerical computing
     "aiofiles",  # for loading/saving files asynchronously
+    "aioshutil",  # for dealing with local files asynchronously
     "aiohttp",  # for downloading http and https urls
     "aioboto3",  # for dealing with S3 files
     "filetype",  # to determine the type of a file
