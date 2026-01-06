@@ -47,7 +47,31 @@ def stty_imgres():
     return [res[0], res[1]]
 
 
-async def copyfile_asyn(src, dst, *args, follow_symlinks=True, context_vars: dict = {}):
+async def copyfileobj_asyn(fsrc, fdst, length=16 * 1024, context_vars: dict = {}):
+    """An asyn version of `shutil.copyfileobj`_.
+
+    Parameters
+    ----------
+    fsrc : file object
+        Source file object.
+    fdst : file object
+        Destination file object.
+    length : int, optional
+        Buffer size. Default is 16 * 1024.
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+
+    .. _shutil.copyfileobj:
+       https://docs.python.org/3/library/shutil.html#shutil.copyfileobj
+    """
+    if not context_vars.get("async", True):
+        return copyfileobj(fsrc, fdst, length=length)
+
+    return await aio.copyfileobj(fsrc, fdst, length=length)
+
+
+async def copyfile_asyn(src, dst, *, follow_symlinks=True, context_vars: dict = {}):
     """An asyn version of `shutil.copyfile`_.
 
     Parameters
@@ -66,6 +90,102 @@ async def copyfile_asyn(src, dst, *args, follow_symlinks=True, context_vars: dic
        https://docs.python.org/3/library/shutil.html#shutil.copyfile
     """
     if not context_vars.get("async", True):
-        return copyfile(src, dst, *args, follow_symlinks=follow_symlinks)
+        return copyfile(src, dst, follow_symlinks=follow_symlinks)
 
-    return await aio.copyfile(src, dst, *args, follow_symlinks=follow_symlinks)
+    return await aio.copyfile(src, dst, follow_symlinks=follow_symlinks)
+
+
+async def copymode_asyn(src, dst, *, follow_symlinks=True, context_vars: dict = {}):
+    """An asyn version of `shutil.copymode`_.
+
+    Parameters
+    ----------
+    src : str
+        Source file path.
+    dst : str
+        Destination file path.
+    follow_symlinks : bool, optional
+        Whether to follow symlinks. Default is True.
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+
+    .. _shutil.copymode:
+       https://docs.python.org/3/library/shutil.html#shutil.copymode
+    """
+    if not context_vars.get("async", True):
+        return copymode(src, dst, follow_symlinks=follow_symlinks)
+
+    return await aio.copymode(src, dst, follow_symlinks=follow_symlinks)
+
+
+async def copystat_asyn(src, dst, *, follow_symlinks=True, context_vars: dict = {}):
+    """An asyn version of `shutil.copystat`_.
+
+    Parameters
+    ----------
+    src : str
+        Source file path.
+    dst : str
+        Destination file path.
+    follow_symlinks : bool, optional
+        Whether to follow symlinks. Default is True.
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+
+    .. _shutil.copystat:
+       https://docs.python.org/3/library/shutil.html#shutil.copystat
+    """
+    if not context_vars.get("async", True):
+        return copystat(src, dst, follow_symlinks=follow_symlinks)
+
+    return await aio.copystat(src, dst, follow_symlinks=follow_symlinks)
+
+
+async def copy_asyn(src, dst, *, follow_symlinks=True, context_vars: dict = {}):
+    """An asyn version of `shutil.copy`_.
+
+    Parameters
+    ----------
+    src : str
+        Source file path.
+    dst : str
+        Destination file path.
+    follow_symlinks : bool, optional
+        Whether to follow symlinks. Default is True.
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+
+    .. _shutil.copy:
+       https://docs.python.org/3/library/shutil.html#shutil.copy
+    """
+    if not context_vars.get("async", True):
+        return copy(src, dst, follow_symlinks=follow_symlinks)
+
+    return await aio.copy(src, dst, follow_symlinks=follow_symlinks)
+
+
+async def copy2_asyn(src, dst, *, follow_symlinks=True, context_vars: dict = {}):
+    """An asyn version of `shutil.copy2`_.
+
+    Parameters
+    ----------
+    src : str
+        Source file path.
+    dst : str
+        Destination file path.
+    follow_symlinks : bool, optional
+        Whether to follow symlinks. Default is True.
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+
+    .. _shutil.copy2:
+       https://docs.python.org/3/library/shutil.html#shutil.copy2
+    """
+    if not context_vars.get("async", True):
+        return copy2(src, dst, follow_symlinks=follow_symlinks)
+
+    return await aio.copy2(src, dst, follow_symlinks=follow_symlinks)
