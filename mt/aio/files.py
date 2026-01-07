@@ -12,6 +12,7 @@ import psutil
 from mt import tp, ctx
 
 from .path import (
+    Path,
     rename_asyn,
     rename,
     dirname,
@@ -22,7 +23,54 @@ from .path import (
 )
 
 
-async def safe_chmod(filepath: str, file_mode: int = 0o664):
+def make_mttmp_filepath(filepath: tp.Union[Path, str]) -> Path:
+    """Generates a temporary filepath with '.mttmp' extension.
+
+    Parameters
+    ----------
+    filepath : str
+        path to the file
+
+    Returns
+    -------
+    Path
+        the temporary filepath with '.mttmp' extension
+    """
+    return Path(str(filepath) + ".mttmp")
+
+
+async def wait_until_file_exists(
+    filepath: tp.Union[Path, str],
+    timeout: float = 10.0,
+    check_interval: float = 0.1,
+    context_vars: dict = {},
+):
+    """Waits until a file exists or a timeout occurs.
+
+    Parameters
+    ----------
+    filepath : str
+        path to the file
+    timeout : float
+        maximum time to wait for the file to appear, in seconds
+    check_interval : float
+        time interval between successive checks, in seconds
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+    """
+    start_time = time.time()
+    while True:
+        if await exists_asyn(filepath, context_vars=context_vars):
+            return
+        if time.time() - start_time > timeout:
+            raise TimeoutError(
+                f"File '{filepath}' did not appear within {timeout} seconds."
+            )
+        await asyncio.sleep(check_interval)
+
+
+async def safe_chmod(filepath: tp.Union[Path, str], file_mode: int = 0o664):
     try:
         return os.chmod(filepath, file_mode)
     except FileNotFoundError:
@@ -30,7 +78,11 @@ async def safe_chmod(filepath: str, file_mode: int = 0o664):
         return os.chmod(filepath, file_mode)
 
 
-async def safe_rename(filepath: str, new_filepath: str, context_vars: dict = {}):
+async def safe_rename(
+    filepath: tp.Union[Path, str],
+    new_filepath: tp.Union[Path, str],
+    context_vars: dict = {},
+):
     try:
         return await rename_asyn(
             filepath, new_filepath, context_vars=context_vars, overwrite=True
@@ -42,7 +94,9 @@ async def safe_rename(filepath: str, new_filepath: str, context_vars: dict = {})
         )
 
 
-async def read_binary(filepath, size: int = None, context_vars: dict = {}) -> bytes:
+async def read_binary(
+    filepath: tp.Union[Path, str], size: int = None, context_vars: dict = {}
+) -> bytes:
     """An asyn function that opens a binary file and reads the content.
 
         Parameters
@@ -83,7 +137,7 @@ async def read_binary(filepath, size: int = None, context_vars: dict = {}) -> by
 
 
 async def write_binary(
-    filepath,
+    filepath: tp.Union[Path, str],
     buf: bytes,
     file_mode: int = 0o664,
     context_vars: dict = {},
@@ -129,13 +183,10 @@ async def write_binary(
                 dirpath = dirname(filepath)
                 await make_dirs_asyn(dirpath, context_vars=context_vars)
             try:
-                filepath2 = filepath + ".mttmp"
+                filepath2 = make_mttmp_filepath(filepath)
                 async with aiofiles.open(filepath2, mode="wb") as f:
                     retval = await f.write(buf)
-                if not await exists_asyn(filepath2, context_vars=context_vars):
-                    await asyncio.sleep(0.01)
-                    if not await exists_asyn(filepath2, context_vars=context_vars):
-                        await asyncio.sleep(0.1)
+                await wait_until_file_exists(filepath2, context_vars=context_vars)
                 if file_mode is not None:  # chmod
                     await safe_chmod(filepath2, file_mode=file_mode)
                 await safe_rename(filepath2, filepath, context_vars=context_vars)
@@ -147,7 +198,7 @@ async def write_binary(
         coro = func(filepath, buf, file_mode)
         return asyncio.ensure_future(coro) if file_write_delayed else (await coro)
 
-    filepath2 = filepath + ".mttmp"
+    filepath2 = make_mttmp_filepath(filepath)
     with open(filepath2, mode="wb") as f:
         retval = f.write(buf)
     if file_mode is not None:  # chmod
@@ -185,7 +236,7 @@ async def read_text(filepath, size: int = None, context_vars: dict = {}) -> str:
 
 
 async def write_text(
-    filepath,
+    filepath: tp.Union[Path, str],
     buf: str,
     file_mode: int = 0o664,
     context_vars: dict = {},
@@ -231,13 +282,10 @@ async def write_text(
                 dirpath = dirname(filepath)
                 await make_dirs_asyn(dirpath, context_vars=context_vars)
             try:
-                filepath2 = filepath + ".mttmp"
+                filepath2 = make_mttmp_filepath(filepath)
                 async with aiofiles.open(filepath2, mode="wt") as f:
                     retval = await f.write(buf)
-                if not await exists_asyn(filepath2, context_vars=context_vars):
-                    await asyncio.sleep(0.01)
-                    if not await exists_asyn(filepath2, context_vars=context_vars):
-                        await asyncio.sleep(0.1)
+                await wait_until_file_exists(filepath2, context_vars=context_vars)
                 if file_mode is not None:  # chmod
                     await safe_chmod(filepath2, file_mode=file_mode)
                 await safe_rename(filepath2, filepath, context_vars=context_vars)
@@ -249,7 +297,7 @@ async def write_text(
         coro = func(filepath, buf, file_mode)
         return asyncio.ensure_future(coro) if file_write_delayed else (await coro)
 
-    filepath2 = filepath + ".mttmp"
+    filepath2 = make_mttmp_filepath(filepath)
     with open(filepath2, mode="wt") as f:
         retval = f.write(buf)
     if file_mode is not None:  # chmod
@@ -258,7 +306,7 @@ async def write_text(
     return retval
 
 
-async def json_load(filepath: str, context_vars: dict = {}, **kwds):
+async def json_load(filepath: tp.Union[Path, str], context_vars: dict = {}, **kwds):
     """An asyn function that loads the json-like object of a file.
 
     Parameters
@@ -282,13 +330,13 @@ async def json_load(filepath: str, context_vars: dict = {}, **kwds):
 
 
 async def json_save(
-    filepath: str,
+    filepath: tp.Union[Path, str],
     obj,
     file_mode: int = 0o664,
     context_vars: dict = {},
     file_write_delayed: bool = False,
     make_dirs: bool = False,
-    **kwds
+    **kwds,
 ) -> tp.Union[asyncio.Future, int]:
     """An asyn function that saves a json-like object to a file.
 
@@ -330,7 +378,9 @@ async def json_save(
     )
 
 
-async def npz_load(filepath: str, context_vars: dict = {}, **kwds) -> dict:
+async def npz_load(
+    filepath: tp.Union[Path, str], context_vars: dict = {}, **kwds
+) -> dict:
     """An asyn function that loads a dictionary of arrays from an NPZ file.
 
     Parameters
@@ -358,7 +408,7 @@ async def npz_load(filepath: str, context_vars: dict = {}, **kwds) -> dict:
 
 
 async def npz_save(
-    filepath: str,
+    filepath: tp.Union[Path, str],
     obj: dict,
     file_mode: int = 0o664,
     context_vars: dict = {},
@@ -466,7 +516,7 @@ class CreateFileH5:
 
     def __init__(
         self,
-        filepath: str,
+        filepath: tp.Union[Path, str],
         file_mode: int = 0o664,
         context_vars: dict = {},
         logger=None,
@@ -486,7 +536,7 @@ class CreateFileH5:
                 self.logger.error("Need h5py create file '{}'.".format(self.filepath))
             raise
 
-        self.tmp_filepath = self.filepath + ".mttmp"
+        self.tmp_filepath = make_mttmp_filepath(self.filepath)
         try:
             self.handle = h5py.File(self.tmp_filepath, mode="w")
         except BlockingIOError:  # try again in 1 second
