@@ -315,6 +315,52 @@ def stat(path: tp.Union[Path, str], dir_fd=None, follow_symlinks=True):
     return srun(stat_asyn, path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
 
 
+async def relative_symlink_asyn(
+    target: tp.Union[Path, str],
+    destination: tp.Union[Path, str],
+    context_vars: dict = {},
+):
+    """An asyn function that creates a symlink pointing to ``target`` from ``location``.
+
+    Parameters
+    ----------
+    target : str
+        The target of the symlink (the file/directory that is pointed to)
+    destination : str
+        The location of the symlink itself.
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+    """
+    target = Path(target)
+    destination = Path(destination)
+    target_dir = destination.parent
+    await make_dirs_asyn(target_dir, context_vars=context_vars)
+    relative_source = relpath(target, target_dir)
+    dir_fd = _os.open(str(target_dir.absolute()), _os.O_RDONLY)
+    # print(f"{relative_source} -> {destination.name} in {target_dir}")
+    try:
+        _os.symlink(relative_source, destination.name, dir_fd=dir_fd)
+    finally:
+        _os.close(dir_fd)
+
+
+def relative_symlink(
+    target: tp.Union[Path, str],
+    destination: tp.Union[Path, str],
+):
+    """Creates a symlink pointing to ``target`` from ``location``.
+
+    Parameters
+    ----------
+    target : str
+        The target of the symlink (the file/directory that is pointed to)
+    destination : str
+        The location of the symlink itself.
+    """
+    return srun(relative_symlink_asyn, target, destination)
+
+
 # exit function
 def __exit_module():
     # repeatedly wait until all locks are free

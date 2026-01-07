@@ -36,6 +36,8 @@ from mt.aio.path import (
     rename,
     stat_asyn,
     stat,
+    relative_symlink_asyn,
+    relative_symlink,
 )
 
 
@@ -53,6 +55,8 @@ __api__ = [
     "walk",
     "stat_asyn",
     "stat",
+    "relative_symlink_asyn",
+    "relative_symlink",
     "chmod",
     "listdir",
     "glob",
