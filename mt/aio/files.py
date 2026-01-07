@@ -132,6 +132,10 @@ async def write_binary(
                 filepath2 = filepath + ".mttmp"
                 async with aiofiles.open(filepath2, mode="wb") as f:
                     retval = await f.write(buf)
+                if not await exists_asyn(filepath2, context_vars=context_vars):
+                    await asyncio.sleep(0.01)
+                    if not await exists_asyn(filepath2, context_vars=context_vars):
+                        await asyncio.sleep(0.1)
                 if file_mode is not None:  # chmod
                     await safe_chmod(filepath2, file_mode=file_mode)
                 await safe_rename(filepath2, filepath, context_vars=context_vars)
@@ -230,6 +234,10 @@ async def write_text(
                 filepath2 = filepath + ".mttmp"
                 async with aiofiles.open(filepath2, mode="wt") as f:
                     retval = await f.write(buf)
+                if not await exists_asyn(filepath2, context_vars=context_vars):
+                    await asyncio.sleep(0.01)
+                    if not await exists_asyn(filepath2, context_vars=context_vars):
+                        await asyncio.sleep(0.1)
                 if file_mode is not None:  # chmod
                     await safe_chmod(filepath2, file_mode=file_mode)
                 await safe_rename(filepath2, filepath, context_vars=context_vars)
