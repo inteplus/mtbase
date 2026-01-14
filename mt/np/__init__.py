@@ -68,10 +68,12 @@ def import_test():
 
     if V.parse(python_version) < V.parse("3.12"):
         if V.parse(__version__) >= V.parse("2"):
-            warnings.warn("numpy>=2 is not supported for Python <3.12", UserWarning)
+            # warnings.warn("numpy>=2 is not supported for Python <3.12", UserWarning)
+            pass
     else:
         if V.parse(__version__) < V.parse("2.3.3"):
-            warnings.warn("numpy>=2.3.3 is required for Python 3.12+", UserWarning)
+            # warnings.warn("numpy>=2.3.3 is required for Python 3.12+", UserWarning)
+            pass
 
 
 import_test()
