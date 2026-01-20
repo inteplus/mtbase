@@ -29,6 +29,7 @@ from .ndarray import *
 from .sparse import *
 from .matrix import *
 from .image import *
+from .class_color import get_class_color
 
 ndarray = _np.ndarray
 import numpy.core as core
@@ -56,6 +57,7 @@ __api__ = [
     "powm",
     "quantise_images",
     "dequantise_images",
+    "get_class_color",
 ]
 
 
