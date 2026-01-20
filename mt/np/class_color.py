@@ -36,4 +36,5 @@ def get_class_color(class_idx: int) -> np.ndarray:
     np.random.seed(class_idx)
     color = np.random.randint(0, 256, size=2)
     color = np.array([255, color[0], color[1] // 2], dtype=np.uint8)
-    return np.random.shuffle(color)
+    np.random.shuffle(color)
+    return color
