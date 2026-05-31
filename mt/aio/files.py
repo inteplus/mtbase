@@ -71,11 +71,8 @@ async def wait_until_file_exists(
 
 
 async def safe_chmod(filepath: tp.Union[Path, str], file_mode: int = 0o664):
-    try:
-        return os.chmod(filepath, file_mode)
-    except FileNotFoundError:
-        await asyncio.sleep(1)
-        return os.chmod(filepath, file_mode)
+    await wait_until_file_exists(filepath, context_vars={"async": True})
+    return os.chmod(filepath, file_mode)
 
 
 async def safe_rename(
@@ -83,15 +80,10 @@ async def safe_rename(
     new_filepath: tp.Union[Path, str],
     context_vars: dict = {},
 ):
-    try:
-        return await rename_asyn(
-            filepath, new_filepath, context_vars=context_vars, overwrite=True
-        )
-    except FileNotFoundError:
-        await asyncio.sleep(1)
-        return await rename_asyn(
-            filepath, new_filepath, context_vars=context_vars, overwrite=True
-        )
+    await wait_until_file_exists(filepath, context_vars={"async": True})
+    return await rename_asyn(
+        filepath, new_filepath, context_vars=context_vars, overwrite=True
+    )
 
 
 async def read_binary(
