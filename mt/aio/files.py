@@ -86,6 +86,17 @@ async def safe_rename(
     )
 
 
+async def safe_chmod_and_rename(
+    filepath: tp.Union[Path, str],
+    new_filepath: tp.Union[Path, str],
+    file_mode: int = 0o664,
+):
+    context_vars = {"async": True}
+    await wait_until_file_exists(filepath, context_vars=context_vars)
+    await rename_asyn(filepath, new_filepath, context_vars=context_vars, overwrite=True)
+    return os.chmod(new_filepath, file_mode)
+
+
 async def read_binary(
     filepath: tp.Union[Path, str], size: int = None, context_vars: dict = {}
 ) -> bytes:
@@ -179,9 +190,12 @@ async def write_binary(
                 async with aiofiles.open(filepath2, mode="wb") as f:
                     retval = await f.write(buf)
                 await wait_until_file_exists(filepath2, context_vars=context_vars)
-                if file_mode is not None:  # chmod
-                    await safe_chmod(filepath2, file_mode=file_mode)
-                await safe_rename(filepath2, filepath, context_vars=context_vars)
+                if file_mode is not None:  # chmod and rename
+                    await safe_chmod_and_rename(
+                        filepath2, filepath, file_mode=file_mode
+                    )
+                else:
+                    await safe_rename(filepath2, filepath, context_vars=context_vars)
             finally:
                 if await exists_asyn(filepath2, context_vars=context_vars):
                     await remove_asyn(filepath2, context_vars=context_vars)
@@ -279,8 +293,11 @@ async def write_text(
                     retval = await f.write(buf)
                 await wait_until_file_exists(filepath2, context_vars=context_vars)
                 if file_mode is not None:  # chmod
-                    await safe_chmod(filepath2, file_mode=file_mode)
-                await safe_rename(filepath2, filepath, context_vars=context_vars)
+                    await safe_chmod_and_rename(
+                        filepath2, filepath, file_mode=file_mode
+                    )
+                else:
+                    await safe_rename(filepath2, filepath, context_vars=context_vars)
             finally:
                 if await exists_asyn(filepath2, context_vars=context_vars):
                     await remove_asyn(filepath2, context_vars=context_vars)
@@ -560,7 +577,10 @@ class CreateFileH5:
         self.handle.close()
 
         if self.file_mode is not None:  # chmod
-            await safe_chmod(self.tmp_filepath, self.file_mode)
-        await safe_rename(
-            self.tmp_filepath, self.filepath, context_vars=self.context_vars
-        )
+            await safe_chmod_and_rename(
+                self.tmp_filepath, self.filepath, self.file_mode
+            )
+        else:
+            await safe_rename(
+                self.tmp_filepath, self.filepath, context_vars=self.context_vars
+            )
