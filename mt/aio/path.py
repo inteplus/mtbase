@@ -7,6 +7,7 @@ import atexit as _ex
 import time as _t
 import platform as _pl
 import aiofiles.os
+from aiofiles.base import wrap as aiofiles_wrap
 from pathlib import Path
 
 from os.path import *
@@ -14,6 +15,51 @@ from os.path import *
 from mt import tp, logg
 from mt.threading import Lock, ReadWriteLock, ReadRWLock, WriteRWLock
 from .base import srun, sleep
+
+aiofiles_chmod = aiofiles_wrap(_os.chmod)
+
+
+async def chmod_asyn(
+    path: tp.Union[Path, str],
+    mode: int,
+    *args,
+    dir_fd: tp.Optional[int] = None,
+    follow_symlinks: bool = True,
+    context_vars: dict = {}
+) -> None:
+    """An asyn function that changes the modes of path to the numeric mode.
+
+    Parameters
+    ----------
+    path : str
+        a path to a link, a file or a directory
+    mode : int
+        the numeric mode to set for the path. See :func:`os.chmod` for details.
+    args : tuple
+        additional arguments to be passed to :func:`os.chmod`
+    dir_fd : int, optional
+        a file descriptor referring to a directory. If None, the path is interpreted relative to
+        the current working directory.
+    follow_symlinks : bool
+        whether to follow symbolic links
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+
+    See Also
+    --------
+    os.chmod
+        The underlying function that performs the actual chmod system call. The parameters mode,
+        dir_fd and follow_symlinks are passed to it directly.
+    """
+    if not context_vars["async"]:
+        return _os.chmod(
+            path, mode, *args, dir_fd=dir_fd, follow_symlinks=follow_symlinks
+        )
+
+    return await aiofiles_chmod(
+        path, mode, *args, dir_fd=dir_fd, follow_symlinks=follow_symlinks
+    )
 
 
 async def exists_asyn(path: tp.Union[Path, str], context_vars: dict = {}):

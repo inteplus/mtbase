@@ -13,6 +13,7 @@ from mt import tp, ctx
 
 from .path import (
     Path,
+    chmod_asyn,
     rename_asyn,
     rename,
     dirname,
@@ -70,31 +71,31 @@ async def wait_until_file_exists(
         await asyncio.sleep(check_interval)
 
 
-async def safe_chmod(filepath: tp.Union[Path, str], file_mode: int = 0o664):
-    await wait_until_file_exists(filepath, context_vars={"async": True})
-    return os.chmod(filepath, file_mode)
+async def safe_chmod(filepath: tp.Union[Path, str], file_mode: int = 0o664) -> None:
+    context_vars = {"async": True}
+    await wait_until_file_exists(filepath, context_vars=context_vars)
+    await chmod_asyn(filepath, file_mode, context_vars=context_vars)
 
 
 async def safe_rename(
     filepath: tp.Union[Path, str],
     new_filepath: tp.Union[Path, str],
     context_vars: dict = {},
-):
-    await wait_until_file_exists(filepath, context_vars={"async": True})
-    return await rename_asyn(
-        filepath, new_filepath, context_vars=context_vars, overwrite=True
-    )
+) -> None:
+    context_vars = {"async": True}
+    await wait_until_file_exists(filepath, context_vars=context_vars)
+    await rename_asyn(filepath, new_filepath, context_vars=context_vars, overwrite=True)
 
 
 async def safe_chmod_and_rename(
     filepath: tp.Union[Path, str],
     new_filepath: tp.Union[Path, str],
     file_mode: int = 0o664,
-):
+) -> None:
     context_vars = {"async": True}
     await wait_until_file_exists(filepath, context_vars=context_vars)
-    os.chmod(filepath, file_mode)
-    os.rename(filepath, new_filepath)
+    await chmod_asyn(filepath, file_mode, context_vars=context_vars)
+    await rename_asyn(filepath, new_filepath, context_vars=context_vars, overwrite=True)
 
 
 async def read_binary(
@@ -102,21 +103,21 @@ async def read_binary(
 ) -> bytes:
     """An asyn function that opens a binary file and reads the content.
 
-        Parameters
-    s    ----------
-        filepath : str
-            path to the file
-        size : int
-            size to read from the beginning of the file, in bytes. If None is given, read the whole
-            file.
-        context_vars : dict
-            a dictionary of context variables within which the function runs. It must include
-            `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+    Parameters
+    ----------
+    filepath : str
+        path to the file
+    size : int
+        size to read from the beginning of the file, in bytes. If None is given, read the whole
+        file.
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
 
-        Returns
-        -------
-        bytes
-            the content read from file
+    Returns
+    -------
+    bytes
+        the content read from file
     """
 
     for i in range(3):
