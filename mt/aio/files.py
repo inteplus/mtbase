@@ -197,7 +197,9 @@ async def write_binary(
                 if file_mode is not None:  # chmod and rename
                     await chmod_asyn(filepath2, file_mode, context_vars=context_vars)
                     await wait_until_file_exists(filepath2, context_vars=context_vars)
-                await rename_asyn(filepath2, filepath, context_vars=context_vars)
+                await rename_asyn(
+                    filepath2, filepath, context_vars=context_vars, overwrite=True
+                )
             finally:
                 if await exists_asyn(filepath2, context_vars=context_vars):
                     await remove_asyn(filepath2, context_vars=context_vars)
