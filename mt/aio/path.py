@@ -25,7 +25,7 @@ async def chmod_asyn(
     *args,
     dir_fd: tp.Optional[int] = None,
     follow_symlinks: bool = True,
-    context_vars: dict = {}
+    context_vars: dict = {},
 ) -> None:
     """An asyn function that changes the modes of path to the numeric mode.
 
@@ -259,9 +259,7 @@ async def rename_asyn(
         else:
             raise FileExistsError(
                 errno.EEXIST,
-                "Target file '{}' exists. Cannot rename source file '{}' to it.".format(
-                    dst, src
-                ),
+                f"Target file exists. Cannot rename source file '{src}' to",
                 dst,
                 src,
             )
