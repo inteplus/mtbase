@@ -61,7 +61,7 @@ async def wait_until_file_exists(
     """
     start_time = time.time()
     while True:
-        if await exists_asyn(filepath, context_vars=context_vars):
+        if os.path.exists(filepath):
             return
         if time.time() - start_time > timeout:
             raise TimeoutError(
