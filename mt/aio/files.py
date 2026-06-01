@@ -93,8 +93,8 @@ async def safe_chmod_and_rename(
 ):
     context_vars = {"async": True}
     await wait_until_file_exists(filepath, context_vars=context_vars)
-    await rename_asyn(filepath, new_filepath, context_vars=context_vars, overwrite=True)
-    return os.chmod(new_filepath, file_mode)
+    os.chmod(filepath, file_mode)
+    os.rename(filepath, new_filepath)
 
 
 async def read_binary(
