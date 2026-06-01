@@ -200,6 +200,7 @@ async def write_binary(
                 await rename_asyn(
                     filepath2, filepath, context_vars=context_vars, overwrite=True
                 )
+                await wait_until_file_exists(filepath, context_vars=context_vars)
             finally:
                 if await exists_asyn(filepath2, context_vars=context_vars):
                     await remove_asyn(filepath2, context_vars=context_vars)
