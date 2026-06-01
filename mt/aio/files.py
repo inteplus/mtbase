@@ -190,13 +190,11 @@ async def write_binary(
                 filepath2 = make_mttmp_filepath(filepath)
                 async with aiofiles.open(filepath2, mode="wb") as f:
                     retval = await f.write(buf)
-                await wait_until_file_exists(filepath2, context_vars=context_vars)
                 if file_mode is not None:  # chmod and rename
-                    await safe_chmod_and_rename(
-                        filepath2, filepath, file_mode=file_mode
-                    )
-                else:
-                    await safe_rename(filepath2, filepath, context_vars=context_vars)
+                    await exists_asyn(filepath2, context_vars=context_vars)
+                    await chmod_asyn(filepath2, file_mode, context_vars=context_vars)
+                await exists_asyn(filepath2, context_vars=context_vars)
+                await safe_rename(filepath2, filepath, context_vars=context_vars)
             finally:
                 if await exists_asyn(filepath2, context_vars=context_vars):
                     await remove_asyn(filepath2, context_vars=context_vars)
