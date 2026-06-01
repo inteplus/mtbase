@@ -62,13 +62,16 @@ async def wait_until_file_exists(
     """
     start_time = time.time()
     while True:
-        if os.path.exists(filepath):
+        if await exists_asyn(filepath, context_vars=context_vars):
             return
         if time.time() - start_time > timeout:
             raise TimeoutError(
                 f"File '{filepath}' did not appear within {timeout} seconds."
             )
-        await asyncio.sleep(check_interval)
+        if context_vars["async"]:
+            await asyncio.sleep(check_interval)
+        else:
+            time.sleep(check_interval)
 
 
 async def safe_chmod(filepath: tp.Union[Path, str], file_mode: int = 0o664) -> None:
@@ -190,11 +193,11 @@ async def write_binary(
                 filepath2 = make_mttmp_filepath(filepath)
                 async with aiofiles.open(filepath2, mode="wb") as f:
                     retval = await f.write(buf)
+                await wait_until_file_exists(filepath2, context_vars=context_vars)
                 if file_mode is not None:  # chmod and rename
-                    await exists_asyn(filepath2, context_vars=context_vars)
                     await chmod_asyn(filepath2, file_mode, context_vars=context_vars)
-                await exists_asyn(filepath2, context_vars=context_vars)
-                await safe_rename(filepath2, filepath, context_vars=context_vars)
+                    await wait_until_file_exists(filepath2, context_vars=context_vars)
+                await rename_asyn(filepath2, filepath, context_vars=context_vars)
             finally:
                 if await exists_asyn(filepath2, context_vars=context_vars):
                     await remove_asyn(filepath2, context_vars=context_vars)
