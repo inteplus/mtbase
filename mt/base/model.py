@@ -3,6 +3,16 @@
 import yaml
 
 
+def keras3_installed() -> bool:
+    """Return True if Keras 3 or above is installed."""
+    try:
+        import keras
+
+        return int(keras.__version__.split(".")[0]) >= 3
+    except ImportError:
+        return False
+
+
 class TensorError(ValueError):
     """Raised when a tensor has an unexpected, usually non-regular value."""
 
@@ -66,6 +76,7 @@ class NameScope:
     def __init__(self, name: str, parent_scope=None):
         self.name = name
         self.parent_scope = parent_scope
+        self._sep = "_" if keras3_installed() else "/"
         self.__iter__()
 
     def __iter__(self):
@@ -80,9 +91,9 @@ class NameScope:
         """Returns the current prefix, with or without any parent prefix."""
 
         if full and isinstance(self.parent_scope, NameScope):
-            return f"{self.parent_scope.prefix()}/{self._prefix}"
+            return f"{self.parent_scope.prefix()}{self._sep}{self._prefix}"
 
         return self._prefix
 
     def __call__(self, base_name: str):
-        return f"{self.prefix(True)}/{base_name}"
+        return f"{self.prefix(True)}{self._sep}{base_name}"
