@@ -11,6 +11,7 @@ potentially IO-related preprocessing and postprocessing tasks of every row of th
 worker bees, and deals with making batch predictions from the model.
 """
 
+import collections
 import linecache
 import random
 import queue
@@ -290,8 +291,8 @@ class Bee:
         # tasks handled by the bee itself
         self.pending_task_cnt = 0  # number of tasks awaiting further info
         self.towork_task_list = (
-            []
-        )  # list of (task, task_id)'s, tasks that have got full info but awaiting to be worked on
+            collections.deque()
+        )  # deque of (task, task_id)'s, tasks that have got full info but awaiting to be worked on
         self.working_task_map = {}  # task -> task_id, tasks that are being worked on
 
     async def _run_inloop(self):
@@ -327,7 +328,7 @@ class Bee:
             (self.max_concurrency is None)
             or (len(self.working_task_map) < self.max_concurrency)
         ):
-            task, task_id = self.towork_task_list.pop(0)
+            task, task_id = self.towork_task_list.popleft()
             self.working_task_map[task] = task_id
 
         # scout for tasks done by the bee
@@ -399,10 +400,12 @@ class Bee:
                 logger_debug_msg(msg, logger=self.logger)
 
         # process all pending tasks held up by the dead bee
-        for task_id in self.started_dtask_map:
-            if child_id != self.started_dtask_map[task_id]:
-                continue
-            del self.started_dtask_map[task_id]  # pop it
+        tasks_to_cancel = [
+            task_id for task_id, cid in self.started_dtask_map.items()
+            if cid == child_id
+        ]
+        for task_id in tasks_to_cancel:
+            del self.started_dtask_map[task_id]
             e = traceback.LogicError(
                 "Delegated task cancelled as the delegated bee has been killed.",
                 debug={"child_id": child_id},
@@ -842,7 +845,7 @@ class QueenBee(WorkerBee):
         self.process_map = {}  # worker_id/child_id -> process
 
     def __del__(self):
-        for process in self.process_map:
+        for process in self.process_map.values():
             if not process.is_alive():
                 continue
             process.join(10)  # give maximum 10 seconds for each process to terminate
@@ -875,8 +878,7 @@ class QueenBee(WorkerBee):
 
             if num_workers < min_num_workers:
                 if not inited:
-                    cnt = min(min_num_workers, max_num_workers // 2)
-                    for i in range(cnt):
+                    for i in range(min_num_workers):
                         self._spawn_new_workerbee()
                     inited = True
                 else:
@@ -892,9 +894,15 @@ class QueenBee(WorkerBee):
                 or used_cpu_too_much()
                 or used_memory_too_much()
             ):
-                # kill the worker bee that responds to 'busy_status' task
-                task_result, worker_id = await self.delegate("busy_status")
-                self._put_msg(worker_id, {"msg_type": "die"})
+                # kill the least-loaded alive worker using locally tracked task assignments
+                task_count = collections.Counter(self.started_dtask_map.values())
+                least_busy_id = min(
+                    (cid for cid in range(len(self.child_conn_list)) if self.child_alive_list[cid]),
+                    key=lambda cid: task_count.get(cid, 0),
+                    default=None,
+                )
+                if least_busy_id is not None:
+                    self._put_msg(least_busy_id, {"msg_type": "die"})
             elif num_workers < max_num_workers:
                 self._spawn_new_workerbee()
 
@@ -953,6 +961,12 @@ class QueenBee(WorkerBee):
 
         self.stop_managing = True
         await asyncio.wait([self.managing_task])
+        exc = self.managing_task.exception()
+        if exc is not None:
+            logg.error(
+                "Population manager raised an exception: {}".format(repr(exc)),
+                logger=self.logger,
+            )
 
         await super()._run_finalise()
 
@@ -1060,6 +1074,10 @@ async def beehive_run(
 
     # get her confirmation
     msg = p_q2u.get_nowait()
+    if msg.get("msg_type") != "task_accepted":
+        raise RuntimeError(
+            "Queen bee did not accept the task. Response: {}".format(msg)
+        )
 
     # describe the task to her
     p_u2q.put_nowait(
