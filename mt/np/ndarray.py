@@ -63,7 +63,7 @@ def divide_no_nan(
     The returning object is scalar if and only if both `x` and `y` are scalar.
     """
     cond = y != 0
-    res = np.where(cond, np.divide(x, y, where=cond), 0)
+    res = np.where(cond, np.divide(x, y, out=None, where=cond), 0)
     if np.isscalar(x) and np.isscalar(y):
         res = float(res)
     return res
