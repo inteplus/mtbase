@@ -9,7 +9,7 @@ install_requires = [
     "mtuv",  # for Python package management
     "psutil",
     "colorama",  # for colored text
-    "yaml",  # for loading config files
+    "PyYAML",  # for loading config files
     "numpy",  # for numerical computing
     "aiofiles",  # for loading/saving files asynchronously
     "aioshutil",  # for dealing with local files asynchronously
