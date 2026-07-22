@@ -39,6 +39,15 @@ def is_tftensor(a) -> bool:
     return tf.is_tensor(a)
 
 
+def is_keras_variable(a) -> bool:
+    """Checks if the object is a keras Variable or not."""
+    if "keras" not in sys.modules:
+        return False
+    import keras
+
+    return isinstance(a, keras.Variable)
+
+
 def is_h5group(a) -> bool:
     """Checks if the object is a :class:`h5py.Group` instance or not."""
     if "h5py" not in sys.modules:

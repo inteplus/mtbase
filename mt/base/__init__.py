@@ -43,6 +43,7 @@ __api__ = [
     "is_torchtensor",
     "is_jaxarray",
     "is_tftensor",
+    "is_keras_variable",
     "is_h5group",
     "TensorError",
     "ModelSyntaxError",
