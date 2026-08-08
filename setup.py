@@ -6,7 +6,7 @@ from packaging import version as V
 from setuptools import setup, find_namespace_packages
 
 install_requires = [
-    "mtuv",  # for Python package management
+    "mtuv>=0.0.3",  # for Python package management
     "psutil",
     "colorama",  # for colored text
     "PyYAML",  # for loading config files
