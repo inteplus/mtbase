@@ -49,6 +49,10 @@ __api__ = [
     "ModelSyntaxError",
     "ModelParams",
     "NameScope",
+    "MHAParams",
+    "MHAPool2DCascadeParams",
+    "MobileNetV3MixerParams",
+    "ClassifierParams",
 ]
 
 
