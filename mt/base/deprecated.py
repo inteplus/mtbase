@@ -12,7 +12,8 @@ __all__ = ["deprecated_func", "deprecated_class"]
 def deprecated_func(
     deprecated_version, suggested_func=None, removed_version=None, docstring_prefix=""
 ):
-    """A decorator to warn the user that the function has been deprecated and will be removed in future.
+    """A decorator to warn the user that the function has been deprecated and will be removed
+    in future.
 
     Parameters
     ----------
@@ -42,7 +43,8 @@ def deprecated_func(
                     )
                 else:
                     logger.warn(
-                        f"IMPORT: Function {func.__name__} has been deprecated since version {deprecated_version}."
+                        f"IMPORT: Function {func.__name__} has been deprecated since version "
+                        f"{deprecated_version}."
                     )
                 if removed_version:
                     logger.warn(f"  It will be removed in version {removed_version}.")
@@ -89,7 +91,8 @@ deprecated_func_warned = {}
 def deprecated_class(
     deprecated_version, suggested_class=None, removed_version=None, docstring_prefix=""
 ):
-    """A decorator to warn the user that the class has been deprecated and will be removed in future.
+    """A decorator to warn the user that the class has been deprecated and will be removed
+    in future.
 
     Parameters
     ----------
@@ -124,7 +127,8 @@ def deprecated_class(
                     )
                 else:
                     logger.warn(
-                        f"IMPORT: Class {cls.__name__} has been deprecated since version {deprecated_version}."
+                        f"IMPORT: Class {cls.__name__} has been deprecated since version "
+                        f"{deprecated_version}."
                     )
                 if removed_version:
                     logger.warn(f"  It will be removed in version {removed_version}.")

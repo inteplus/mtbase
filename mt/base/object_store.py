@@ -1,6 +1,7 @@
 """In-memory object store that can be used by multiple processes.
 
-MT is trying to make sure that the functions in this module are multiprocessing-safe and thread-safe.
+MT is trying to make sure that the functions in this module are multiprocessing-safe and
+thread-safe.
 """
 
 import multiprocessing as _mp
@@ -26,9 +27,15 @@ def create(min_free_mem_pct=0.2, put_policy="rotate"):
     Parameters
     ----------
     min_free_mem_pct : float
-        the minimum percentage of free physical memory over total physical memory where an object can be put to the store without restriction. When the free memory percentage drops below the given value, a put policy is activated to decide how to proceed further
+        the minimum percentage of free physical memory over total physical memory where an object
+        can be put to the store without restriction. When the free memory percentage drops below
+        the given value, a put policy is activated to decide how to proceed further
     put_policy : {'rotate', 'strict'}
-        policy for putting an object to the object store when the free memory percentage drops below the given value in `min_free_mem_pct`. If 'rotate' is given, the object store keeps removing earliest-accessed-time objects from the store until enough memory is available or the store is empty. If 'strict' is given, it does nothing. Then, it stores the object if there is enough memory.
+        policy for putting an object to the object store when the free memory percentage drops
+        below the given value in `min_free_mem_pct`. If 'rotate' is given, the object store keeps
+        removing earliest-accessed-time objects from the store until enough memory is available
+        or the store is empty. If 'strict' is given, it does nothing. Then, it stores the object
+        if there is enough memory.
 
     Returns
     -------
@@ -67,7 +74,8 @@ def valid(store):
 
 
 def store_exec(func, store, *args, **kwds):
-    """Executes a function related to a store safely by locking the store, executing the function, then unlocking the store.
+    """Executes a function related to a store safely by locking the store, executing the
+    function, then unlocking the store.
 
     Parameters
     ----------
@@ -235,7 +243,8 @@ def put(store, key, value):
     Returns
     -------
     bool
-        whether or not the object has been stored. Check :func:`create` for more details about the put policy.
+        whether or not the object has been stored. Check :func:`create` for more details about the
+        put policy.
 
     Raises
     ------

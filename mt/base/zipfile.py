@@ -39,12 +39,14 @@ def extract_temporarily(zipfile, out_dirpath=None):
     zipfile : str or zipfile.ZipFile
         an open ZipFile instance or a local path to a zip file
     out_dirpath : str, optional
-        If specified, a path to hold all the extracted zip files. Otherwise, a temporary directory is generated.
+        If specified, a path to hold all the extracted zip files. Otherwise, a temporary directory
+        is generated.
 
     Returns
     -------
     ExtractedFolder
-        the extracted folder wrapped in an object for use in a with statement. The folder is removed upon exitting the with statement.
+        the extracted folder wrapped in an object for use in a with statement. The folder is
+        removed upon exitting the with statement.
     """
 
     if not isinstance(zipfile, _zf.ZipFile):

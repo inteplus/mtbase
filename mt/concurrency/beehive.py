@@ -148,12 +148,11 @@ class Bee:
         self.logger = logger
 
         # task scheduling
-        self.pending_order_map = (
-            {}
-        )  # task_id -> (timestamp, candidate_children_set), orders that have been placed but not yet accepted
-        self.assigned_order_map = (
-            {}
-        )  # task_id -> child_id, orders that have been accepted but not yet awaited by the parent bee
+        # task_id -> (timestamp, candidate_children_set), orders that have been placed but not yet
+        # accepted
+        self.pending_order_map = {}
+        # task_id -> child_id, orders that have been accepted but not yet awaited by the parent bee
+        self.assigned_order_map = {}
         self.task_id_cnt = 0  # task id counter
 
     # ----- public -----
@@ -784,7 +783,8 @@ class QueenBee(WorkerBee):
     my_id : int
         the id that the creator has assigned to the queen bee
     p_m2p : queue.Queue
-        the me-to-parent connection for private communication between the user (parent) and the queen
+        the me-to-parent connection for private communication between the user (parent) and the
+        queen
     p_p2m : queue.Queue
         the parent-to-me connection for private communication with the worker bee
     workerbee_class : class
@@ -795,7 +795,8 @@ class QueenBee(WorkerBee):
     worker_init_kwargs : dict
         additional keyword arguments to be passed as-is to each new worker bee's constructor
     s3_profile : str, optional
-        the S3 profile from which the context vars are created. See :func:`mt.base.s3.create_context_vars`.
+        the S3 profile from which the context vars are created. See
+        :func:`mt.base.s3.create_context_vars`.
     max_concurrency : int, optional
         the maximum number of concurrent tasks at any time for the bee, good for managing
         memory allocations. Should be default to None to allow the queen bee to deal with all

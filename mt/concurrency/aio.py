@@ -99,7 +99,8 @@ async def run_asyn_works_in_context(
     max_concurrency: int = 1024,
     context_vars: dict = {},
 ):
-    """Invokes the same asyn function with different work ids concurrently and asynchronously, in a given context.
+    """Invokes the same asyn function with different work ids concurrently and asynchronously,
+    in a given context.
 
     Parameters
     ----------
@@ -379,7 +380,9 @@ async def asyn_work_generator(
                 num_works_done += 1
                 # if num_works_done % 1000 == 0:
                 # if debug_logger:
-                # debug_logger.debug(f"asyn_work_generator: {num_works_done}/{num_works} works done")
+                # debug_logger.debug(
+                #     f"asyn_work_generator: {num_works_done}/{num_works} works done"
+                # )
                 yield msg[1:]
         except _q.Empty:
             try:

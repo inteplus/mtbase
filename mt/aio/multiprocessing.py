@@ -77,8 +77,8 @@ async def qget_aio(
 class BgProcess:
     """Launches a child process that communicates with the parent process via message passing.
 
-    You should subclass this class and implement :func:`child_handle_message`. See the docstring of the
-    function below.
+    You should subclass this class and implement :func:`child_handle_message`. See the docstring
+    of the function below.
 
     Notes
     -----
@@ -144,7 +144,8 @@ class BgProcess:
             if retval[0] == "exit":
                 if retval[1] is None:
                     raise RuntimeError(
-                        "Child process died normally while parent process is expecting some message response.",
+                        "Child process died normally while parent process is expecting "
+                        "some message response.",
                         msg,
                     )
                 else:

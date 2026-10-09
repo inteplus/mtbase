@@ -132,7 +132,10 @@ class rpartialmethod(object):
     def __repr__(self):
         args = ", ".join(map(repr, self.args))
         keywords = ", ".join(f"{k}={v!r}" for k, v in self.keywords.items())
-        return f"{self.__class__.__module__}.{self.__class__.__qualname__}({self.func}, {args}, {keywords})"
+        return (
+            f"{self.__class__.__module__}.{self.__class__.__qualname__}"
+            f"({self.func}, {args}, {keywords})"
+        )
 
     def _make_unbound_method(self):
         def _method(cls_or_self, /, *args, **keywords):

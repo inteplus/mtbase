@@ -55,7 +55,8 @@ def debug_exec(func, *args, **kwds):
                 InteractiveShellEmbed()()
             else:
                 cmd = input(
-                    "Enter a Python command to be executed before we retry, or press ENTER to continue: "
+                    "Enter a Python command to be executed before we retry, "
+                    "or press ENTER to continue: "
                 )
                 if len(cmd) == 0:
                     raise

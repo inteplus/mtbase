@@ -42,5 +42,8 @@ if Version(platform.python_version()) < Version("3.11"):
 
         warnings.warn
         (
-            f"For python {platform.python_version()}, mt.asyncio relies on asyncio.timeout() of Python 3.11+ for efficiency reasons. Please pip install package 'taskgroup' if possible. Otherwise, please ignore this warning message as lack of asyncio.timeout() only affects efficiency."
+            f"For python {platform.python_version()}, mt.asyncio relies on asyncio.timeout() of "
+            "Python 3.11+ for efficiency reasons. Please pip install package 'taskgroup' if "
+            "possible. Otherwise, please ignore this warning message as lack of asyncio.timeout() "
+            "only affects efficiency."
         )

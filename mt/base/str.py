@@ -17,7 +17,8 @@ def straighten(s, length, align_left=True, delimiter=" "):
     align_left : bool
         whether to align the string to the left (True) or to the right (False)
     delimiter : char
-        the whitespace character to fill in if the length input string is shorter than the output length
+        the whitespace character to fill in if the length input string is shorter than the output
+        length
 
     Returns
     -------

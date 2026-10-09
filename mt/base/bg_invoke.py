@@ -419,7 +419,8 @@ class BgProcManager:
         Parameters
         ----------
         proc : funcion
-            a procedure taking no input. If it an error is raised, it will be reported as a warning in the logger.
+            a procedure taking no input. If it an error is raised, it will be reported as a warning
+            in the logger.
         """
         if not self.is_alive:
             if self.logger:

@@ -203,7 +203,8 @@ class IndentedLoggerAdapter(LoggerAdapter):
                     self.warning(value)
 
     def warn_exception(self, e: Exception, **kwds):
-        """Warns an exception exception by raising and catching it, printing out any keyword arguments.
+        """Warns an exception exception by raising and catching it, printing out any keyword
+        arguments.
 
         Parameters
         ----------
@@ -251,7 +252,10 @@ class IndentedLoggerAdapter(LoggerAdapter):
         new_func : str
             short string representing the new function
         """
-        msg = f"IMPORT: function '{old_func}()' has been deprecated. Please use function '{new_func}()' instead."
+        msg = (
+            f"IMPORT: function '{old_func}()' has been deprecated. "
+            f"Please use function '{new_func}()' instead."
+        )
         self.warn(msg)
         lines = traceback.extract_stack_compact()
         if len(lines) > 9:
@@ -610,7 +614,8 @@ class ScopedLog:
             self.logger, IndentedLoggerAdapter
         ):
             raise ValueError(
-                "Argument `indented_logger_adapter` is expected to be an IndentedLoggerAdapter or None only."
+                "Argument `indented_logger_adapter` is expected to be an IndentedLoggerAdapter "
+                "or None only."
             )
 
         self.msg = msg
@@ -708,7 +713,8 @@ def scoped_log_if(
 
 
 def warn_uncaught_exception(func):
-    """A decorator that warns any uncaught exception when invoking a function accepting keyword argument 'logger'."""
+    """A decorator that warns any uncaught exception when invoking a function accepting keyword
+    argument 'logger'."""
 
     @functools.wraps(func)
     def func_wrapper(*args, logger=None, **kwds):
@@ -723,7 +729,8 @@ def warn_uncaught_exception(func):
 
 
 def awarn_uncaught_exception(func):
-    """A decorator that warns any uncaught exception when invoking an async function accepting keyword argument 'logger'."""
+    """A decorator that warns any uncaught exception when invoking an async function accepting
+    keyword argument 'logger'."""
 
     @functools.wraps(func)
     async def func_wrapper(*args, logger=None, **kwds):

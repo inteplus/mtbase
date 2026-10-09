@@ -179,7 +179,8 @@ def listen():
         from mt.logg import logger
 
         logger.warning(
-            "Unable to register a pipe for remote-debugging the current process. The functionality only works in a posix system like Unix, Linux or Mac."
+            "Unable to register a pipe for remote-debugging the current process. "
+            "The functionality only works in a posix system like Unix, Linux or Mac."
         )
     else:
         signal.signal(signal.SIGUSR1, remote_debug)  # Register for remote debugging.

@@ -91,7 +91,8 @@ async def download(url, context_vars: dict = {}):
             if response.status < 200 or response.status >= 300:
                 raise ConnectionAbortedError(
                     errno.ECONNABORTED,
-                    f"Unhealthy response while downloading '{url}'. Status: {response.status}. Content-type: {response.headers['content-type']}.",
+                    f"Unhealthy response while downloading '{url}'. Status: {response.status}. "
+                    f"Content-type: {response.headers['content-type']}.",
                     url,
                 )
             content = await response.read()
@@ -106,7 +107,8 @@ async def download(url, context_vars: dict = {}):
                 if response.status < 200 or response.status >= 300:
                     raise ConnectionAbortedError(
                         errno.ECONNABORTED,
-                        f"Unhealthy response while downloading '{url}'. Status: {response.status}. Content-type: {response.headers['content-type']}.",
+                        f"Unhealthy response while downloading '{url}'. Status: {response.status}. "
+                        f"Content-type: {response.headers['content-type']}.",
                         url,
                     )
                 content = await response.read()
@@ -120,7 +122,8 @@ async def download(url, context_vars: dict = {}):
                 if response.status < 200 or response.status >= 300:
                     raise ConnectionAbortedError(
                         errno.ECONNABORTED,
-                        f"Unhealthy response while downloading '{url}'. Status: {response.status}. Content-type: {response.headers['content-type']}.",
+                        f"Unhealthy response while downloading '{url}'. Status: {response.status}. "
+                        f"Content-type: {response.headers['content-type']}.",
                         url,
                     )
                 content = await response.read()
@@ -130,7 +133,8 @@ async def download(url, context_vars: dict = {}):
 
 
 async def download_and_chmod(url, filepath, file_mode=0o664, context_vars: dict = {}):
-    """An asyn function that downloads an http or https url as binary to a file with predefined permissions.
+    """An asyn function that downloads an http or https url as binary to a file with predefined
+    permissions.
 
     Parameters
     ----------

@@ -75,7 +75,8 @@ def split(s3cmd_url: str):
 
     if not s3cmd_url.startswith("s3://"):
         raise ValueError(
-            "Expected an s3cmd url in the form 's3://bucket[/prefix]', but received '{}' instead.".format(
+            ("Expected an s3cmd url in the form 's3://bucket[/prefix]', "
+            "but received '{}' instead.").format(
                 s3cmd_url
             )
         )
@@ -185,9 +186,15 @@ async def create_context_vars(
     except botocore.exceptions.ConnectionError:
         if logger:
             if profile:
-                msg = f"Exception caught while establishing a connection to S3 using AWS profile '{profile}':"
+                msg = (
+                    f"Exception caught while establishing a connection to S3 using AWS profile "
+                    f"'{profile}':"
+                )
             else:
-                msg = "Exception caught while establishing a connection to S3 using the default AWS profile:"
+                msg = (
+                    "Exception caught while establishing a connection to S3 using the default "
+                    "AWS profile:"
+                )
             logger.error(msg)
         raise
 
@@ -264,7 +271,9 @@ async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict =
     return retval
 
 
-async def list_recent_objects(s3cmd_url: str, min_dt: datetime, show_progress=False, context_vars: dict = {}):
+async def list_recent_objects(
+    s3cmd_url: str, min_dt: datetime, show_progress=False, context_vars: dict = {}
+):
     """An asyn function that lists all recents objects prefixed with a given s3cmd url.
 
     This is the same as :func:`list_objects`, but with objects later than a certain datetime only.
@@ -303,7 +312,9 @@ async def list_recent_objects(s3cmd_url: str, min_dt: datetime, show_progress=Fa
             spinner.start()
         if context_vars["async"]:
             s3_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
-            filtered_iterator = s3_iterator.search(f"Contents[?LastModified>=`{min_dt.isoformat()}`]")
+            filtered_iterator = s3_iterator.search(
+                f"Contents[?LastModified>=`{min_dt.isoformat()}`]"
+            )
             async for result in filtered_iterator:
                 new_list = result.get("Contents", None)
                 if new_list is None:
@@ -319,7 +330,9 @@ async def list_recent_objects(s3cmd_url: str, min_dt: datetime, show_progress=Fa
                 retval.extend(new_list)
         else:
             s3_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
-            filtered_iterator = s3_iterator.search(f"Contents[?LastModified>=`{min_dt.isoformat()}`]")
+            filtered_iterator = s3_iterator.search(
+                f"Contents[?LastModified>=`{min_dt.isoformat()}`]"
+            )
             for result in filtered_iterator:
                 new_list = result.get("Contents", None)
                 if new_list is None:
@@ -538,7 +551,8 @@ async def put_files(
     In asynchronous mode, the files are uploaded concurrently. In synchronous mode, the files are
     uploaded sequentially.
 
-    Despite our best effort, this function may sometimes be slower than calling 'aws s3 sync'. Please
+    Despite our best effort, this function may sometimes be slower than calling 'aws s3 sync'.
+    Please
     see the following thread for more details:
 
     https://stackoverflow.com/questions/56639630/how-can-i-increase-my-aws-s3-upload-speed-when-using-boto3

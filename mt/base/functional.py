@@ -4,7 +4,8 @@ __all__ = ["on_list", "join_funcs", "iterator_as_generator"]
 
 
 def on_list(func):
-    """Turns a function that operates on each element at a time into a function that operates on a colletion of elements at a time. Can be used as a decorator.
+    """Turns a function that operates on each element at a time into a function that operates on
+    a colletion of elements at a time. Can be used as a decorator.
 
     Parameters
     ----------
@@ -14,7 +15,8 @@ def on_list(func):
     Returns
     -------
     function
-        a wrapper function `def func_on_list(list_x, *args, **kwds) -> list_of_objects` that invokes `func(x, *args, **kwds)` for each x in list_x.
+        a wrapper function `def func_on_list(list_x, *args, **kwds) -> list_of_objects` that
+        invokes `func(x, *args, **kwds)` for each x in list_x.
     """
 
     def func_on_list(list_x, *args, **kwds):
@@ -36,7 +38,8 @@ def join_funcs(*funcs, left_to_right=True):
     Returns
     -------
     func : function
-        The function `f(x) = fn(...f2(f1(x))...)` if left_to_right is True, else `f(x) = f1(f2(...fn(x)...))`.
+        The function `f(x) = fn(...f2(f1(x))...)` if left_to_right is True, else
+        `f(x) = f1(f2(...fn(x)...))`.
     """
 
     def left_to_right_func(x):
@@ -53,7 +56,10 @@ def join_funcs(*funcs, left_to_right=True):
 
 
 def iterator_as_generator(iterator):
-    """Turns a Python iterator into a Python generator that generates items forever. Probably only useful for keras."""
+    """Turns a Python iterator into a Python generator that generates items forever.
+
+    Probably only useful for keras.
+    """
 
     def asgenerator(iterator):
         while True:

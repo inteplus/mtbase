@@ -55,7 +55,9 @@ def cast(obj, dst_type):
     key = (type(obj), dst_type)
     if key in _cast_registry:
         return _cast_registry[key](obj)
-    raise NotImplementedError("Cast function from type {} to type {} not found.".format(key[0], key[1]))
+    raise NotImplementedError(
+        "Cast function from type {} to type {} not found.".format(key[0], key[1])
+    )
 
 
 def register_cast(src_type, dst_type, func):
@@ -73,7 +75,11 @@ def register_cast(src_type, dst_type, func):
 
     key = (src_type, dst_type)
     if key in _cast_registry:
-        raise SyntaxError("Cast function from type {} to type {} has been registered before.".format(src_type, dst_type))
+        raise SyntaxError(
+            "Cast function from type {} to type {} has been registered before.".format(
+                src_type, dst_type
+            )
+        )
     _cast_registry[key] = func
 
 
@@ -92,5 +98,9 @@ def register_castable(src_type, dst_type, func):
 
     key = (src_type, dst_type)
     if key in _castable_registry:
-        raise SyntaxError("Castable function from type {} to type {} has been registered before.".format(src_type, dst_type))
+        raise SyntaxError(
+            "Castable function from type {} to type {} has been registered before.".format(
+                src_type, dst_type
+            )
+        )
     _castable_registry[key] = func

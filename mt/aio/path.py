@@ -141,14 +141,20 @@ def remove(path: tp.Union[Path, str]):
 
 
 def make_dirs(path: tp.Union[Path, str], shared: bool = True):
-    """Convenient invocation of `os.makedirs(path, exist_ok=True)`. If `shared` is True, every newly created folder will have permission 0o775."""
+    """Convenient invocation of `os.makedirs(path, exist_ok=True)`.
+
+    If `shared` is True, every newly created folder will have permission 0o775.
+    """
     return srun(make_dirs_asyn, path, shared=shared)
 
 
 async def make_dirs_asyn(
     path: tp.Union[Path, str], shared: bool = True, context_vars: dict = {}
 ):
-    """An asyn function wrapping `os.makedirs(path, exist_ok=True)`. If `shared` is True, every newly created folder will have permission 0o775."""
+    """An asyn function wrapping `os.makedirs(path, exist_ok=True)`.
+
+    If `shared` is True, every newly created folder will have permission 0o775.
+    """
     if not path:  # empty path, just ignore
         return
     if shared:
