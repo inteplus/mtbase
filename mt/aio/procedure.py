@@ -51,7 +51,7 @@ class AprocManager:
                         raise asyncio.CancelledError("An aproc has been cancelled.")
                     if self.handle_exception == "warn":
                         self.logger.warn(
-                            "An aproc has been cancelled: {}.".format(task)
+                            f"An aproc has been cancelled: {task}."
                         )
                 elif task.exception() is not None:
                     if self.handle_exception == "raise":

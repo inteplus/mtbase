@@ -266,7 +266,7 @@ class ProcessParalleliser(object):
                 except KeyboardInterrupt:
                     if logger:
                         logger.warn(
-                            "Process {} interrupted by keyboard.".format(os.getpid())
+                            f"Process {os.getpid()} interrupted by keyboard."
                         )
                     if death_code == "normal":
                         death_code = "keyboard_interrupted"
@@ -275,14 +275,14 @@ class ProcessParalleliser(object):
                 if logger:
                     logger.warn_last_exception()
                     logger.warn(
-                        "Uncaught exception above killed process.".format(os.getpid())
+                        "Uncaught exception above killed process."
                     )
                 break
 
         if death_code != "normal":
             if logger:
                 logger.warn(
-                    "Process {} died with reason: {}.".format(os.getpid(), death_code)
+                    f"Process {os.getpid()} died with reason: {death_code}."
                 )
 
         # self.logger.debug("  -- main process closing")
@@ -331,9 +331,9 @@ class ProcessParalleliser(object):
         if self.state != "living":  # we can't accept more work when we're not living
             return False
         if not isinstance(work_id, int):
-            raise ValueError("Work id is not an integer. Got {}.".format(work_id))
+            raise ValueError(f"Work id is not an integer. Got {work_id}.")
         if work_id < 0:
-            raise ValueError("Work id is negative. Got {}.".format(work_id))
+            raise ValueError(f"Work id is negative. Got {work_id}.")
         try:
             self.queue_in.put(work_id, block=True, timeout=timeout)
             return True

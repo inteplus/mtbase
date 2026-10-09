@@ -357,9 +357,9 @@ def make_logger(logger_name, max_indent=10):
         # determine some max string lengths
         column_length = shutil.stty_size()[1] - 13
         log_lvl_length = min(max(int(column_length * 0.03), 1), 8)
-        s1 = "{}.{}s ".format(log_lvl_length, log_lvl_length)
+        s1 = f"{log_lvl_length}.{log_lvl_length}s "
         column_length -= log_lvl_length
-        s5 = "-{}.{}s".format(column_length, column_length)
+        s5 = f"-{column_length}.{column_length}s"
 
         fmt_str = (
             Fore.CYAN
@@ -632,7 +632,7 @@ class ScopedLog:
         elif level == DEBUG:
             self.func = self.logger.debug
         else:
-            raise ValueError("Unknown debugging level {}.".format(level))
+            raise ValueError(f"Unknown debugging level {level}.")
 
         self.curly = curly
 
@@ -650,7 +650,7 @@ class ScopedLog:
                 if type is not None:
                     lines = traceback.format_exc_info(type, value, traceback_obj)
                     for line in lines:
-                        self.logger.debug("##{}".format(line))
+                        self.logger.debug(f"##{line}")
 
             self.logger.dec()
             if self.curly:

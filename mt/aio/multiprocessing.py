@@ -138,7 +138,7 @@ class BgProcess:
                     continue
                 if retval[0] == "write":  # child printing something
                     for line in retval[2].splitlines():
-                        print("BgProcess ({}): {}".format(retval[1], line))
+                        print(f"BgProcess ({retval[1]}): {line}")
                     continue
                 break
             if retval[0] == "exit":

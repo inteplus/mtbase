@@ -325,9 +325,7 @@ def parallelise(
     """
     if not isinstance(num_jobs, int) or num_jobs <= 0:
         raise ValueError(
-            "A positive integer is expected for argument 'num_jobs', but was given {}.".format(
-                num_jobs
-            )
+            f"A positive integer is expected for argument 'num_jobs', but was given {num_jobs}."
         )
 
     if pass_logger:
@@ -341,7 +339,7 @@ def parallelise(
     thread_outputs = [None] * num_jobs
 
     with logg.scoped_info(
-        "Parallelise {} jobs using {} threads".format(num_jobs, max_num_conns),
+        f"Parallelise {num_jobs} jobs using {max_num_conns} threads",
         logger=logger,
         curly=False,
     ):
@@ -351,7 +349,7 @@ def parallelise(
             if i < num_jobs:  # still has a job to execute
                 if len(threads) < max_num_conns:
                     if logger is not None and i % 1000 == 0:
-                        logger.info("Job {}/{}...".format(i + 1, num_jobs))
+                        logger.info(f"Job {i + 1}/{num_jobs}...")
                     # send the job to the thread
                     threads[i] = BgInvoke(func, i, *fn_args, **fn_kwds)
                     i += 1

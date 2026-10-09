@@ -229,7 +229,7 @@ async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict =
         retval = []
         if show_progress:
             spinner = HaloAuto(
-                "listing objects at '{}'".format(s3cmd_url), spinner="dots"
+                f"listing objects at '{s3cmd_url}'", spinner="dots"
             )
             spinner.start()
         if context_vars["async"]:
@@ -261,7 +261,7 @@ async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict =
                     )
                 retval.extend(new_list)
         if show_progress:
-            spinner.succeed("{} objects found".format(len(retval)))
+            spinner.succeed(f"{len(retval)} objects found")
     except botocore.exceptions.ClientError as e:
         if e.response["Error"]["Code"] == "NoSuchKey":
             if show_progress:
@@ -307,7 +307,7 @@ async def list_recent_objects(
         retval = []
         if show_progress:
             spinner = HaloAuto(
-                "listing objects at '{}'".format(s3cmd_url), spinner="dots"
+                f"listing objects at '{s3cmd_url}'", spinner="dots"
             )
             spinner.start()
         if context_vars["async"]:
@@ -347,7 +347,7 @@ async def list_recent_objects(
                     )
                 retval.extend(new_list)
         if show_progress:
-            spinner.succeed("{} objects found".format(len(retval)))
+            spinner.succeed(f"{len(retval)} objects found")
     except botocore.exceptions.ClientError as e:
         if e.response["Error"]["Code"] == "NoSuchKey":
             if show_progress:
@@ -430,7 +430,7 @@ async def get_object(
     bucket, prefix = split(s3cmd_url)
     s3_client = context_vars["s3_client"]
     if show_progress:
-        spinner = HaloAuto("getting object '{}'".format(s3cmd_url), spinner="dots")
+        spinner = HaloAuto(f"getting object '{s3cmd_url}'", spinner="dots")
         spinner.start()
     if context_vars["async"]:
         response = await s3_client.get_object(Bucket=bucket, Key=prefix)
@@ -441,7 +441,7 @@ async def get_object(
         response = s3_client.get_object(Bucket=bucket, Key=prefix)
         data = response["Body"].read()
     if show_progress:
-        spinner.succeed("{} bytes downloaded".format(len(data)))
+        spinner.succeed(f"{len(data)} bytes downloaded")
     return data
 
 
@@ -501,14 +501,14 @@ async def put_object(
     bucket, prefix = split(s3cmd_url)
     s3_client = context_vars["s3_client"]
     if show_progress:
-        spinner = HaloAuto("putting object '{}'".format(s3cmd_url), spinner="dots")
+        spinner = HaloAuto(f"putting object '{s3cmd_url}'", spinner="dots")
         spinner.start()
     if context_vars["async"]:
         await s3_client.put_object(Bucket=bucket, Key=prefix, Body=data)
     else:
         s3_client.put_object(Bucket=bucket, Key=prefix, Body=data)
     if show_progress:
-        spinner.succeed("{} bytes uploaded".format(len(data)))
+        spinner.succeed(f"{len(data)} bytes uploaded")
     return data
 
 

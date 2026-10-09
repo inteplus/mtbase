@@ -30,7 +30,7 @@ async def read_file_header(filepath, context_vars: dict = {}):
     buf = await read_binary(filepath, 261, context_vars=context_vars)
     if len(buf) < 261:
         raise ValueError(
-            "Corrupted file '{}' with only {} bytes.".format(filepath, len(buf))
+            f"Corrupted file '{filepath}' with only {len(buf)} bytes."
         )
 
     return buf

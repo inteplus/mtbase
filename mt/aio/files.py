@@ -544,7 +544,7 @@ class CreateFileH5:
             import h5py
         except ImportError:
             if self.logger:
-                self.logger.error("Need h5py create file '{}'.".format(self.filepath))
+                self.logger.error(f"Need h5py create file '{self.filepath}'.")
             raise
 
         self.tmp_filepath = make_mttmp_filepath(self.filepath)
@@ -561,7 +561,7 @@ class CreateFileH5:
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_value is not None:  # successful
             if self.logger:
-                self.logger.warn("File '{}' not removed.".format(self.tmp_filepath))
+                self.logger.warn(f"File '{self.tmp_filepath}' not removed.")
             return
 
         self.handle.close()
@@ -573,7 +573,7 @@ class CreateFileH5:
     async def __aexit__(self, exc_type, exc_value, exc_traceback):
         if not exc_value is None:  # successful
             if self.logger:
-                self.logger.warn("File '{}' not removed.".format(self.tmp_filepath))
+                self.logger.warn(f"File '{self.tmp_filepath}' not removed.")
             return
 
         self.handle.close()

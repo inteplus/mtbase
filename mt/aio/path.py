@@ -418,7 +418,7 @@ def __exit_module():
         cnt = sum((not v.is_free() for k, v in lock.__locks.items()))
         if not cnt:
             break
-        logg.logger.info("waiting for {} path locks to be free...".format(cnt))
+        logg.logger.info(f"waiting for {cnt} path locks to be free...")
         _t.sleep(5)
 
 

@@ -118,7 +118,7 @@ def _acquire_non_blocking(acquire, timeout, retry_period, path):
         if success:
             return
         elif timeout is not None and time.time() - start_time > timeout:
-            raise LockError("Couldn't lock {0}".format(path))
+            raise LockError(f"Couldn't lock {path}")
         else:
             time.sleep(retry_period)
 

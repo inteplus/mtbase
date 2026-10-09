@@ -55,7 +55,7 @@ def logger_debug_msg(msg, logger=None):
         other_details = copy(other_details)  # because we are going to modify it
         msg1 = other_details.pop("msg", None)
         with logger.scoped_debug("Other details", curly=False):
-            logger.debug("Data: {}".format(other_details))
+            logger.debug(f"Data: {other_details}")
             if msg1 is not None:
                 logger_debug_msg(msg1, logger=logger)
 
@@ -392,7 +392,7 @@ class Bee:
 
         if msg["death_type"] == "killed":
             with logg.scoped_debug(
-                "Child bee {} was killed".format(child_id),
+                f"Child bee {child_id} was killed",
                 logger=self.logger,
                 curly=False,
             ):
@@ -525,7 +525,7 @@ class Bee:
                 }
         else:
             self.to_terminate = True
-            self.exit_code = "Unknown message with type '{}'.".format(msg_type)
+            self.exit_code = f"Unknown message with type '{msg_type}'."
 
     def _dispatch_new_parent_msg(self, msg):
         """Dispatches a new message from the parent."""
@@ -566,7 +566,7 @@ class Bee:
             self.towork_task_list.append((task, task_id))
         else:
             self.to_terminate = True
-            self.exit_code = "Unknown message with type '{}'.".format(msg_type)
+            self.exit_code = f"Unknown message with type '{msg_type}'."
 
 
 class WorkerBee(Bee):
@@ -920,9 +920,7 @@ class QueenBee(WorkerBee):
                         "msg_type": "dead",
                         "death_type": "killed",
                         "exception": RuntimeError(
-                            "Child bee id {} has died without sending a last wish.".format(
-                                child_id
-                            )
+                            f"Child bee id {child_id} has died without sending a last wish."
                         ),
                         "traceback": extract_stack_compact(),
                     }
@@ -965,7 +963,7 @@ class QueenBee(WorkerBee):
         exc = self.managing_task.exception()
         if exc is not None:
             logg.error(
-                "Population manager raised an exception: {}".format(repr(exc)),
+                f"Population manager raised an exception: {exc!r}",
                 logger=self.logger,
             )
 
@@ -1077,7 +1075,7 @@ async def beehive_run(
     msg = p_q2u.get_nowait()
     if msg.get("msg_type") != "task_accepted":
         raise RuntimeError(
-            "Queen bee did not accept the task. Response: {}".format(msg)
+            f"Queen bee did not accept the task. Response: {msg}"
         )
 
     # describe the task to her
@@ -1107,7 +1105,7 @@ async def beehive_run(
     # intepret the result
     if msg["status"] == "cancelled":
         raise asyncio.CancelledError(
-            "The queen bee cancelled the task. Reason: {}".format(msg["reason"])
+            f"The queen bee cancelled the task. Reason: {msg['reason']}"
         )
 
     if msg["status"] == "raised":

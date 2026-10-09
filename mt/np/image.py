@@ -50,11 +50,11 @@ def dequantise_images(
         output tensor of images of dtype float32 and each value is in float32 range (0., 256.)
     """
     if not isinstance(a, np.ndarray):
-        raise TypeError("An ndarray is expected. Got '{}'.".format(type(a)))
+        raise TypeError(f"An ndarray is expected. Got '{type(a)}'.")
 
     if not np.issubdtype(a.dtype, np.uint8):
         raise TypeError(
-            "An ndarray of dtype uint8 is expected. Got '{}'.".format(a.dtype)
+            f"An ndarray of dtype uint8 is expected. Got '{a.dtype}'."
         )
 
     if rng is None:

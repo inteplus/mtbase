@@ -21,14 +21,14 @@ def ndarray_repr(a: np.ndarray) -> str:
         a short representation string for the array
     """
     if not isinstance(a, np.ndarray):
-        raise TypeError("An ndarray expected. Got '{}'.".format(type(a)))
+        raise TypeError(f"An ndarray expected. Got '{type(a)}'.")
 
     if a.size > 20:
         return "ndarray(shape={}, dtype={}, min={}, max={}, mean={}, std={})".format(
             a.shape, a.dtype, a.min(), a.max(), a.mean(), a.std()
         )
 
-    return "ndarray({}, dtype={})".format(repr(a.tolist()), a.dtype)
+    return f"ndarray({a.tolist()!r}, dtype={a.dtype})"
 
 
 def sigmoid(x) -> np.ndarray:
