@@ -81,11 +81,9 @@ class NameScope:
     __call__
         Gets the full name of a base name, with prefix generated from the name scope.
 
-    Notes
-    -----
-    Advancing the scope with :func:`next` is currently broken: it raises AttributeError because
-    :meth:`__next__` reads a non-existent attribute `cnt`. In addition, :meth:`__iter__` returns
-    None and not an iterator.
+    Advancing the scope with :func:`next` increments the counter, so the prefix becomes
+    `<name>_1`, `<name>_2`, and so on. ``iter(scope)`` resets it to `<name>_0` and returns
+    the scope.
 
     Examples
     --------
@@ -111,16 +109,18 @@ class NameScope:
         self.__iter__()
 
     def __iter__(self):
-        """Resets the counter to 0 and the prefix to `<name>_0`. It returns None."""
+        """Resets the counter to 0 and the prefix to `<name>_0`. It returns the scope itself."""
 
         self._cnt = 0
         self._prefix = self.name + "_0"
+        return self
 
     def __next__(self):
-        """Intends to advance the counter and the prefix, but currently raises AttributeError."""
+        """Advances the counter and the prefix, and returns the new prefix."""
 
         self._cnt += 1
-        self._prefix = f"{self.name}_{self.cnt}"
+        self._prefix = f"{self.name}_{self._cnt}"
+        return self._prefix
 
     def prefix(self, full: bool = False):
         """Returns the current prefix, with or without any parent prefix.
@@ -128,18 +128,17 @@ class NameScope:
         Parameters
         ----------
         full : bool
-            whether to include the prefix of the parent scope, if any. Only the parent's own
-            prefix is added (the parent's prefix is retrieved without its ancestors).
+            whether to include the prefixes of the ancestor scopes, if any
 
         Returns
         -------
         str
-            `<name>_<counter>` or, if `full` is True and there is a parent scope, the parent's own
+            `<name>_<counter>` or, if `full` is True and there is a parent scope, the parent's full
             prefix, the separator and `<name>_<counter>`
         """
 
         if full and isinstance(self.parent_scope, NameScope):
-            return f"{self.parent_scope.prefix()}{self._sep}{self._prefix}"
+            return f"{self.parent_scope.prefix(True)}{self._sep}{self._prefix}"
 
         return self._prefix
 

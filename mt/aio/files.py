@@ -24,6 +24,7 @@ from .path import (
     rename,
     dirname,
     make_dirs,
+    make_dirs as _make_dirs_sync,
     make_dirs_asyn,
     exists_asyn,
     remove_asyn,
@@ -107,10 +108,10 @@ async def wait_until_file_exists(
             time.sleep(check_interval)
 
 
-async def safe_chmod(filepath: tp.Union[Path, str], file_mode: int = 0o664) -> None:
-    """A coroutine that waits for a file to exist (up to 10 seconds) and then chmods it.
-
-    It always runs asynchronously.
+async def safe_chmod(
+    filepath: tp.Union[Path, str], file_mode: int = 0o664, context_vars: dict = {}
+) -> None:
+    """An asyn function that waits for a file to exist (up to 10 seconds) and then chmods it.
 
     Parameters
     ----------
@@ -118,13 +119,16 @@ async def safe_chmod(filepath: tp.Union[Path, str], file_mode: int = 0o664) -> N
         path to the file
     file_mode : int
         file mode to be set using :func:`os.chmod`
+    context_vars : dict
+        a dictionary of context variables within which the function runs. If it has no
+        'async' key, asynchronous mode is assumed.
 
     Raises
     ------
     TimeoutError
         if the file does not appear in time
     """
-    context_vars = {"async": True}
+    context_vars = {"async": True, **context_vars}
     await wait_until_file_exists(filepath, context_vars=context_vars)
     await chmod_asyn(filepath, file_mode, context_vars=context_vars)
 
@@ -134,10 +138,9 @@ async def safe_rename(
     new_filepath: tp.Union[Path, str],
     context_vars: dict = {},
 ) -> None:
-    """A coroutine that waits for a file to exist (up to 10 seconds) and then renames it.
+    """An asyn function that waits for a file to exist (up to 10 seconds) and then renames it.
 
-    An existing destination is overwritten. Note that the `context_vars` argument is ignored: the
-    function always runs asynchronously.
+    An existing destination is overwritten.
 
     Parameters
     ----------
@@ -146,14 +149,15 @@ async def safe_rename(
     new_filepath : str or Path
         new path of the file
     context_vars : dict
-        ignored
+        a dictionary of context variables within which the function runs. If it has no
+        'async' key, asynchronous mode is assumed.
 
     Raises
     ------
     TimeoutError
         if the source file does not appear in time
     """
-    context_vars = {"async": True}
+    context_vars = {"async": True, **context_vars}
     await wait_until_file_exists(filepath, context_vars=context_vars)
     await rename_asyn(filepath, new_filepath, context_vars=context_vars, overwrite=True)
 
@@ -162,10 +166,11 @@ async def safe_chmod_and_rename(
     filepath: tp.Union[Path, str],
     new_filepath: tp.Union[Path, str],
     file_mode: int = 0o664,
+    context_vars: dict = {},
 ) -> None:
-    """A coroutine that waits for a file to exist, chmods it and renames it, overwriting.
+    """An asyn function that waits for a file to exist, chmods it and renames it, overwriting.
 
-    It waits up to 10 seconds for the source file, and always runs asynchronously.
+    It waits up to 10 seconds for the source file.
 
     Parameters
     ----------
@@ -175,13 +180,16 @@ async def safe_chmod_and_rename(
         new path of the file. An existing file at this path is overwritten.
     file_mode : int
         file mode to be set using :func:`os.chmod`
+    context_vars : dict
+        a dictionary of context variables within which the function runs. If it has no
+        'async' key, asynchronous mode is assumed.
 
     Raises
     ------
     TimeoutError
         if the source file does not appear in time
     """
-    context_vars = {"async": True}
+    context_vars = {"async": True, **context_vars}
     await wait_until_file_exists(filepath, context_vars=context_vars)
     await chmod_asyn(filepath, file_mode, context_vars=context_vars)
     await rename_asyn(filepath, new_filepath, context_vars=context_vars, overwrite=True)
@@ -282,8 +290,7 @@ async def write_binary(
         :func:`asyncio.ensure_future`) and returns the future without waiting for it. In all other
         cases, proceeds as usual.
     make_dirs : bool
-        Whether or not to make the folders containing the path before writing to the file. Only
-        honoured in asynchronous mode; in synchronous mode the folders must already exist.
+        Whether or not to make the folders containing the path before writing to the file.
 
     Returns
     -------
@@ -338,6 +345,8 @@ async def write_binary(
         coro = func(filepath, buf, file_mode)
         return asyncio.ensure_future(coro) if file_write_delayed else (await coro)
 
+    if make_dirs:
+        _make_dirs_sync(dirname(filepath))
     filepath2 = make_mttmp_filepath(filepath)
     with open(filepath2, mode="wb") as f:
         retval = f.write(buf)
@@ -420,8 +429,7 @@ async def write_text(
         :func:`asyncio.ensure_future`) and returns the future without waiting for it. In all other
         cases, proceeds as usual.
     make_dirs : bool
-        Whether or not to make the folders containing the path before writing to the file. Only
-        honoured in asynchronous mode; in synchronous mode the folders must already exist.
+        Whether or not to make the folders containing the path before writing to the file.
 
     Returns
     -------
@@ -468,7 +476,7 @@ async def write_text(
                 await wait_until_file_exists(filepath2, context_vars=context_vars)
                 if file_mode is not None:  # chmod
                     await safe_chmod_and_rename(
-                        filepath2, filepath, file_mode=file_mode
+                        filepath2, filepath, file_mode=file_mode, context_vars=context_vars
                     )
                 else:
                     await safe_rename(filepath2, filepath, context_vars=context_vars)
@@ -480,6 +488,8 @@ async def write_text(
         coro = func(filepath, buf, file_mode)
         return asyncio.ensure_future(coro) if file_write_delayed else (await coro)
 
+    if make_dirs:
+        _make_dirs_sync(dirname(filepath))
     filepath2 = make_mttmp_filepath(filepath)
     with open(filepath2, mode="wt") as f:
         retval = f.write(buf)
@@ -558,8 +568,7 @@ async def json_save(
         :func:`asyncio.ensure_future`) and returns the future without waiting for it. In all other
         cases, proceeds as usual.
     make_dirs : bool
-        Whether or not to make the folders containing the path before writing to the file. Only
-        honoured in asynchronous mode; in synchronous mode the folders must already exist.
+        Whether or not to make the folders containing the path before writing to the file.
     **kwds : dict
         keyword arguments passed as-is to :func:`json.dumps`
 
@@ -665,8 +674,7 @@ async def npz_save(
         :func:`asyncio.ensure_future`) and returns the future without waiting for it. In all other
         cases, proceeds as usual.
     make_dirs : bool
-        Whether or not to make the folders containing the path before writing to the file. Only
-        honoured in asynchronous mode; in synchronous mode the folders must already exist.
+        Whether or not to make the folders containing the path before writing to the file.
 
     Returns
     -------
@@ -744,7 +752,8 @@ class CreateFileH5:
     The context can be used with `with` or `async with`. The chmod and rename steps on exit are
     synchronous in the former and asynchronous (waiting up to 10 seconds for the file to be
     visible) in the latter. Entering the context requires :mod:`h5py`. If the body of the context
-    raises, the temporary file is left in place and the final file is not created.
+    raises, the handle is closed, the temporary file is left in place and the final file is not
+    created.
 
     Parameters
     ----------
@@ -767,12 +776,6 @@ class CreateFileH5:
     handle : h5py.File
         the handle of the temporary HDF5 file, opened in 'w' mode (available after entering the
         context)
-
-    Notes
-    -----
-    The synchronous exit with a non-None `file_mode` refers to a name `file_mode` that is not
-    defined in its scope and so fails with a :class:`NameError`; pass `file_mode=None` when using
-    the synchronous `with`, or use `async with`.
     """
 
     def __init__(
@@ -809,7 +812,8 @@ class CreateFileH5:
         return self.__enter__()
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        if exc_value is not None:  # successful
+        if exc_value is not None:  # failed
+            self.handle.close()
             if self.logger:
                 self.logger.warn(f"File '{self.tmp_filepath}' not removed.")
             return
@@ -817,11 +821,12 @@ class CreateFileH5:
         self.handle.close()
 
         if self.file_mode is not None:  # chmod
-            os.chmod(self.tmp_filepath, file_mode)
+            os.chmod(self.tmp_filepath, self.file_mode)
         rename(self.tmp_filepath, self.filepath, overwrite=True)
 
     async def __aexit__(self, exc_type, exc_value, exc_traceback):
-        if not exc_value is None:  # successful
+        if exc_value is not None:  # failed
+            self.handle.close()
             if self.logger:
                 self.logger.warn(f"File '{self.tmp_filepath}' not removed.")
             return
@@ -830,7 +835,7 @@ class CreateFileH5:
 
         if self.file_mode is not None:  # chmod
             await safe_chmod_and_rename(
-                self.tmp_filepath, self.filepath, self.file_mode
+                self.tmp_filepath, self.filepath, self.file_mode, context_vars=self.context_vars
             )
         else:
             await safe_rename(

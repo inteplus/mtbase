@@ -146,9 +146,8 @@ async def remove_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
         try:
             _su.rmtree(path)
         except OSError as e:
-            if _pl.system() == "Windows":
-                pass  # this can sometimes fail on Windows
-            raise e
+            if _pl.system() != "Windows":  # removal can sometimes fail on Windows
+                raise
 
 
 def remove(path: tp.Union[Path, str]):

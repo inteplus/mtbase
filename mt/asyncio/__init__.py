@@ -18,8 +18,7 @@ It re-exports everything in the standard :mod:`asyncio` package, so ``asyncio.ru
 As of 2025-06-04, apart from importing the asyncio package, on Python versions older than 3.11 it
 tries to override ``run``, ``TaskGroup`` and ``timeout`` with the versions of the backport package
 `taskgroup` so that these components exist even for Python 3.10. If `taskgroup` is not installed,
-the standard names are kept as they are (the module intends to emit a warning in that case, but
-the warning is currently not emitted).
+the standard names are kept as they are and a warning is emitted.
 
 Please see Python package `asyncio`_ for more details.
 
@@ -43,8 +42,7 @@ if Version(platform.python_version()) < Version("3.11"):
     except ImportError:
         import warnings
 
-        warnings.warn
-        (
+        warnings.warn(
             f"For python {platform.python_version()}, mt.asyncio relies on asyncio.timeout() of "
             "Python 3.11+ for efficiency reasons. Please pip install package 'taskgroup' if "
             "possible. Otherwise, please ignore this warning message as lack of asyncio.timeout() "

@@ -677,15 +677,13 @@ def concurrent_pool_func(
     cvc_func: tp.Optional[tp.Callable] = None,
     cvc_func_args: tuple = (),
     cvc_func_kwargs: dict = {},
-    max_concurency: int = 1,
+    max_concurrency: int = 1,
+    max_concurency: tp.Optional[int] = None,
 ):
     """Processes a block of items concurrently in a new event loop. Used by :func:`asyn_pmap`.
 
-    Warning: as currently implemented this function does not work. Its keyword argument is spelled
-    `max_concurency` while :func:`asyn_pmap` passes `max_concurrency`, which raises a
-    :class:`TypeError`, and its body refers to an undefined name and misuses
-    :func:`asyncio.wait_for`, so any call that gets that far returns `(False, <exception>)`. Use
-    :func:`sequential_pool_func` (that is, `max_concurrency_for_block_items=1`) instead.
+    Inside a single asynchronous context, up to `max_concurrency` invocations of `asyn_func` run
+    at the same time as asyncio tasks. If an item raises, the remaining tasks are cancelled.
 
     Parameters
     ----------
@@ -705,17 +703,36 @@ def concurrent_pool_func(
         positional arguments for `cvc_func`
     cvc_func_kwargs : dict
         keyword arguments for `cvc_func`
-    max_concurency : int
-        intended maximum number of concurrent items
+    max_concurrency : int
+        maximum number of items processed concurrently
+    max_concurency : int, optional
+        misspelt alias of `max_concurrency`, kept for backward compatibility. If provided, it
+        takes priority over `max_concurrency`.
 
     Returns
     -------
     ok : bool
-        intended to be True if all items were processed, False if an exception was raised
+        True if all items were processed, False if an exception was raised
     outputs : list or Exception
-        intended to be the list of outputs in the order of the items, or the exception raised
+        if `ok`, the list of outputs in the order of the items; otherwise the exception raised
+
+    Examples
+    --------
+    >>> from mt.concurrency.aio import concurrent_pool_func
+    >>> async def double(x, context_vars={}):
+    ...     return 2 * x
+    >>> concurrent_pool_func((1, 2, 3, 4), asyn_func=double, max_concurrency=2)
+    (True, [2, 4, 6, 8])
+    >>> async def fail(x, context_vars={}):
+    ...     raise KeyError(x)
+    >>> concurrent_pool_func((1, 2), asyn_func=fail, max_concurrency=2)
+    (False, KeyError(1))
     """
     import asyncio
+
+    if max_concurency is not None:
+        max_concurrency = max_concurency
+    max_concurrency = max(1, max_concurrency)
 
     async def func(t_items: tuple):
         if cvc_func is None:
@@ -728,24 +745,23 @@ def concurrent_pool_func(
             l_outputs = [None] * N
             d_tasks = {}
 
-            while i < N:
-                # push
-                while i < N and len(s_tasks) < max_concurency:
-                    coro = asyn_func(
-                        t_items[i],
-                        *asyn_func_args,
-                        context_vars=context_vars,
-                        **asyn_func_kwargs,
-                    )
-                    task = asyncio.create_task(coro)
-                    d_tasks[task] = i
-                    i += 1
+            try:
+                while i < N or d_tasks:
+                    # push
+                    while i < N and len(d_tasks) < max_concurrency:
+                        coro = asyn_func(
+                            t_items[i],
+                            *asyn_func_args,
+                            context_vars=context_vars,
+                            **asyn_func_kwargs,
+                        )
+                        task = asyncio.create_task(coro)
+                        d_tasks[task] = i
+                        i += 1
 
-                # pop
-                if len(d_tasks) > 0:
-                    # await for maximum 10 minutes for at least 1 task to finish
-                    s_done, _ = await asyncio.wait_for(
-                        d_tasks.keys(),
+                    # pop: await for maximum 10 minutes for at least 1 task to finish
+                    s_done, _ = await asyncio.wait(
+                        list(d_tasks.keys()),
                         timeout=600,
                         return_when=asyncio.FIRST_COMPLETED,
                     )
@@ -753,8 +769,13 @@ def concurrent_pool_func(
                     if len(s_done) == 0:
                         raise TimeoutError("No task has been done for 10 minutes.")
 
-                    for task in s_done:
+                    for task in sorted(s_done, key=d_tasks.get):
                         l_outputs[d_tasks.pop(task)] = task.result()
+            finally:
+                for task in d_tasks:  # cancel whatever is still pending
+                    task.cancel()
+                if d_tasks:
+                    await asyncio.gather(*d_tasks, return_exceptions=True)
 
             return l_outputs
 
@@ -810,9 +831,8 @@ def asyn_pmap(
         memory to store pending transformed items of the block
     max_concurrency_for_block_items : int, optional
         the maximum number of concurrent items in a block to be processed by any worker. If the
-        value is greater than 1, :func:`concurrent_pool_func` is used (but it currently does not
-        work, see its docstring). Otherwise, the items of a block are awaited one after another
-        by :func:`sequential_pool_func`.
+        value is greater than 1, :func:`concurrent_pool_func` is used. Otherwise, the items of a
+        block are awaited one after another by :func:`sequential_pool_func`.
     batch_size : int, optional
         same as block_size. For backward compatibility only. Takes priority over block_size due to
         backward compatibility. New invocations should not use this argument.
@@ -853,6 +873,7 @@ def asyn_pmap(
     See Also
     --------
     sequential_pool_func : the function that processes each block
+    concurrent_pool_func : the function that processes each block concurrently
 
     Examples
     --------

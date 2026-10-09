@@ -420,8 +420,8 @@ def make_logger(logger_name, max_indent=10):
     the message truncated to the width of the terminal, and drops messages whose indent level is
     larger than `max_indent`. No file handler is attached; see :func:`prepare_file_handler`.
 
-    Calling it twice with the same name wraps the same underlying logger and adds a second stream
-    handler, so every message would be printed twice; keep the returned object instead.
+    Calling it twice with the same name wraps the same underlying logger; the stream handler added
+    by the earlier call is replaced, so messages are not printed twice.
 
     Parameters
     ----------
@@ -458,7 +458,13 @@ def make_logger(logger_name, max_indent=10):
                     return True
                 return record.indent <= self.max_indent
 
+        # replace the handler installed by an earlier call for the same logger name
+        for h in list(logger.logger.handlers):
+            if getattr(h, "_mt_std_handler", False):
+                logger.logger.removeHandler(h)
+
         std_handler = StreamHandler()
+        std_handler._mt_std_handler = True
         std_handler.setLevel(DEBUG)
 
         std_filter = StdFilter(max_indent=max_indent)

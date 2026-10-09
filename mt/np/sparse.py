@@ -65,7 +65,7 @@ class SparseNdarray:
 
     # ----- serialisation -----
 
-    def to_ndarray(self) -> str:
+    def to_ndarray(self) -> np.ndarray:
         arr = np.zeros(self.dense_shape, dtype=self.values.dtype)
         arr[tuple(self.indices.T)] = self.values
         return arr
@@ -82,12 +82,11 @@ class SparseNdarray:
         """Serialises to a JSON-compatible dictionary.
 
         The dictionary has keys ``"shape"`` (list of ints), ``"indices"`` and ``"values"`` (the
-        latter two are base85 strings, see :func:`mt.np.to_b85`). Note that the code calls
-        ``dense_shape.tolist()``, so `dense_shape` must be a numpy array here; a plain tuple (as
-        produced by :meth:`from_ndarray`) raises AttributeError.
+        latter two are base85 strings, see :func:`mt.np.to_b85`). `dense_shape` can be a tuple or
+        a numpy array.
         """
         return {
-            "shape": self.dense_shape.tolist(),
+            "shape": [int(x) for x in self.dense_shape],
             "indices": to_b85(self.indices),
             "values": to_b85(self.values),
         }
@@ -174,9 +173,7 @@ def sparse_vector(
         the dtype of the sparse ndarray.
     indices : array_like
         A 1D sequence with length N, containing the indices of the nonzero values. Let D be the
-        maximum value of any element of `indices`, plus 1 (or 1 if it is empty). Pass a list: the
-        code tests the truthiness of `indices`, which raises ValueError for a numpy array with
-        more than one element.
+        maximum value of any element of `indices`, plus 1 (or 1 if it is empty).
     dim : int, optional
         the dimensionality of the sparse vector. Must be greater than or equal to D if provided.
         Otherwise, it is set to D.
@@ -203,7 +200,7 @@ def sparse_vector(
     (5, 1)
     """
 
-    D = max(indices) + 1 if indices else 1
+    D = max(indices) + 1 if len(indices) > 0 else 1
     if dim is None:
         dim = D
     elif dim < D:

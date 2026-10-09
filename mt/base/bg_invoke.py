@@ -382,8 +382,8 @@ def parallelise(
         (at least 1)
     bg_exception : {'raise', 'warn'}
         whether to re-raise a :class:`BgException` raised by a thread or to suppress all of them and
-        warn instead, in which case the output of the failed job is None. Warnings are only
-        logged if `logger` is provided, otherwise the exception is silently dropped. The value is
+        warn instead, in which case the output of the failed job is None. Warnings are logged
+        with `logger` if provided, otherwise with the module logger of :mod:`mt.logg`. The value is
         only checked when a job raises.
     logger : mt.logg.IndentedLoggerAdapter, optional
         for logging purposes
@@ -470,11 +470,11 @@ def parallelise(
                     if bg_exception == "raise":
                         raise
                     if bg_exception == "warn":
+                        warn_logger = logger if logger is not None else logg.logger
                         with logg.scoped_warning(
-                            f"Caught an exception from job {i2}:", logger=logger
+                            f"Caught an exception from job {i2}:", logger=warn_logger
                         ):
-                            if logger:
-                                logger.warn_last_exception()
+                            warn_logger.warn_last_exception()
                     else:
                         raise ValueError(
                             f"Argument 'bg_exception' has an unknown value '{bg_exception}'."

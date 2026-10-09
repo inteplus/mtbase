@@ -91,8 +91,7 @@ def iterator_as_generator(iterator):
     -------
     generator
         a generator that yields `next(iterator)` at every step. Despite the name, the generator is
-        only endless if the iterator is. When the iterator is exhausted, the generator raises
-        :class:`RuntimeError` (PEP 479) instead of stopping silently.
+        only endless if the iterator is. When the iterator is exhausted, the generator ends.
 
     Examples
     --------
@@ -105,6 +104,10 @@ def iterator_as_generator(iterator):
 
     def asgenerator(iterator):
         while True:
-            yield next(iterator)
+            try:
+                item = next(iterator)
+            except StopIteration:
+                return
+            yield item
 
     return asgenerator(iterator)

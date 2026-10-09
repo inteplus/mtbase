@@ -391,14 +391,6 @@ async def list_recent_objects(
     ------
     botocore.exceptions.ClientError
         if S3 reports an error other than a missing key
-
-    Notes
-    -----
-    As currently implemented, the filtered iterator yields the matching object records themselves,
-    yet each of them is then looked up for a 'Contents' key, which they do not have. As a result the
-    function returns an empty list, both when it matches no object and when it matches some (it
-    gives up at the first record). Use :func:`list_objects` and filter on 'LastModified'
-    yourself until this is fixed.
     """
 
     s3_client = context_vars["s3_client"]
@@ -411,42 +403,18 @@ async def list_recent_objects(
                 f"listing objects at '{s3cmd_url}'", spinner="dots"
             )
             spinner.start()
+        # The filter is applied in Python: S3 returns 'LastModified' as a datetime object, which
+        # a JMESPath comparison against a string literal cannot handle.
         if context_vars["async"]:
-            s3_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
-            filtered_iterator = s3_iterator.search(
-                f"Contents[?LastModified>=`{min_dt.isoformat()}`]"
-            )
-            async for result in filtered_iterator:
-                new_list = result.get("Contents", None)
-                if new_list is None:
-                    if not retval:
-                        if show_progress:
-                            spinner.succeed("no object found")
-                        return []
-                    raise ConnectionResetError(
-                        errno.ECONNRESET,
-                        "Unable to get all the records while listing objects.",
-                        s3cmd_url,
-                    )
-                retval.extend(new_list)
+            async for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                retval.extend(
+                    x for x in page.get("Contents", ()) if x["LastModified"] >= min_dt
+                )
         else:
-            s3_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
-            filtered_iterator = s3_iterator.search(
-                f"Contents[?LastModified>=`{min_dt.isoformat()}`]"
-            )
-            for result in filtered_iterator:
-                new_list = result.get("Contents", None)
-                if new_list is None:
-                    if not retval:
-                        if show_progress:
-                            spinner.succeed("no object found")
-                        return []
-                    raise ConnectionResetError(
-                        errno.ECONNRESET,
-                        "Unable to get all the records while listing objects.",
-                        s3cmd_url,
-                    )
-                retval.extend(new_list)
+            for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                retval.extend(
+                    x for x in page.get("Contents", ()) if x["LastModified"] >= min_dt
+                )
         if show_progress:
             spinner.succeed(f"{len(retval)} objects found")
     except botocore.exceptions.ClientError as e:

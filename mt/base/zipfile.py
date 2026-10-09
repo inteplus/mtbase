@@ -15,11 +15,8 @@ class ExtractedFolder(object):
     The `dirpath` attribute of the with object contains the extracted dirpath. Normally you get an
     instance from :func:`extract_temporarily` rather than creating it yourself.
 
-    On exit from the with statement, the folder is removed only when it was extracted to a
-    user-specified directory. A temporary directory created by :func:`extract_temporarily` is
-    cleaned up by Python when the :class:`tempfile.TemporaryDirectory` object it holds is
-    garbage-collected, that is, when the last reference to this object is dropped, which may be
-    after the with statement.
+    On exit from the with statement, the folder is removed, whether it was extracted to a
+    user-specified directory or to a temporary directory created by :func:`extract_temporarily`.
 
     Parameters
     ----------
@@ -41,9 +38,11 @@ class ExtractedFolder(object):
         return self
 
     def __exit__(self, type, value, traceback_obj):
-        """Removes the folder if it is not a temporary directory (see the class docstring)."""
+        """Removes the extracted folder (see the class docstring)."""
         if self.temp_dir is None:
             remove(self.dirpath)
+        else:
+            self.temp_dir.cleanup()
 
 
 def extract_temporarily(zipfile, out_dirpath=None):
@@ -61,8 +60,7 @@ def extract_temporarily(zipfile, out_dirpath=None):
     -------
     ExtractedFolder
         the extracted folder wrapped in an object for use in a with statement. When `out_dirpath`
-        is given, the folder is removed upon exiting the with statement. Otherwise, the temporary
-        directory is removed when the returned object is garbage-collected.
+        is given or not, the folder is removed upon exiting the with statement.
 
     Examples
     --------

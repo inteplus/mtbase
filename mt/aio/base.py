@@ -71,11 +71,8 @@ def arun(asyn_func, *args, context_vars: dict = {}, **kwds) -> object:
     """Invokes an asyn function from inside an asynch function.
 
     In asynchronous mode (`context_vars['async']` is True), it returns a coroutine that must be
-    awaited. In synchronous mode, it is meant to run the function via :func:`srun`.
-
-    Note that in the current implementation, the synchronous branch forwards `context_vars` both
-    explicitly and via `**kwds` to :func:`srun`, which raises a :class:`TypeError`. Use
-    :func:`srun` directly in synchronous mode.
+    awaited. In synchronous mode, it runs the function via :func:`srun`, passing `context_vars`
+    as `extra_context_vars`, and returns the function's result directly.
 
     Parameters
     ----------
@@ -92,7 +89,8 @@ def arun(asyn_func, *args, context_vars: dict = {}, **kwds) -> object:
     Returns
     -------
     object
-        in asynchronous mode, a coroutine whose result is whatever the asyn function returns
+        in asynchronous mode, a coroutine whose result is whatever the asyn function returns. In
+        synchronous mode, whatever the asyn function returns
 
     See Also
     --------
@@ -116,11 +114,9 @@ def arun(asyn_func, *args, context_vars: dict = {}, **kwds) -> object:
     async def async_func(*args, **kwds):
         return await asyn_func(*args, **kwds)
 
-    def sync_func(*args, **kwds):
-        return srun(asyn_func, *args, **kwds)
-
-    func = async_func if context_vars["async"] else sync_func
-    return func(*args, context_vars=context_vars, **kwds)
+    if context_vars["async"]:
+        return async_func(*args, context_vars=context_vars, **kwds)
+    return srun(asyn_func, *args, extra_context_vars=context_vars, **kwds)
 
 
 async def arun2(asynch_func, *args, context_vars: dict = {}, **kwds) -> object:

@@ -251,9 +251,8 @@ def keys(store):
 def get(store, key, default_value=None):
     """Gets an object in the store given its key.
 
-    Note that, despite what one might expect, reading an object does not refresh the access time
-    stored with it (the update is made on a local copy), so the 'rotate' put policy of
-    :func:`create` in practice evicts the objects in the order they were put.
+    Reading an object refreshes the access time stored with it, which the 'rotate' put policy of
+    :func:`create` uses to decide which objects to evict first.
 
     Parameters
     ----------
@@ -287,7 +286,7 @@ def get(store, key, default_value=None):
 
         pair = store["item_" + key]
         obj = pair[0]  # actual object
-        pair[1] = time()  # access time
+        store["item_" + key] = [obj, time()]  # refresh access time (pair is a local copy)
         return obj
 
     return store_exec(func, store, key, default_value=default_value)
@@ -358,8 +357,8 @@ def put(store, key, value):
     -------
     bool
         whether or not the object has been stored. Check :func:`create` for more details about the
-        put policy. Note that when the object is rejected, an existing object with the same key has
-        already been removed.
+        put policy. When the object is rejected, an existing object with the same key is
+        kept as it was.
 
     Raises
     ------
@@ -379,7 +378,8 @@ def put(store, key, value):
     """
 
     def func(store, key, value):
-        # delete if the key exists
+        # delete if the key exists, but remember it in case the new object gets rejected
+        old_pair = store["item_" + key] if has(store, key) else None
         remove(store, key)
 
         while True:
@@ -414,6 +414,8 @@ def put(store, key, value):
             remove(store, old_key)
 
         if not outcome:
+            if old_pair is not None:  # restore the object that was there before
+                store["item_" + key] = old_pair
             return False
 
         store["item_" + key] = [value, time()]

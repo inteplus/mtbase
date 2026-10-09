@@ -4,7 +4,7 @@ Everything public in :mod:`filetype` is re-exported here. The functions in this 
 the same inputs but can read the file header asynchronously. They take a `context_vars`
 dictionary, as created by :func:`mt.base.s3.create_context_vars`, whose key 'async' selects
 asynchronous or synchronous reading. Note that the argument has an empty dictionary as default
-value, which is not enough: the key 'async' must always be supplied.
+value, which means synchronous mode as a missing key 'async' is treated as False.
 """
 
 
@@ -26,7 +26,8 @@ async def read_file_header(filepath, context_vars: dict = {}):
         path to the file whose first 261 bytes would be read
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
-        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not
+        (False if missing).
 
     Returns
     -------
@@ -62,7 +63,8 @@ async def is_image_asyn(filepath, context_vars: dict = {}):
         also accepted.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
-        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not
+        (False if missing).
 
     Returns
     -------
@@ -90,7 +92,7 @@ async def is_image_asyn(filepath, context_vars: dict = {}):
     False
     """
 
-    if not context_vars["async"] or not isinstance(filepath, str):
+    if not context_vars.get("async", False) or not isinstance(filepath, str):
         return filetype.is_image(filepath)
 
     buf = await read_file_header(filepath, context_vars=context_vars)
@@ -109,7 +111,8 @@ async def image_match_asyn(filepath, context_vars: dict = {}):
         also accepted.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
-        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not
+        (False if missing).
 
     Returns
     -------
@@ -132,7 +135,7 @@ async def image_match_asyn(filepath, context_vars: dict = {}):
     ('image/png', 'png')
     """
 
-    if not context_vars["async"] or not isinstance(filepath, str):
+    if not context_vars.get("async", False) or not isinstance(filepath, str):
         return filetype.image_match(filepath)
 
     buf = await read_file_header(filepath, context_vars=context_vars)
