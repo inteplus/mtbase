@@ -21,7 +21,20 @@ depending on which Python version you are using, you do:
 
    from mt import ctx
 
-It will import the right contextlib package.
+It will import the right contextlib package, so every name of :mod:`contextlib` (``contextmanager``,
+``suppress``, ``ExitStack``, ...) is available from ``mt.ctx``.
+
+For Python versions older than 3.10, :class:`nullcontext` is replaced by a subclass that also
+supports ``async with``.
+
+Examples
+--------
+>>> from mt import ctx
+>>> with ctx.nullcontext(5) as x:
+...     print(x)
+5
+>>> with ctx.suppress(KeyError):
+...     {}["a"]
 
 Please see Python packages `contextlib`_ for more details.
 
@@ -48,9 +61,14 @@ if Version(platform.python_version()) < Version("3.10"):
         Used as a stand-in for a normal context manager, when a particular
         block of code is only sometimes used with a normal context manager:
 
-        cm = optional_cm if condition else nullcontext()
-        with cm:
-            # Perform operation, using optional_cm if condition is True
+        .. code-block:: python
+
+           cm = optional_cm if condition else nullcontext()
+           with cm:
+               # Perform operation, using optional_cm if condition is True
+
+        This subclass (only defined for Python older than 3.10) adds asynchronous support, so that
+        ``async with nullcontext(x) as y`` also works and binds ``y`` to ``x``.
         """
 
         async def __aenter__(self):

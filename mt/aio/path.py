@@ -1,4 +1,10 @@
-"""Useful functions dealing with paths and asyncio."""
+"""Useful functions dealing with paths and asyncio.
+
+Asyn functions (named with an '_asyn' suffix, taking `context_vars`) have synchronous
+counterparts without the suffix, which are the same functions run via :func:`mt.aio.srun`. The
+module also re-exports :class:`pathlib.Path` and everything from :mod:`os.path`, and provides a
+process-wide, per-path multiple-readers-single-writer lock, :func:`lock`.
+"""
 
 import errno
 import os as _os
@@ -31,7 +37,7 @@ async def chmod_asyn(
 
     Parameters
     ----------
-    path : str
+    path : str or Path
         a path to a link, a file or a directory
     mode : int
         the numeric mode to set for the path. See :func:`os.chmod` for details.
@@ -67,7 +73,7 @@ async def exists_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
 
     Parameters
     ----------
-    path : str
+    path : str or Path
         a path to a link, a file or a directory
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
@@ -81,6 +87,18 @@ async def exists_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
     Notes
     -----
     Just like :func:`os.path.exists`. The function returns False for broken symbolic links.
+
+    Examples
+    --------
+    >>> import asyncio, tempfile
+    >>> from mt.aio.path import exists_asyn
+    >>> async def main():
+    ...     with tempfile.TemporaryDirectory() as d:
+    ...         return await exists_asyn(d, context_vars={"async": True})
+    >>> asyncio.run(main())
+    True
+    >>> asyncio.run(exists_asyn("/nonexistent/path", context_vars={"async": True}))
+    False
     """
     if not context_vars["async"]:
         return exists(path)
@@ -101,15 +119,21 @@ async def exists_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
 async def remove_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
     """An asyn function that removes a path completely, regardless of it being a file or a folder.
 
-    If the path does not exist, do nothing.
+    If the path does not exist, do nothing. A symbolic link is unlinked, not followed. A directory
+    is removed recursively. Only the removal of a regular file is truly asynchronous; links and
+    directories are removed synchronously.
 
     Parameters
     ----------
-    path : str
+    path : str or Path
         a path to a link, a file or a directory
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+
+    See Also
+    --------
+    remove : the synchronous counterpart
     """
     if islink(path):
         _os.unlink(path)
@@ -130,12 +154,28 @@ async def remove_asyn(path: tp.Union[Path, str], context_vars: dict = {}):
 def remove(path: tp.Union[Path, str]):
     """Removes a path completely, regardless of it being a file or a folder.
 
-    If the path does not exist, do nothing.
+    If the path does not exist, do nothing. A symbolic link is unlinked, not followed. A directory
+    is removed recursively.
 
     Parameters
     ----------
-    path : str
+    path : str or Path
         a path to a link, a file or a directory
+
+    See Also
+    --------
+    remove_asyn : the asyn version
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> from mt.aio.path import make_dirs, remove
+    >>> with tempfile.TemporaryDirectory() as d:
+    ...     p = os.path.join(d, "a", "b")
+    ...     make_dirs(p)
+    ...     remove(os.path.join(d, "a"))
+    ...     os.path.exists(p)
+    False
     """
     return srun(remove_asyn, path)
 
@@ -143,7 +183,30 @@ def remove(path: tp.Union[Path, str]):
 def make_dirs(path: tp.Union[Path, str], shared: bool = True):
     """Convenient invocation of `os.makedirs(path, exist_ok=True)`.
 
-    If `shared` is True, every newly created folder will have permission 0o775.
+    If `shared` is True, every newly created folder will have permission 0o775 (explicitly
+    chmodded, so independent of the umask). An empty path is ignored.
+
+    Parameters
+    ----------
+    path : str or Path
+        path to the folder to be created, along with any missing parent folders
+    shared : bool
+        whether every newly created folder is made group-writable (0o775)
+
+    See Also
+    --------
+    make_dirs_asyn : the asyn version
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> from mt.aio.path import make_dirs
+    >>> with tempfile.TemporaryDirectory() as d:
+    ...     p = os.path.join(d, "a", "b")
+    ...     make_dirs(p)
+    ...     make_dirs(p)  # already existing, no error
+    ...     os.path.isdir(p), oct(os.stat(p).st_mode & 0o777)
+    (True, '0o775')
     """
     return srun(make_dirs_asyn, path, shared=shared)
 
@@ -153,7 +216,24 @@ async def make_dirs_asyn(
 ):
     """An asyn function wrapping `os.makedirs(path, exist_ok=True)`.
 
-    If `shared` is True, every newly created folder will have permission 0o775.
+    If `shared` is True, every newly created folder will have permission 0o775 (explicitly
+    chmodded, so independent of the umask). If `shared` is False, :func:`os.makedirs` is used
+    with mode 0o775, subject to the umask. An empty path is ignored. At the end, it briefly waits
+    (up to 3 times 0.1s) for the folder to become visible.
+
+    Parameters
+    ----------
+    path : str or Path
+        path to the folder to be created, along with any missing parent folders
+    shared : bool
+        whether every newly created folder is made group-writable (0o775)
+    context_vars : dict
+        a dictionary of context variables within which the function runs. It must include
+        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+
+    See Also
+    --------
+    make_dirs : the synchronous counterpart
     """
     if not path:  # empty path, just ignore
         return
@@ -186,7 +266,13 @@ async def make_dirs_asyn(
 
 
 def lock(path: tp.Union[Path, str], to_write: bool = False):
-    """Returns the current MROW lock for a given path.
+    """Returns the current MROW (multiple-readers-single-writer) lock for a given path.
+
+    The locks are kept in a process-wide registry keyed by the path string, so every call with the
+    same `path` in the same process shares one underlying read-write lock; different spellings of
+    the same file are different keys. The returned object is a context manager. Locks that are
+    free are garbage-collected from the registry from time to time. At interpreter exit, the
+    process waits (up to a long time) for all path locks to be released.
 
     Parameters
     ----------
@@ -199,6 +285,16 @@ def lock(path: tp.Union[Path, str], to_write: bool = False):
     -------
     lock : ReadRWLock or WriteRWLock
         an instance of WriteRWLock if to_write is True, otherwise an instance of ReadRWLock
+
+    Examples
+    --------
+    >>> from mt.aio.path import lock
+    >>> with lock("/some/file", to_write=True):
+    ...     print("writing")
+    writing
+    >>> with lock("/some/file"):
+    ...     print("reading")
+    reading
     """
     with lock.__lock0:
         # get the current lock, or create one if it needs be
@@ -241,11 +337,14 @@ async def rename_asyn(
 ):
     """An asyn function that renames a file or a directory.
 
+    If the destination exists and `overwrite` is True, it is removed first (so the operation is
+    not atomic).
+
     Parameters
     ----------
-    src : str
+    src : str or Path
         path to the source file or directory
-    dst : path
+    dst : str or Path
         new name also as a path
     overwrite : bool
         whether or not (default) to overwrite the destination file if it exists
@@ -256,7 +355,11 @@ async def rename_asyn(
     Raises
     ------
     FileExistsError
-        if the target file exists
+        if the target file exists and `overwrite` is False
+
+    See Also
+    --------
+    rename : the synchronous counterpart
     """
 
     if await exists_asyn(dst, context_vars=context_vars):
@@ -281,12 +384,38 @@ def rename(src: tp.Union[Path, str], dst: tp.Union[Path, str], overwrite: bool =
 
     Parameters
     ----------
-    src : str
+    src : str or Path
         path to the source file or directory
-    dst : path
+    dst : str or Path
         new name also as a path
     overwrite : bool
         whether or not (default) to overwrite the destination file if it exists
+
+    Raises
+    ------
+    FileExistsError
+        if the target file exists and `overwrite` is False
+
+    See Also
+    --------
+    rename_asyn : the asyn version
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> from mt.aio.path import rename
+    >>> with tempfile.TemporaryDirectory() as d:
+    ...     for name in ("a", "b"):
+    ...         with open(os.path.join(d, name), "w") as f:
+    ...             n = f.write(name)
+    ...     try:
+    ...         rename(os.path.join(d, "a"), os.path.join(d, "b"))
+    ...     except FileExistsError:
+    ...         print("exists")
+    ...     rename(os.path.join(d, "a"), os.path.join(d, "b"), overwrite=True)
+    ...     sorted(os.listdir(d))
+    exists
+    ['b']
     """
 
     return srun(rename_asyn, src, dst, overwrite=overwrite)
@@ -302,7 +431,7 @@ async def stat_asyn(
 
     Parameters
     ----------
-    path : str
+    path : str or Path
         Path to be examined; can be string, bytes, a path-like object or open-file-descriptor int.
     dir_fd : object, optional
         If not None, it should be a file descriptor open to a directory, and path should be a
@@ -325,6 +454,10 @@ async def stat_asyn(
     using them will raise a NotImplementedError.
 
     It's an error to use dir_fd or follow_symlinks when specifying path as an open file descriptor.
+
+    See Also
+    --------
+    stat : the synchronous counterpart
     """
 
     if context_vars["async"]:
@@ -340,7 +473,7 @@ def stat(path: tp.Union[Path, str], dir_fd=None, follow_symlinks=True):
 
     Parameters
     ----------
-    path : str
+    path : str or Path
         Path to be examined; can be string, bytes, a path-like object or open-file-descriptor int.
     dir_fd : object, optional
         If not None, it should be a file descriptor open to a directory, and path should be a
@@ -360,6 +493,21 @@ def stat(path: tp.Union[Path, str], dir_fd=None, follow_symlinks=True):
     using them will raise a NotImplementedError.
 
     It's an error to use dir_fd or follow_symlinks when specifying path as an open file descriptor.
+
+    See Also
+    --------
+    stat_asyn : the asyn version
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> from mt.aio.path import stat
+    >>> with tempfile.TemporaryDirectory() as d:
+    ...     fp = os.path.join(d, "a.txt")
+    ...     with open(fp, "w") as f:
+    ...         n = f.write("12345")
+    ...     stat(fp).st_size
+    5
     """
 
     return srun(stat_asyn, path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
@@ -370,17 +518,30 @@ async def relative_symlink_asyn(
     destination: tp.Union[Path, str],
     context_vars: dict = {},
 ):
-    """An asyn function that creates a symlink pointing to ``target`` from ``location``.
+    """An asyn function that creates a symlink at ``destination`` pointing to ``target``.
+
+    The link stores the path of ``target`` relative to the folder containing ``destination``, so
+    the pair can be moved around together. The folder containing ``destination`` is created if it
+    does not exist.
 
     Parameters
     ----------
-    target : str
+    target : str or Path
         The target of the symlink (the file/directory that is pointed to)
-    destination : str
+    destination : str or Path
         The location of the symlink itself.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+
+    Raises
+    ------
+    FileExistsError
+        if ``destination`` already exists
+
+    See Also
+    --------
+    relative_symlink : the synchronous counterpart
     """
     target = Path(target)
     destination = Path(destination)
@@ -399,20 +560,45 @@ def relative_symlink(
     target: tp.Union[Path, str],
     destination: tp.Union[Path, str],
 ):
-    """Creates a symlink pointing to ``target`` from ``location``.
+    """Creates a symlink at ``destination`` pointing to ``target``.
+
+    The link stores the path of ``target`` relative to the folder containing ``destination``. The
+    folder containing ``destination`` is created if it does not exist.
 
     Parameters
     ----------
-    target : str
+    target : str or Path
         The target of the symlink (the file/directory that is pointed to)
-    destination : str
+    destination : str or Path
         The location of the symlink itself.
+
+    Raises
+    ------
+    FileExistsError
+        if ``destination`` already exists
+
+    See Also
+    --------
+    relative_symlink_asyn : the asyn version
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> from mt.aio.path import relative_symlink
+    >>> with tempfile.TemporaryDirectory() as d:
+    ...     target = os.path.join(d, "data.txt")
+    ...     with open(target, "w") as f:
+    ...         n = f.write("x")
+    ...     relative_symlink(target, os.path.join(d, "links", "l"))
+    ...     os.readlink(os.path.join(d, "links", "l"))
+    '../data.txt'
     """
     return srun(relative_symlink_asyn, target, destination)
 
 
 # exit function
 def __exit_module():
+    """Waits (up to 1024 times 5 seconds) at exit until all path locks of :func:`lock` are free."""
     # repeatedly wait until all locks are free
     for i in range(1024):
         cnt = sum((not v.is_free() for k, v in lock.__locks.items()))

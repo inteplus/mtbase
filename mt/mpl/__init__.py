@@ -12,7 +12,9 @@ You do:
 
    from mt import mpl
 
-It will import the matplotlib package.
+It will import the matplotlib package: everything of ``matplotlib`` (``mpl.rcParams``,
+``mpl.use``, ...) is available from ``mt.mpl``. It raises ImportError if `matplotlib` is not
+installed.
 
 Please see Python package `matplotlib`_ for more details.
 

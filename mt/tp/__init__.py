@@ -12,7 +12,17 @@ Minh-Tri often does:
 
    from mt import tp
 
-This alias implements that idea. The code above will import the typing package.
+This alias implements that idea. The code above will import the typing package, so that
+``tp.Optional``, ``tp.List``, etc. are available. On top of that, it also exposes numpy's
+``NDArray``, ``ArrayLike`` and ``DTypeLike`` from :mod:`numpy.typing`.
+
+Examples
+--------
+>>> from mt import tp
+>>> def f(x: tp.Optional[int] = None) -> tp.List[int]:
+...     return [] if x is None else [x]
+>>> f(3)
+[3]
 
 Please see Python package `typing`_ for more details.
 

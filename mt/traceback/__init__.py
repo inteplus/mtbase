@@ -12,7 +12,9 @@ You do:
 
    from mt import traceback
 
-It will import the traceback package plus the additional stuff implemented here.
+It will import the traceback package plus the additional stuff implemented here:
+:func:`format_exc_info`, :func:`extract_stack_compact`, :class:`LogicError` and
+:func:`extract_task_stacktrace`.
 
 Please see Python package `traceback`_ for more details.
 
@@ -35,14 +37,48 @@ __all__ = [
 
 
 def format_exc_info(exc_type, exc_value, exc_traceback):
-    """Formats (exception type, exception value, traceback) into multiple lines."""
+    """Formats (exception type, exception value, traceback) into multiple lines.
+
+    Parameters
+    ----------
+    exc_type : type
+        the exception class
+    exc_value : BaseException
+        the exception instance
+    exc_traceback : types.TracebackType
+        the traceback of the exception
+
+    Returns
+    -------
+    list of str
+        the lines of the formatted exception, without line terminators (the last element is an
+        empty string)
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import sys
+        try:
+            1 / 0
+        except Exception:
+            lines = format_exc_info(*sys.exc_info())
+        # lines[-2] == 'ZeroDivisionError: division by zero'
+    """
     statements = _tb.format_exception(exc_type, exc_value, exc_traceback)
     statements = "".join(statements)
     return statements.split("\n")
 
 
 def extract_stack_compact():
-    """Returns the current callstack in a compact format."""
+    """Returns the current callstack in a compact format.
+
+    Returns
+    -------
+    list of str
+        the lines of the formatted stack of the caller, like :func:`traceback.format_stack` split
+        by newlines, with the lines mentioning "frozen importlib" removed
+    """
     lines = _tb.format_list(_tb.extract_stack())
     lines = "".join(lines).split("\n")
     lines = [line for line in lines if "frozen importlib" not in line]
@@ -55,6 +91,39 @@ class LogicError(RuntimeError):
     As of 2024/07/07, the user can optionally provide the error that caused this error together
     with optionally the corresponding traceback (as a list of strings, each string respresenting
     one line without the carriage return symbol).
+
+    The error is meant to be raised with a message and a dictionary of debugging values. Converting
+    it to a string gives a multi-line report: the causing error with its traceback (if any), then
+    the message, then a ``Where:`` section listing the debugging values.
+
+    Parameters
+    ----------
+    msg : str
+        the error message
+    debug : dict
+        a dictionary of debugging variables to show under ``Where:``
+    causing_error : Exception, optional
+        the error that caused this one. If provided, it is shown before the message.
+    causing_traceback : list of str, optional
+        the traceback of the causing error, one string per line. If not provided, the one attached
+        to `causing_error` (if any) is used.
+
+    Examples
+    --------
+    >>> from mt import traceback
+    >>> e = traceback.LogicError("bad value", {"x": 1})
+    >>> print(e)
+    bad value
+    Where:
+      x: 1
+    >>> e = traceback.LogicError("failed", causing_error=KeyError("k"), causing_traceback=["tb"])
+    >>> print(e)
+    With KeyError {
+      Traceback:
+      tb
+      'k'
+    } KeyError
+    failed
     """
 
     def __init__(self, msg, debug={}, causing_error=None, causing_traceback=None):
@@ -107,7 +176,8 @@ def extract_task_stacktrace(task: asyncio.Task) -> list:
     Returns
     -------
     list
-        list or strings representing multiple rows representing the stacktrace
+        list of strings, each representing one row of the stacktrace of the task (as given by
+        :meth:`asyncio.Task.get_stack`), formatted like :func:`traceback.format_list`
     """
     stacktrace = []
     checked = set()

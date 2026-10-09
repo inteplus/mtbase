@@ -3,8 +3,14 @@
 """Useful module to debug a process remotely.
 
 The process to be remotely debugged should import this module and invoke :func:`listen` during
-startup. Invoke :func:`debug_process` with the PID of the process being the argument. As of
+startup. Then, from another terminal, invoke :func:`debug_process` with the PID of that process
+as the argument, or run this module as a script (`python -m mt.base.debug_process PID`). As of
 2020/11/20, as long as you import mt.base, this module is imported and registered automatically.
+
+It works by signalling the process with SIGUSR1 and exchanging pickled messages through a pair of
+named pipes in the temporary directory, so it only works on a posix system, and only if the
+process's main thread registered the handler. The debugging prompt is a Python console that
+executes commands in the frame that was running when the signal arrived.
 
 Reference: https://code.activestate.com/recipes/576515/
 """
@@ -25,15 +31,42 @@ __all__ = ["listen", "debug_process"]
 
 
 def pipename(pid):
-    """Return name of pipe to use"""
+    """Returns the base path of the pair of named pipes used to debug the process of a given PID.
+
+    Parameters
+    ----------
+    pid : int
+        process id
+
+    Returns
+    -------
+    str
+        path 'debug-<pid>' inside the temporary directory
+    """
     return os.path.join(tempfile.gettempdir(), "debug-%d" % pid)
 
 
 class NamedPipe(object):
+    """A pair of named pipes (FIFOs) for two-way communication with another process.
+
+    Objects are sent with :meth:`put` and received with :meth:`get`, marshalled with pickle.
+    """
+
     def __init__(self, name, end=0, mode=0o666):
-        """Open a pair of pipes, name.in and name.out for communication
-        with another process.  One process should pass 1 for end, and the
-        other 0.  Data is marshalled with pickle."""
+        """Opens a pair of pipes, `name`.in and `name`.out, for communication with another process.
+
+        One process should pass 1 for `end`, and the other 0. Opening blocks until the other end has
+        opened the pipes too.
+
+        Parameters
+        ----------
+        name : str
+            base path of the two pipes
+        end : int
+            0 for the process being debugged, 1 for the debugger
+        mode : int
+            permission bits used to create the FIFOs
+        """
         self.in_name, self.out_name = (
             name + ".in",
             name + ".out",
@@ -58,9 +91,19 @@ class NamedPipe(object):
         self._open = True
 
     def is_open(self):
+        """Returns whether both pipes are still open."""
+
         return not (self.inp.closed or self.out.closed)
 
     def put(self, msg):
+        """Sends an object to the other end.
+
+        Raises
+        ------
+        Exception
+            if the pipe has been closed
+        """
+
         if self.is_open():
             data = cPickle.dumps(msg, 1)
             self.out.write("%d\n" % len(data))
@@ -70,6 +113,14 @@ class NamedPipe(object):
             raise Exception("Pipe closed")
 
     def get(self):
+        """Receives an object from the other end.
+
+        Returns
+        -------
+        object or None
+            the object received, or None if the other end has closed the pipe
+        """
+
         txt = self.inp.readline()
         if not txt:
             self.inp.close()
@@ -83,6 +134,8 @@ class NamedPipe(object):
             )  # Convert back to python object.
 
     def close(self):
+        """Closes the pipes and removes the FIFO files."""
+
         self.inp.close()
         self.out.close()
         try:
@@ -99,7 +152,19 @@ class NamedPipe(object):
 
 
 def remote_debug(sig, frame):
-    """Handler to allow process to be remotely debugged."""
+    """Signal handler that lets the process be remotely debugged.
+
+    It opens the named pipes of the current process and runs a read-eval-print loop that executes
+    the commands sent by :func:`debug_process` in the interrupted frame, returning the captured
+    output. Exceptions in the loop are reported to the debugger and never reach the program.
+
+    Parameters
+    ----------
+    sig : int
+        the signal number, as in :func:`signal.signal`
+    frame : frame
+        the frame that was running when the signal arrived
+    """
 
     def _raiseEx(ex):
         """Raise specified exception in the remote process"""
@@ -159,7 +224,17 @@ def remote_debug(sig, frame):
 
 
 def debug_process(pid):
-    """Interrupt a running process and debug it."""
+    """Interrupts a running process and debugs it.
+
+    The process must have invoked :func:`listen` (importing mt.base does it). The function sends
+    SIGUSR1 to the process and then opens an interactive prompt. Each line typed is executed inside
+    the process, in the frame that was running; enter EOF (Ctrl-D) to quit.
+
+    Parameters
+    ----------
+    pid : int
+        id of the process to debug
+    """
     os.kill(pid, signal.SIGUSR1)  # Signal process.
     pipe = NamedPipe(pipename(pid), 1)
     try:
@@ -172,6 +247,12 @@ def debug_process(pid):
 
 
 def listen():
+    """Registers the handler of SIGUSR1 that enables remote debugging of this process.
+
+    It does nothing outside the main thread. On a non-posix system, a warning is logged instead
+    because the feature is unavailable.
+    """
+
     if _t.current_thread().__class__.__name__ != "_MainThread":
         return
 

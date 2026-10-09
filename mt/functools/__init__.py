@@ -12,7 +12,9 @@ You do:
 
    from mt import functools
 
-It will import functools plus the additional stuff implemented here.
+It will import functools plus the additional stuff implemented here, namely :class:`rpartial` and
+:class:`rpartialmethod`, the right-hand counterparts of :class:`functools.partial` and
+:class:`functools.partialmethod`.
 
 Please see Python package `functools`_ for more details.
 
@@ -31,8 +33,47 @@ from reprlib import recursive_repr
 
 # Purely functional, no descriptor behaviour
 class rpartial:
-    """New function with rpartial application of the given arguments
-    and keywords.
+    """New function with right-partial application of the given arguments and keywords.
+
+    Like :class:`functools.partial`, but the frozen positional arguments are appended after the
+    arguments supplied at call time instead of being prepended. Keywords given at call time
+    override the frozen ones. Wrapping another partial-like object (anything with ``func``,
+    ``args`` and ``keywords`` attributes) flattens it, with the new frozen arguments placed before
+    the wrapped object's ones.
+
+    Parameters
+    ----------
+    func : callable
+        the function to wrap
+    *args
+        positional arguments to append after the call-time positional arguments
+    **keywords
+        keyword arguments to freeze; can be overridden at call time
+
+    Raises
+    ------
+    TypeError
+        if `func` is not callable
+
+    See Also
+    --------
+    functools.partial : the left-hand version
+    rpartialmethod : the method-descriptor version
+
+    Examples
+    --------
+    >>> from mt import functools
+    >>> def f(a, b, c=0):
+    ...     return (a, b, c)
+    >>> g = functools.rpartial(f, 2)
+    >>> g(1)
+    (1, 2, 0)
+    >>> functools.rpartial(f, 2, c=3)(1)
+    (1, 2, 3)
+    >>> functools.rpartial(f, 2, c=3)(1, c=4)
+    (1, 2, 4)
+    >>> functools.rpartial(pow, 2)(5)  # same as pow(5, 2)
+    25
     """
 
     __slots__ = "func", "args", "keywords", "__dict__", "__weakref__"
@@ -104,11 +145,41 @@ class rpartial:
 
 # Descriptor version
 class rpartialmethod(object):
-    """Method descriptor with rpartial application of the given arguments
-    and keywords.
+    """Method descriptor with right-partial application of the given arguments and keywords.
 
-    Supports wrapping existing descriptors and handles non-descriptor
-    callables as instance methods.
+    The method counterpart of :class:`rpartial`: when accessed through an instance (or class), the
+    instance (or class) is passed first, then the call-time arguments, then the frozen positional
+    arguments. Supports wrapping existing descriptors (e.g. ``classmethod``) and handles
+    non-descriptor callables as instance methods.
+
+    Parameters
+    ----------
+    func : callable or descriptor
+        the function (or descriptor) to wrap
+    *args
+        positional arguments to append after the call-time positional arguments
+    **keywords
+        keyword arguments to freeze; can be overridden at call time
+
+    Raises
+    ------
+    TypeError
+        if `func` is neither callable nor a descriptor
+
+    See Also
+    --------
+    rpartial : the plain-function version
+    functools.partialmethod : the left-hand version
+
+    Examples
+    --------
+    >>> from mt import functools
+    >>> class A:
+    ...     def f(self, x, y):
+    ...         return (x, y)
+    ...     g = functools.rpartialmethod(f, "last")
+    >>> A().g(1)
+    (1, 'last')
     """
 
     def __init__(self, func, /, *args, **keywords):

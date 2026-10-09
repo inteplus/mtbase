@@ -1,4 +1,4 @@
-"""Utilities to deprecate a function or a module."""
+"""Utilities to deprecate a function or a class."""
 
 from functools import wraps
 
@@ -15,21 +15,56 @@ def deprecated_func(
     """A decorator to warn the user that the function has been deprecated and will be removed
     in future.
 
+    The first time the decorated function is called in a process, a warning is logged via
+    :mod:`mt.logg` showing where it was called from, the deprecation version, and, if provided, the
+    removal version and the suggested replacement. Later calls are silent. In addition, a Sphinx
+    `.. deprecated::` directive (with the removal version and the suggested replacement, if any) is
+    appended to the docstring of the function.
+
     Parameters
     ----------
     deprecated_version : str
         the version since which the function has been deprecated
     suggested_func : str or list of strings, optional
-        the function to be used in replacement of the deprecated function
+        the function (or functions) to be used in replacement of the deprecated function
     removed_version : str, optional
         the future version from which the deprecated function will be removed
     docstring_prefix : str
-        prefix string to be inserted at the beginning of every new line in the docstring
+        prefix string to be inserted at the beginning of each line that the decorator appends to the
+        docstring. Use it to indent the directive when the function is a method inside a class.
+
+    Returns
+    -------
+    function
+        a decorator to be applied on the function to deprecate
+
+    See Also
+    --------
+    deprecated_class : the equivalent decorator for a class
+
+    Examples
+    --------
+    >>> from mt.base.deprecated import deprecated_func
+    >>> @deprecated_func("1.0", suggested_func="new_func", removed_version="2.0")
+    ... def old_func(x):
+    ...     '''Does something.'''
+    ...     return x + 1
+    ...
+    >>> print(old_func.__doc__)
+    Does something.
+    <BLANKLINE>
+    .. deprecated:: 1.0
+       It will be removed in version 2.0.
+       Use :func:`new_func` instead.
+    <BLANKLINE>
     """
 
     def deprecated_decorator(func):
+        """Wraps `func` to warn on first use and amends its docstring."""
+
         @wraps(func)
         def func_wrapper(*args, **kwds):
+            """Warns once (see :func:`deprecated_func`) and then calls the function."""
             if not deprecated_func_warned[func]:
                 lines = traceback.extract_stack_compact()
                 if len(lines) > 7:
@@ -94,24 +129,57 @@ def deprecated_class(
     """A decorator to warn the user that the class has been deprecated and will be removed
     in future.
 
+    The first time an instance of the decorated class is created in a process, a warning is logged
+    via :mod:`mt.logg` showing where it was created from, the deprecation version, and, if provided,
+    the removal version and the suggested replacement. Later instantiations are silent. In
+    addition, a Sphinx `.. deprecated::` directive (with the removal version and the suggested
+    replacement, if any) is appended to the docstring of the class.
+
     Parameters
     ----------
     deprecated_version : str
         the version since which the class has been deprecated
     suggested_class : str or list of strings, optional
-        the class to be used in replacement of the deprecated class
+        the class (or classes) to be used in replacement of the deprecated class
     removed_version : str, optional
         the future version from which the class will be removed
     docstring_prefix : str
-        prefix string to be inserted at the beginning of every new line in the docstring
+        prefix string to be inserted at the beginning of each line that the decorator appends to the
+        docstring
+
+    Returns
+    -------
+    function
+        a decorator to be applied on the class to deprecate. The class is modified in place (its
+        `__init__` and `__doc__` are replaced) and returned.
+
+    See Also
+    --------
+    deprecated_func : the equivalent decorator for a function
+
+    Examples
+    --------
+    >>> from mt.base.deprecated import deprecated_class
+    >>> @deprecated_class("1.0", suggested_class=["NewA", "NewB"])
+    ... class Old:
+    ...     '''An old class.'''
+    ...
+    >>> print(Old.__doc__)
+    An old class.
+    <BLANKLINE>
+    .. deprecated:: 1.0
+       Use :class:`NewA` or :class:`NewB` instead.
+    <BLANKLINE>
     """
 
     def deprecated_decorator(cls):
+        """Patches `cls` to warn on first instantiation and amends its docstring."""
         cls._warn_of_class_deprecation = False
         the_init = cls.__init__
 
         @wraps(the_init)
         def new_init(self, *args, **kwds):
+            """Warns once (see :func:`deprecated_class`) and then runs the original `__init__`."""
             if not self.__class__._warn_of_class_deprecation:
                 self.__class__._warn_of_class_deprecation = True
 

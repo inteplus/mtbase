@@ -87,16 +87,23 @@ class HaloNotebook(Halo):
 
     def stop_and_persist(self, symbol=" ", text=None):
         """Stops the spinner and persists the final frame to be shown.
+
+        The final frame is written into the notebook's output widget as ``"<symbol> <text>"``
+        (or ``"<text> <symbol>"`` if the spinner is placed on the right). It is the method behind
+        ``succeed()``, ``fail()``, ``warn()`` and ``info()``.
+
         Parameters
         ----------
         symbol : str, optional
-            Symbol to be shown in final frame
+            Symbol to be shown in final frame. Default is a single space.
         text: str, optional
-            Text to be shown in final frame
+            Text to be shown in final frame. If None, the text the spinner was created with is
+            used.
 
         Returns
         -------
         self
+            the spinner object, to allow chaining. When the spinner is disabled, nothing is done.
         """
         if not self.enabled:
             return self

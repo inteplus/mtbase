@@ -12,7 +12,8 @@ You do:
 
    from mt import time
 
-It will import the time package plus the additional stuff implemented here.
+It will import the time package plus the additional stuff implemented here, namely
+:func:`sleep_until`.
 
 Please see Python package `time`_ for more details.
 
@@ -44,14 +45,36 @@ _stages = [
 def sleep_until(func, check_interval=1, timeout=60 * 60 * 24, logger=None):
     """Sleeps until function evaluates to true.
 
+    The function is polled once immediately and then once every `check_interval` seconds, blocking
+    the calling thread in between. When a logger is provided, a debug message is emitted each time
+    the waiting time passes a milestone (10 seconds, half a minute, a minute, ..., a week).
+
     Parameters
     ----------
+    func : callable
+        a function taking no arguments. The wait ends as soon as it returns a truthy value.
     check_interval : float
         number of seconds between two checks, in seconds
     timeout : float
         number of seconds before timeout, in which case a TimeoutError is raised
-    logger : logging.Logger or equivalent
+    logger : logging.Logger or equivalent, optional
         logging for debugging purposes
+
+    Raises
+    ------
+    TimeoutError
+        if `func` is still not true after more than `timeout` seconds
+
+    Examples
+    --------
+    >>> from mt import time
+    >>> calls = []
+    >>> def ready():
+    ...     calls.append(1)
+    ...     return len(calls) >= 3
+    >>> time.sleep_until(ready, check_interval=0.01)
+    >>> len(calls)
+    3
     """
     start_time = time()
     cur_stage = -1

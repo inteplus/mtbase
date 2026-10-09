@@ -12,7 +12,9 @@ You do:
 
    from mt import plt
 
-It will import the matplotlib.pyplot package.
+It will import the matplotlib.pyplot package: everything of ``matplotlib.pyplot`` (``plt.figure``,
+``plt.plot``, ``plt.show``, ...) is available from ``mt.plt``. It raises ImportError if
+`matplotlib` is not installed.
 
 Please see Python package `pyplot`_ for more details.
 

@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=unsubscriptable-object
 """Beautiful terminal spinners in Python.
+
+Contains :class:`Halo`, a version of :class:`halo.Halo` whose constructor is rewritten so that it
+registers its clean-up (stopping the spinner) with IPython's ``post_run_cell`` event or, in a
+plain terminal, with :mod:`atexit`.
 """
 from __future__ import absolute_import, unicode_literals
 
@@ -13,7 +17,16 @@ from halo._utils import get_environment
 
 
 class Halo(HaloOld):
-    """Halo library.
+    """Terminal spinner, a thin subclass of :class:`halo.Halo`.
+
+    The spinner is typically used as a context manager (``with Halo(text="Loading"): ...``) or
+    with ``start()`` / ``stop()`` / ``succeed()`` / ``fail()``, as in the parent class. On
+    construction it registers a clean-up that stops the spinner when the interpreter exits (or
+    when the current IPython/Jupyter cell finishes), so that the cursor is restored.
+
+    It animates on a background thread and writes to a stream, so it is not meant for doctests or
+    for capturing output. See :class:`HaloNotebook` for the Jupyter version.
+
     Attributes
     ----------
     CLEAR_LINE : str
@@ -33,17 +46,18 @@ class Halo(HaloOld):
         stream=sys.stdout,
     ):
         """Constructs the Halo object.
+
         Parameters
         ----------
         text : str, optional
             Text to display.
-        text_color : str, optional
-            Color of the text.
         color : str, optional
-            Color of the text to display.
+            Color of the spinner. Default is "cyan".
+        text_color : str, optional
+            Color of the text. Default is None, meaning the terminal's default color.
         spinner : str|dict, optional
             String or dictionary representing spinner. String can be one of 60+ spinners
-            supported.
+            supported. If not provided, the default spinner of `halo` is used.
         animation: str, optional
             Animation to apply if text is too large. Can be one of `bounce`, `marquee`.
             Defaults to ellipses.
@@ -51,11 +65,12 @@ class Halo(HaloOld):
             Side of the text to place the spinner on. Can be `left` or `right`.
             Defaults to `left`.
         interval : integer, optional
-            Interval between each frame of the spinner in milliseconds.
+            Interval between each frame of the spinner in milliseconds. If not positive (the
+            default, -1), the interval of the chosen spinner is used.
         enabled : boolean, optional
-            Spinner enabled or not.
+            Spinner enabled or not. A disabled spinner prints nothing.
         stream : io, optional
-            Output.
+            Output. Default is `sys.stdout`.
         """
         self._color = color
         self._animation = animation

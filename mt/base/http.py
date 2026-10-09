@@ -1,4 +1,9 @@
-"""Useful subroutines dealing with downloading http files."""
+"""Useful subroutines dealing with downloading http files.
+
+The functions are asynchronous-capable: they take a `context_vars` dictionary, usually created
+by :func:`mt.base.s3.create_context_vars`, which tells whether to run asynchronously or
+synchronously and carries the shared http session. They need network access.
+"""
 
 
 import re
@@ -24,8 +29,20 @@ async def create_http_session(asyn: bool = True):
 
     Returns
     -------
-    http_session : aiohttp.ClientSession, optional
-        an open client session in asynchronous mode. Otherwise, None.
+    http_session : aiohttp.ClientSession or None
+        an open client session in asynchronous mode, closed upon leaving the `async with`
+        statement. Otherwise, None.
+
+    Examples
+    --------
+    >>> import asyncio
+    >>> from mt.base.http import create_http_session
+    >>> async def main():
+    ...     async with create_http_session(asyn=False) as http_session:
+    ...         return http_session
+    ...
+    >>> print(asyncio.run(main()))
+    None
     """
     if asyn:
         async with aiohttp.ClientSession() as http_session:
@@ -35,14 +52,18 @@ async def create_http_session(asyn: bool = True):
 
 
 async def download(url, context_vars: dict = {}):
-    """An asyn function that opens a binary file and reads the content.
+    """An asyn function that downloads the content of a http or https url.
+
+    In synchronous mode, :func:`requests.get` is used, without timeout. In asynchronous mode, the
+    shared aiohttp session is used and the download is retried twice (after waiting 1s and then 10s)
+    if the connection is dropped or times out. A response whose status is not 2xx is never retried.
+    Whatever the mode, a short content (at most 5000 bytes) containing the phrase "Access Denied" or
+    "AccessDenied" is treated as an error, as some servers return such a page with a 200 status.
 
     Parameters
     ----------
     url : str
         a http or https URL
-    asyn : bool
-        whether the function is to be invoked asynchronously or synchronously
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
@@ -57,13 +78,21 @@ async def download(url, context_vars: dict = {}):
     Raises
     ------
     ConnectionAbortedError
-        if there is a problem downloading
+        in asynchronous mode, if the response status is not 2xx
+    requests.HTTPError
+        in synchronous mode, if the response status is an error
     PermissionError
         if forbidden word "Access Denied" or "AccessDenied" is detected
+    ValueError
+        in asynchronous mode, if `context_vars['http_session']` is None
+
+    See Also
+    --------
+    download_and_chmod : saves the downloaded content to a file
     """
 
     def check_content(content):
-        """Checks the content for word b"Access Denied" and raises ValueError if so."""
+        """Returns the content, or raises PermissionError if it is a short "Access Denied" page."""
         if len(content) > 5000:
             return content
         if re.search(b"Access ?Denied", content):
@@ -136,19 +165,32 @@ async def download_and_chmod(url, filepath, file_mode=0o664, context_vars: dict 
     """An asyn function that downloads an http or https url as binary to a file with predefined
     permissions.
 
+    After writing the file, the permissions are set. If the file is not visible yet (as may happen
+    on network file systems), the chmod is retried after 0.1s, 1s and 10s.
+
     Parameters
     ----------
     url : str
-       an http or https url
+        an http or https url
     filepath : str
-       file location to save the content to
-    file_mode : int
-        to be passed directly to `os.chmod()` if not None
+        file location to save the content to
+    file_mode : int, optional
+        permission bits to be passed directly to `os.chmod()`, for example `0o664`. If None
+        or 0, the permissions are left untouched.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In asynchronous mode, variable 'http_session' must exist and hold an enter-result of an
         async with statement invoking :func:`create_http_session`.
+
+    Raises
+    ------
+    ConnectionAbortedError
+        if the downloaded content is empty, or for any reason given in :func:`download`
+
+    See Also
+    --------
+    download : downloads the content without saving it
     """
 
     content = await download(url, context_vars=context_vars)

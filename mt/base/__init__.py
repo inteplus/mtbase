@@ -1,5 +1,23 @@
 """Minh-Tri Pham's base package for Python.
 
+Importing this package gives access to the following names: `logger`, `home_dirpath`,
+`temp_dirpath`, :func:`deprecated_func`, :func:`cast` and :func:`castable`, :func:`debug_exec`
+and :func:`debug_on`, the datatype checkers of :mod:`mt.base.datatype` (`is_ndarray`, ...),
+`ansi_ul`, and the model parameter classes of :mod:`mt.base.model` (`ModelParams`, `NameScope`,
+`MHAParams`, `ClassifierParams`, ...). Other utilities live in submodules, for example
+:mod:`mt.base.s3`, :mod:`mt.base.bg_invoke`, :mod:`mt.base.object_store` and
+:mod:`mt.base.locket`.
+
+Side effect: on import, in the main thread of a posix system, the package registers a SIGUSR1
+handler that lets the process be debugged remotely (see :mod:`mt.base.debug_process`).
+
+Examples
+--------
+>>> from mt.base import is_ndarray
+>>> import numpy as np
+>>> is_ndarray(np.zeros(2))
+True
+
 
 # Variable prefix naming convention
 
@@ -16,7 +34,6 @@ convention as above. For example, 'll_' stands for a list of lists of things. In
 that are not the first letter in the prefix accept further values 'i', 'm', and 'v' which stand for
 image, matrix and vector respectively. For example, Prefix 'biv_' stands for a tensorflow batch of
 images of vectors of things.
-
 """
 
 from mt.logg import make_logger, logger, init as _log_init

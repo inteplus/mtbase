@@ -10,12 +10,25 @@ __all__ = ["extract_temporarily", "ExtractedFolder"]
 
 
 class ExtractedFolder(object):
-    """A scope for use in a with statement. Upon exiting, the extracted folder is removed.
+    """A scope for use in a with statement that holds the folder of an extracted zip file.
 
-    The 'dirpath' attribute of the with object contains the extracted dirpath.
+    The `dirpath` attribute of the with object contains the extracted dirpath. Normally you get an
+    instance from :func:`extract_temporarily` rather than creating it yourself.
+
+    On exit from the with statement, the folder is removed only when it was extracted to a
+    user-specified directory. A temporary directory created by :func:`extract_temporarily` is
+    cleaned up by Python when the :class:`tempfile.TemporaryDirectory` object it holds is
+    garbage-collected, that is, when the last reference to this object is dropped, which may be
+    after the with statement.
+
+    Parameters
+    ----------
+    dirpath : str or tempfile.TemporaryDirectory
+        path to the extracted folder, or a temporary directory object whose name is the path
     """
 
     def __init__(self, dirpath):
+        """Initialises the scope. See the class docstring for the parameters."""
         if isinstance(dirpath, _tf.TemporaryDirectory):
             self.temp_dir = dirpath
             self.dirpath = dirpath.name
@@ -24,29 +37,47 @@ class ExtractedFolder(object):
             self.dirpath = dirpath
 
     def __enter__(self):
+        """Returns the object itself, so `dirpath` can be read in the with statement."""
         return self
 
     def __exit__(self, type, value, traceback_obj):
+        """Removes the folder if it is not a temporary directory (see the class docstring)."""
         if self.temp_dir is None:
             remove(self.dirpath)
 
 
 def extract_temporarily(zipfile, out_dirpath=None):
-    """Extracts a zip file to an local dirpath, deleting the dirpath after use.
+    """Extracts a zip file to a local dirpath, to be deleted after use.
 
     Parameters
     ----------
     zipfile : str or zipfile.ZipFile
         an open ZipFile instance or a local path to a zip file
     out_dirpath : str, optional
-        If specified, a path to hold all the extracted zip files. Otherwise, a temporary directory
-        is generated.
+        If specified, a path to hold all the extracted zip files. It is created if needed.
+        Otherwise, a temporary directory is generated.
 
     Returns
     -------
     ExtractedFolder
-        the extracted folder wrapped in an object for use in a with statement. The folder is
-        removed upon exitting the with statement.
+        the extracted folder wrapped in an object for use in a with statement. When `out_dirpath`
+        is given, the folder is removed upon exiting the with statement. Otherwise, the temporary
+        directory is removed when the returned object is garbage-collected.
+
+    Examples
+    --------
+    >>> import io, os, zipfile
+    >>> from mt.base.zipfile import extract_temporarily
+    >>> buf = io.BytesIO()
+    >>> with zipfile.ZipFile(buf, "w") as zf:
+    ...     zf.writestr("data/hello.txt", "hi")
+    ...
+    >>> with zipfile.ZipFile(buf) as zf:
+    ...     with extract_temporarily(zf) as folder:
+    ...         print(sorted(os.listdir(folder.dirpath)))
+    ...         print(open(os.path.join(folder.dirpath, "data", "hello.txt")).read())
+    ['data']
+    hi
     """
 
     if not isinstance(zipfile, _zf.ZipFile):

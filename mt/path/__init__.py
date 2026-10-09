@@ -12,7 +12,11 @@ You do:
 
    from mt import path
 
-It will import the path package plus the additional stuff implemented here.
+It will import the path package plus the additional stuff implemented here. Everything of
+:mod:`os.path` is available, together with a few functions of :mod:`os` (``utime``, ``walk``,
+``chmod``, ``listdir``), :func:`glob.glob`, :func:`exists_timeout`, and the (a)synchronous
+file-system helpers of :mod:`mt.aio.path` (``exists_asyn``, ``remove``, ``rename``, ``stat``,
+``make_dirs``, ``lock``, ``relative_symlink``, and their ``*_asyn`` versions).
 
 Please see Python package `os.path`_ for more details.
 
@@ -64,10 +68,11 @@ __api__ = [
 
 
 def exists_timeout(path: str, timeout: float = 1.0) -> bool:
-    """Checks if a path exists for a number of seconds.
+    """Checks if a path exists, giving up after a number of seconds.
 
-    Call this function rarely as the wrapping for the function to be run in a background thread is
-    expensive.
+    It is useful for paths on network or hung file systems, where :func:`os.path.exists` may block
+    for a very long time. Call this function rarely as the wrapping for the function to be run in a
+    background thread is expensive.
 
     Parameters
     ----------
@@ -85,5 +90,13 @@ def exists_timeout(path: str, timeout: float = 1.0) -> bool:
     ------
     func_timeout.FunctionTimeout
         if the function times out
+
+    Examples
+    --------
+    >>> from mt import path
+    >>> path.exists_timeout("/")
+    True
+    >>> path.exists_timeout("/this/path/does/not/exist", timeout=2.0)
+    False
     """
     return func_timeout(timeout, exists, args=(path,))

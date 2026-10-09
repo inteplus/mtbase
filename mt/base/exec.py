@@ -1,4 +1,4 @@
-"""Exec utils."""
+"""Exec utils: helpers to retry or post-mortem debug a function that raises."""
 
 import sys
 import pdb
@@ -10,9 +10,13 @@ from mt.logg import logger
 def debug_exec(func, *args, **kwds):
     """Executes a function with trials.
 
-    This function executes a function. However, when an exception is raised in the function, asks
-    the user to invoke an IPython interactive shell or execute a Python command and retry. If the
-    user declines, it passes the exception up in the call stack.
+    This function executes a function. However, when an exception is raised in the function, it
+    logs the exception and asks the user, via the terminal, to invoke an IPython interactive shell
+    (if IPython is installed) or to execute a Python command, and then retries the function. If the
+    user declines by pressing ENTER, it passes the exception up in the call stack. Outside the main
+    thread, no interaction is possible and the exception is simply re-raised.
+
+    Since it blocks on `input()`, do not use it in non-interactive jobs.
 
     Parameters
     ----------
@@ -25,7 +29,12 @@ def debug_exec(func, *args, **kwds):
 
     Returns
     -------
-    whatever the function returns
+    object
+        whatever the function returns, from the first successful attempt
+
+    See Also
+    --------
+    debug_on : a decorator that opens a pdb post-mortem session instead of retrying
     """
     user_data = {
         "func": func,
@@ -66,6 +75,22 @@ def debug_exec(func, *args, **kwds):
 def debug_on(*exceptions):
     """A decorator that uses pdb to inspect the cause of an unhandled exception.
 
+    When the decorated function raises one of the given exception types, a :mod:`pdb` post-mortem
+    session is started at the point of the exception. After the session ends the exception is
+    swallowed and the decorated function returns None. Other exceptions propagate unchanged.
+
+    Parameters
+    ----------
+    *exceptions : type
+        exception classes to catch. If none is given, only :class:`AssertionError` is caught.
+
+    Returns
+    -------
+    function
+        a decorator that wraps a function (keeping its name and docstring)
+
+    Examples
+    --------
     >>> @debug_on(TypeError)
     ... def buggy_function():
     ...    raise TypeError

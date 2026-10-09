@@ -1,4 +1,9 @@
-"""Concurrency using asyncio and multiprocessing."""
+"""Concurrency using asyncio and multiprocessing.
+
+It provides, from simplest to heaviest: :func:`aio_work_generator` (asyncio in one process),
+:func:`asyn_work_generator` (asyncio in several processes, reporting per-task outcomes), and
+:func:`asyn_pmap` (a multiprocessing pool of asyncio workers, mapping over an iterable).
+"""
 
 import typing as tp
 import asyncio
@@ -27,6 +32,10 @@ async def aio_work_generator(
     optionally upper-bounded by `max_concurrency`. It is of good use when the works are IO-bound.
     Otherwise, :class:`WorkIterator` or :func:`serial_work_generator` are more suitable options.
 
+    Results are yielded in completion order, not in work id order. All coroutine objects are
+    created upfront (but only started when scheduled). The first exception raised by a work is
+    re-raised from the generator, ending it.
+
     Parameters
     ----------
     func : function
@@ -49,6 +58,28 @@ async def aio_work_generator(
     -------
     object
         an asynchronous generator yielding each result in the form `(work_id, ...)`
+
+    See Also
+    --------
+    mt.concurrency.serial_work_generator : the serial version
+
+    Examples
+    --------
+    >>> import asyncio
+    >>> from mt.concurrency import aio_work_generator
+    >>> async def square(work_id, offset=0):
+    ...     await asyncio.sleep(0.01)
+    ...     return (work_id, work_id * work_id + offset)
+    >>> async def main():
+    ...     results = [r async for r in aio_work_generator(square, 4, max_concurrency=2)]
+    ...     return sorted(results)
+    >>> asyncio.run(main())
+    [(0, 0), (1, 1), (2, 4), (3, 9)]
+    >>> async def main2():
+    ...     gen = aio_work_generator(square, 2, func_kwargs={"offset": 100})
+    ...     return sorted([r async for r in gen])
+    >>> asyncio.run(main2())
+    [(0, 100), (1, 101)]
     """
 
     coros = [
@@ -102,15 +133,19 @@ async def run_asyn_works_in_context(
     """Invokes the same asyn function with different work ids concurrently and asynchronously,
     in a given context.
 
+    The function is called as `func(work_id, *func_args, context_vars=context_vars,
+    **func_kwargs)` for every work id in `work_id_list`, as asyncio tasks, with at most
+    `max_concurrency` of them alive at a time. Progress messages are put into `progress_queue`.
+
     Parameters
     ----------
     progress_queue: multiprocessing.Queue
         a shared queue so that the main process can observe the progress inside the context. See
-        notes below.
+        notes below. Any object with a `put_nowait` method works.
     func : function
         an asyn function that may return something and may raise an Exception. The function must
-        have the first argument being the work id. The context variables provided to the function
-        are automatically created via invoking :func:`mt.base.s3.create_context_vars`.
+        have the first argument being the work id, and accept the keyword argument
+        'context_vars', which is the dictionary given below.
     func_args : tuple
         additional positional arguments to be passed to the function as-is
     func_kwargs : dict
@@ -122,26 +157,49 @@ async def run_asyn_works_in_context(
     max_concurrency : int
         the maximum number of concurrent works in the context at any time, good for managing memory
         allocations. If None is given, all works in the context will be scheduled to run at once.
-    asyn : bool
-        whether the asyn function is to be invoked asynchronously or synchronously
     context_vars : dict
-        a dictionary of context variables within which the function runs. It must include
-        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
-        In addition, variable 's3_client' must exist and hold an enter-result of an async with
-        statement invoking :func:`mt.base.s3.create_s3_client`. In asynchronous mode, variable
-        'http_session' must exist and hold an enter-result of an async with statement invoking
-        :func:`mt.base.http.create_http_session`. You can use
+        a dictionary of context variables passed as-is to the function. It should include
+        `context_vars['async']` to tell the function whether to run asynchronously or not. If the
+        function uses S3 or HTTP, it should also hold 's3_client' (see
+        :func:`mt.base.s3.create_s3_client`) and, in asynchronous mode, 'http_session' (see
+        :func:`mt.base.http.create_http_session`). You can use
         :func:`mt.base.s3.create_context_vars` to create a dictionary like this.
 
     Notes
     -----
     This function returns nothing but while it is running, the progress queue regularly receives
-    messages. Each message is a tuple `(context_id, message_code, work_id, ...)`. The user should
-    process the progress queue.
+    messages. Each message is a tuple `(context_id, message_code, work_id, ...)`. The message codes
+    are: 'task_scheduled' (when the task is created), 'task_returned' (extra item: the returned
+    value), 'task_raised' (extra items: the exception and the call stack as text) and
+    'task_cancelled'. The user should process the progress queue.
 
     If KeyboardInterrupt is raised during the invocation, all remaining unscheduled tasks are
     cancelled. This means for the case that max_concurrency is None, KeyboardInterrupt has no
     effect.
+
+    See Also
+    --------
+    asyn_work_generator : runs this function in several processes and yields the messages
+
+    Examples
+    --------
+    >>> import asyncio, queue
+    >>> from mt.concurrency import run_asyn_works_in_context
+    >>> async def inc(work_id, offset=0, context_vars={}):
+    ...     if work_id == 1:
+    ...         raise ValueError("bad id")
+    ...     return work_id + offset
+    >>> async def main():
+    ...     q = queue.Queue()
+    ...     await run_asyn_works_in_context(
+    ...         q, inc, func_kwargs={"offset": 10}, context_id=0, work_id_list=[0, 1, 2],
+    ...         max_concurrency=1, context_vars={"async": True},
+    ...     )
+    ...     return [q.get_nowait()[:4] for _ in range(q.qsize())]
+    >>> asyncio.run(main())
+    [(0, 'task_scheduled', 0), (0, 'task_returned', 0, 10), (0, 'task_scheduled', 1),
+     (0, 'task_raised', 1, ValueError('bad id')), (0, 'task_scheduled', 2),
+     (0, 'task_returned', 2, 12)]
     """
 
     def get_done_task_result(task, work_id):
@@ -245,13 +303,20 @@ async def asyn_work_generator(
     :func:`run_asyn_works_in_context` to run each block in a new context in a separate process. It
     uses a multiprocessing queue to facilitate the communications between the processes. Every time
     a task is done, either returning a result or raising an exception, it yields that information.
+    Work ids are assigned to the processes randomly (see :func:`mt.concurrency.split_works`), and
+    yielded messages come in completion order.
+
+    Each subprocess runs inside an asynchronous context created by
+    :func:`mt.base.s3.create_context_vars`, so S3 access is required by the current
+    implementation. It is therefore not demonstrated with an offline example here.
 
     Parameters
     ----------
     func : function
         an asyn function that may return something and may raise an Exception. The function must
-        have the first argument being the work id. The context variables provided to the function
-        are automatically created via invoking :func:`mt.base.s3.create_context_vars`.
+        have the first argument being the work id, and accept the keyword argument 'context_vars'.
+        The context variables provided to the function are automatically created via invoking
+        :func:`mt.base.s3.create_context_vars`. It must be picklable or inherited by fork.
     func_args : tuple
         additional positional arguments to be passed to the function as-is
     func_kwargs : dict
@@ -272,13 +337,28 @@ async def asyn_work_generator(
         a shared queue so that the main process can observe the progress inside the context. If not
         provided, one will be created internally.
     timeout: int, optional
-        timeout, in `(0.1*second)` unit
+        timeout, in `(0.1*second)` unit. If no message arrives from any process for this long
+        (300 units, i.e. 30 seconds, by default), the remaining processes are terminated and the
+        generator ends silently.
+
+    Returns
+    -------
+    object
+        an asynchronous generator. Each yielded item is a tuple `(message_code, work_id, ...)`
+        with message code 'task_returned' (extra item: the returned value), 'task_raised' (extra
+        items: the exception and the call stack as text) or 'task_cancelled'. It yields nothing if
+        `num_works` is not positive.
+
+    Raises
+    ------
+    KeyboardInterrupt
+        at the end, if a keyboard interruption was caught while waiting
 
     Notes
     -----
     The context ids are zero-based. The number of contexts is equal to the number of processes.
     The work ids are task ids and are zero-based. The messages related to when a task is done are
-    yielded.
+    yielded (without the context id).
 
     Asyncio and KeyboardInterrupt are not happy with each other.
     https://bugs.python.org/issue42683
@@ -414,7 +494,35 @@ async def asyn_work_generator(
 
 
 def batched(iterable, n):
-    "Batch data into tuples of length n. The last batch may be shorter."
+    """Batches data into tuples of length n. The last batch may be shorter.
+
+    Parameters
+    ----------
+    iterable : iterable
+        the input iterable
+    n : int
+        the batch size. It must be at least 1.
+
+    Returns
+    -------
+    object
+        a generator of tuples
+
+    Raises
+    ------
+    ValueError
+        if `n` is less than 1 (raised when the generator is first advanced)
+
+    See Also
+    --------
+    unbatched : an operation that flattens the batches back, for processed batches
+
+    Examples
+    --------
+    >>> from mt.concurrency.aio import batched
+    >>> list(batched("ABCDEFG", 3))
+    [('A', 'B', 'C'), ('D', 'E', 'F'), ('G',)]
+    """
     # batched('ABCDEFG', 3) --> ABC DEF G
     if n < 1:
         raise ValueError("n must be at least one")
@@ -424,7 +532,34 @@ def batched(iterable, n):
 
 
 def unbatched(iterable):
-    "Unbatch tuples of data into just data."
+    """Flattens an iterable of `(ok, batch)` pairs, as produced by the pool functions, into items.
+
+    Parameters
+    ----------
+    iterable : iterable
+        iterable of pairs `(ok, x)`. If `ok` is True, `x` is a list of items to be yielded one by
+        one. Otherwise `x` is an exception to be raised.
+
+    Returns
+    -------
+    object
+        a generator of items
+
+    Raises
+    ------
+    Exception
+        the exception `x` of the first pair that has a False `ok`
+
+    Examples
+    --------
+    >>> from mt.concurrency.aio import unbatched
+    >>> list(unbatched([(True, [1, 2]), (True, [3])]))
+    [1, 2, 3]
+    >>> list(unbatched([(True, [1]), (False, ValueError("bad"))]))
+    Traceback (most recent call last):
+        ...
+    ValueError: bad
+    """
     for ok, x in iterable:
         if not ok:
             raise x
@@ -438,6 +573,19 @@ def pool_initializer(
     init_func_args: tuple = (),
     init_func_kwargs: dict = {},
 ):
+    """Initialiser of a worker process of :func:`asyn_pmap`: invokes `init_func`, if any.
+
+    Parameters
+    ----------
+    pool_func : callable
+        the function that the pool will run. Unused.
+    init_func : callable, optional
+        a function returning None, invoked with the arguments below
+    init_func_args : tuple
+        positional arguments for `init_func`
+    init_func_kwargs : dict
+        keyword arguments for `init_func`
+    """
     if init_func is not None:
         init_func(*init_func_args, **init_func_kwargs)
 
@@ -451,6 +599,50 @@ def sequential_pool_func(
     cvc_func_args: tuple = (),
     cvc_func_kwargs: dict = {},
 ):
+    """Processes a block of items one after another in a new event loop. Used by :func:`asyn_pmap`.
+
+    Inside a single asynchronous context, `asyn_func` is awaited for each item in order.
+
+    Parameters
+    ----------
+    t_items : tuple
+        the block of items
+    asyn_func : function
+        an asyn function called as `asyn_func(item, *asyn_func_args, context_vars=context_vars,
+        **asyn_func_kwargs)`
+    asyn_func_args : tuple
+        additional positional arguments for `asyn_func`
+    asyn_func_kwargs : dict
+        additional keyword arguments for `asyn_func`
+    cvc_func : function, optional
+        a function returning an asynchronous context manager whose enter-result is the
+        `context_vars` dictionary. If None, `context_vars={"async": True}`.
+    cvc_func_args : tuple
+        positional arguments for `cvc_func`
+    cvc_func_kwargs : dict
+        keyword arguments for `cvc_func`
+
+    Returns
+    -------
+    ok : bool
+        True if all items were processed, False if an exception was raised
+    outputs : list or Exception
+        if `ok`, the list of outputs in the order of the items; otherwise the exception raised
+
+    Examples
+    --------
+    >>> from mt.concurrency.aio import sequential_pool_func
+    >>> async def double(x, offset=0, context_vars={}):
+    ...     return 2 * x + offset
+    >>> sequential_pool_func((1, 2, 3), asyn_func=double)
+    (True, [2, 4, 6])
+    >>> sequential_pool_func((1, 2), asyn_func=double, asyn_func_kwargs={"offset": 1})
+    (True, [3, 5])
+    >>> async def fail(x, context_vars={}):
+    ...     raise KeyError(x)
+    >>> sequential_pool_func((1, 2), asyn_func=fail)
+    (False, KeyError(1))
+    """
     import asyncio
 
     async def func(t_items: tuple):
@@ -487,6 +679,42 @@ def concurrent_pool_func(
     cvc_func_kwargs: dict = {},
     max_concurency: int = 1,
 ):
+    """Processes a block of items concurrently in a new event loop. Used by :func:`asyn_pmap`.
+
+    Warning: as currently implemented this function does not work. Its keyword argument is spelled
+    `max_concurency` while :func:`asyn_pmap` passes `max_concurrency`, which raises a
+    :class:`TypeError`, and its body refers to an undefined name and misuses
+    :func:`asyncio.wait_for`, so any call that gets that far returns `(False, <exception>)`. Use
+    :func:`sequential_pool_func` (that is, `max_concurrency_for_block_items=1`) instead.
+
+    Parameters
+    ----------
+    t_items : tuple
+        the block of items
+    asyn_func : function
+        an asyn function called as `asyn_func(item, *asyn_func_args, context_vars=context_vars,
+        **asyn_func_kwargs)`
+    asyn_func_args : tuple
+        additional positional arguments for `asyn_func`
+    asyn_func_kwargs : dict
+        additional keyword arguments for `asyn_func`
+    cvc_func : function, optional
+        a function returning an asynchronous context manager whose enter-result is the
+        `context_vars` dictionary. If None, `context_vars={"async": True}`.
+    cvc_func_args : tuple
+        positional arguments for `cvc_func`
+    cvc_func_kwargs : dict
+        keyword arguments for `cvc_func`
+    max_concurency : int
+        intended maximum number of concurrent items
+
+    Returns
+    -------
+    ok : bool
+        intended to be True if all items were processed, False if an exception was raised
+    outputs : list or Exception
+        intended to be the list of outputs in the order of the items, or the exception raised
+    """
     import asyncio
 
     async def func(t_items: tuple):
@@ -562,6 +790,12 @@ def asyn_pmap(
     iterator yield resultant items, which may or may not in order depending on the `pool_ordered`
     argument.
 
+    The function returns immediately with a lazy iterator, backed by a :class:`multiprocessing.Pool`
+    that is created at call time and never explicitly closed. If processing a block raises an
+    exception, it is re-raised in the caller when the iteration reaches that block. Use a
+    `if __name__ == "__main__":` guard in scripts, and define `asyn_func` at module level so that
+    it can be pickled.
+
     Parameters
     ----------
     asyn_func : function
@@ -576,8 +810,9 @@ def asyn_pmap(
         memory to store pending transformed items of the block
     max_concurrency_for_block_items : int, optional
         the maximum number of concurrent items in a block to be processed by any worker. If the
-        value is greater than 1. :func:`asyncio.create_tasks` is used. Otherwise, an async for loop
-        is used instead.
+        value is greater than 1, :func:`concurrent_pool_func` is used (but it currently does not
+        work, see its docstring). Otherwise, the items of a block are awaited one after another
+        by :func:`sequential_pool_func`.
     batch_size : int, optional
         same as block_size. For backward compatibility only. Takes priority over block_size due to
         backward compatibility. New invocations should not use this argument.
@@ -613,7 +848,24 @@ def asyn_pmap(
     Returns
     -------
     output_iterable : iterable
-        the output iterator
+        the output iterator, yielding one output per input item
+
+    See Also
+    --------
+    sequential_pool_func : the function that processes each block
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from mt.concurrency import asyn_pmap
+
+        async def double(x, context_vars={}):
+            return 2 * x
+
+        if __name__ == "__main__":
+            print(list(asyn_pmap(double, range(5), block_size=2, pool_processes=2)))
+            # [0, 2, 4, 6, 8]
     """
 
     if batch_size is not None:

@@ -10,13 +10,16 @@ You do:
 
 .. code-block:: python
 
-   from mt import mpl
+   from mt import asyncio
 
-It will import the asyncio package.
+It re-exports everything in the standard :mod:`asyncio` package, so ``asyncio.run``,
+``asyncio.sleep``, etc. work as usual.
 
-As of 2025-06-04, apart from importing the asyncio package, it ensures that TaskGroup, Runner and
-timeout components of asyncio exist, even for Python version 3.10, by importing the backport
-package called `taskgroup`.
+As of 2025-06-04, apart from importing the asyncio package, on Python versions older than 3.11 it
+tries to override ``run``, ``TaskGroup`` and ``timeout`` with the versions of the backport package
+`taskgroup` so that these components exist even for Python 3.10. If `taskgroup` is not installed,
+the standard names are kept as they are (the module intends to emit a warning in that case, but
+the warning is currently not emitted).
 
 Please see Python package `asyncio`_ for more details.
 

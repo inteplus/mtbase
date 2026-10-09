@@ -1,4 +1,10 @@
-"""The most basic structures for model training."""
+"""The most basic structures for model training.
+
+This module holds the parameter classes (:class:`ModelParams` and its subclasses) that describe
+how to build the models of a given family, and :class:`NameScope` for naming Keras layers. Every
+parameter class can be dumped to and loaded from a json-compatible dictionary with `to_json()`
+and `from_json()`, and is also a YAML object (see `yaml_tag`).
+"""
 
 import typing as tp
 
@@ -6,7 +12,7 @@ import yaml
 
 
 def keras3_installed() -> bool:
-    """Return True if Keras 3 or above is installed."""
+    """Returns True if Keras 3 or above is installed, False if Keras is missing or older."""
     try:
         import keras
 
@@ -16,12 +22,14 @@ def keras3_installed() -> bool:
 
 
 class TensorError(ValueError):
-    """Raised when a tensor has an unexpected, usually non-regular value."""
+    """Raised when a tensor has an unexpected, usually non-regular value (for example NaN)."""
 
     pass
 
 
 class ModelSyntaxError(SyntaxError):
+    """Raised when the definition of a model is syntactically wrong."""
+
     pass
 
 
@@ -29,22 +37,37 @@ class ModelParams(yaml.YAMLObject):
     """Parameters for defining and creating a model.
 
     This is an abstract class. The user should subclass from this class to define their own class
-    which represents the collection of parameters to create models of a given family.
+    which represents the collection of parameters to create models of a given family. Being a
+    :class:`yaml.YAMLObject`, a subclass is serialised in YAML under its `yaml_tag`.
 
     Parameters
     ----------
     gen : int
         model generation/family number, starting from 1
+
+    Attributes
+    ----------
+    gen : int
+        model generation/family number
     """
 
     yaml_tag = "!ModelParams"
 
     def __init__(self, gen: int = 1):
+        """Initialises the parameters with the model generation number."""
+
         self.gen = gen
 
 
 class NameScope:
-    """An iterator that generates name scope prefixes, mostly for Keras layers.
+    """A name scope that generates name prefixes, mostly for Keras layers.
+
+    A scope has a current prefix of the form `<name>_<counter>`, with the counter starting at 0,
+    and builds full names with :meth:`__call__`. A child scope created with `parent_scope` puts the
+    parent's current prefix in front of its own.
+
+    The separator between the parts of a full name is '/' when Keras 3 is not installed and '_'
+    when it is installed (see :func:`keras3_installed`).
 
     Parameters
     ----------
@@ -58,39 +81,62 @@ class NameScope:
     __call__
         Gets the full name of a base name, with prefix generated from the name scope.
 
+    Notes
+    -----
+    Advancing the scope with :func:`next` is currently broken: it raises AttributeError because
+    :meth:`__next__` reads a non-existent attribute `cnt`. In addition, :meth:`__iter__` returns
+    None and not an iterator.
+
     Examples
     --------
-    >>> from mt.base import NameScope
-    >>> name_scope = NameScope("myblock")
-    >>> name_scope("a")
-    'myblock_0/a'
-    >>> name_scope("b")
-    'myblock_0/b'
-    >>> next(name_scope)
-    >>> name_scope("c")
-    'myblock_1/c'
-    >>> child_scope = tf.NameScope("childblock", parent_scope=name_scope)
-    >>> child_scope("d")
-    'myblock_1/childblock_0/d'
+    The output below is what you get when Keras 3 is not installed. With Keras 3 the '/' separators
+    become '_'.
 
+    .. code-block:: python
+
+        from mt.base import NameScope
+        name_scope = NameScope("myblock")
+        print(name_scope("a"))  # myblock_0/a
+        print(name_scope("b"))  # myblock_0/b
+        child_scope = NameScope("childblock", parent_scope=name_scope)
+        print(child_scope("d"))  # myblock_0/childblock_0/d
     """
 
     def __init__(self, name: str, parent_scope=None):
+        """Initialises the scope, with the counter at 0."""
+
         self.name = name
         self.parent_scope = parent_scope
         self._sep = "_" if keras3_installed() else "/"
         self.__iter__()
 
     def __iter__(self):
+        """Resets the counter to 0 and the prefix to `<name>_0`. It returns None."""
+
         self._cnt = 0
         self._prefix = self.name + "_0"
 
     def __next__(self):
+        """Intends to advance the counter and the prefix, but currently raises AttributeError."""
+
         self._cnt += 1
         self._prefix = f"{self.name}_{self.cnt}"
 
     def prefix(self, full: bool = False):
-        """Returns the current prefix, with or without any parent prefix."""
+        """Returns the current prefix, with or without any parent prefix.
+
+        Parameters
+        ----------
+        full : bool
+            whether to include the prefix of the parent scope, if any. Only the parent's own
+            prefix is added (the parent's prefix is retrieved without its ancestors).
+
+        Returns
+        -------
+        str
+            `<name>_<counter>` or, if `full` is True and there is a parent scope, the parent's own
+            prefix, the separator and `<name>_<counter>`
+        """
 
         if full and isinstance(self.parent_scope, NameScope):
             return f"{self.parent_scope.prefix()}{self._sep}{self._prefix}"
@@ -98,11 +144,24 @@ class NameScope:
         return self._prefix
 
     def __call__(self, base_name: str):
+        """Returns the full name of a base name, prefixed with the full prefix of the scope.
+
+        Parameters
+        ----------
+        base_name : str
+            the base name
+
+        Returns
+        -------
+        str
+            the string `<full prefix><sep><base_name>`
+        """
+
         return f"{self.prefix(True)}{self._sep}{base_name}"
 
 
 class MHAParams(ModelParams):
-    """Parameters for creating an MHA layer.
+    """Parameters for creating an MHA (multi-head attention) layer.
 
     Parameters
     ----------
@@ -117,6 +176,15 @@ class MHAParams(ModelParams):
         passed as-is to MultiHeadAttention
     gen : int
         model generation/family number, starting from 1
+
+    Examples
+    --------
+    >>> from mt.base import MHAParams
+    >>> params = MHAParams(n_heads=8)
+    >>> params.to_json()
+    {'n_heads': 8, 'key_dim': None, 'value_dim': None, 'output_shape': None, 'gen': 1}
+    >>> MHAParams.from_json(params.to_json()).n_heads
+    8
     """
 
     yaml_tag = "!MHAParams"
@@ -129,6 +197,8 @@ class MHAParams(ModelParams):
         output_shape: object = None,
         gen: int = 1,
     ):
+        """Stores the parameters as attributes of the same names."""
+
         super().__init__(gen=gen)
 
         self.n_heads = n_heads
@@ -137,7 +207,7 @@ class MHAParams(ModelParams):
         self.output_shape = output_shape
 
     def to_json(self):
-        """Returns an equivalent json object."""
+        """Returns an equivalent json object (a dictionary)."""
         return {
             "n_heads": self.n_heads,
             "key_dim": self.key_dim,
@@ -148,7 +218,20 @@ class MHAParams(ModelParams):
 
     @classmethod
     def from_json(cls, json_obj):
-        """Instantiates from a json object."""
+        """Instantiates from a json object, as returned by :meth:`to_json`.
+
+        Keys 'key_dim', 'value_dim' and 'output_shape' are optional and default to None.
+
+        Parameters
+        ----------
+        json_obj : dict
+            json-compatible dictionary
+
+        Returns
+        -------
+        MHAParams
+            the parameters
+        """
         return MHAParams(
             n_heads=json_obj["n_heads"],
             key_dim=json_obj.get("key_dim", None),
@@ -183,15 +266,25 @@ class MHAPool2DCascadeParams(ModelParams):
     max_num_pooling_layers : int
         maximum number of pooling layers before a SimpleMHA2D layer to finish the job, if the grid
         resolution has not reached 1x1
-    activation: str
+    activation : str
         activation type for all pooling layers but maybe the last one
-    final_activation : str
-        activation type for the last layer, which can be MHAPool2D or SimpleMHA2D
+    final_activation : str, optional
+        activation type for the last layer, which can be MHAPool2D or SimpleMHA2D. If None, it
+        is the same as `activation`.
     output_all : bool, optional
         If False, it returns the output tensor of the last layer. Otherwise, it additionally
         returns the output tensor of every attention layer before the last layer.
     gen : int
         model generation/family number, starting from 1
+
+    Examples
+    --------
+    >>> from mt.base import MHAPool2DCascadeParams
+    >>> params = MHAPool2DCascadeParams(activation="relu", final_activation=None)
+    >>> params.final_activation
+    'relu'
+    >>> MHAPool2DCascadeParams.from_json(params.to_json()).to_json() == params.to_json()
+    True
     """
 
     yaml_tag = "!MHAPool2DCascadeParams"
@@ -208,6 +301,8 @@ class MHAPool2DCascadeParams(ModelParams):
         output_all: tp.Optional[bool] = False,
         gen: int = 1,
     ):
+        """Stores the parameters as attributes. `final_activation` falls back to `activation`."""
+
         super().__init__(gen=gen)
 
         self.n_heads = n_heads
@@ -222,7 +317,7 @@ class MHAPool2DCascadeParams(ModelParams):
         self.output_all = output_all
 
     def to_json(self):
-        """Returns an equivalent json object."""
+        """Returns an equivalent json object (a dictionary)."""
         return {
             "n_heads": self.n_heads,
             "expansion_factor": self.expansion_factor,
@@ -237,7 +332,20 @@ class MHAPool2DCascadeParams(ModelParams):
 
     @classmethod
     def from_json(cls, json_obj):
-        """Instantiates from a json object."""
+        """Instantiates from a json object, as returned by :meth:`to_json`.
+
+        Key 'output_all' is optional and defaults to False. All the other keys are required.
+
+        Parameters
+        ----------
+        json_obj : dict
+            json-compatible dictionary
+
+        Returns
+        -------
+        MHAPool2DCascadeParams
+            the parameters
+        """
         return MHAPool2DCascadeParams(
             n_heads=json_obj["n_heads"],
             expansion_factor=json_obj["expansion_factor"],
@@ -266,6 +374,17 @@ class MobileNetV3MixerParams(ModelParams):
         The parameters defining a cascade of MHAPool2D layers. Only valid for 'mhapool' mixer type.
     gen : int
         model generation/family number, starting from 1
+
+    Examples
+    --------
+    >>> from mt.base import MobileNetV3MixerParams, MHAPool2DCascadeParams
+    >>> params = MobileNetV3MixerParams(
+    ...     variant="mhapool", mhapool_cascade_params=MHAPool2DCascadeParams(n_heads=4)
+    ... )
+    >>> params.to_json()["mhapool_cascade_params"]["n_heads"]
+    4
+    >>> MobileNetV3MixerParams.from_json(params.to_json()).mhapool_cascade_params.n_heads
+    4
     """
 
     yaml_tag = "!MobileNetV3MixerParams"
@@ -276,13 +395,15 @@ class MobileNetV3MixerParams(ModelParams):
         mhapool_cascade_params: tp.Optional[MHAPool2DCascadeParams] = None,
         gen: int = 1,
     ):
+        """Stores the parameters as attributes of the same names."""
+
         super().__init__(gen=gen)
 
         self.variant = variant
         self.mhapool_cascade_params = mhapool_cascade_params
 
     def to_json(self):
-        """Returns an equivalent json object."""
+        """Returns an equivalent json object, with the cascade parameters nested as a dictionary."""
         if self.mhapool_cascade_params is None:
             mhapool_params = None
         else:
@@ -295,7 +416,20 @@ class MobileNetV3MixerParams(ModelParams):
 
     @classmethod
     def from_json(cls, json_obj):
-        """Instantiates from a json object."""
+        """Instantiates from a json object, as returned by :meth:`to_json`.
+
+        Key 'mhapool_cascade_params' is optional and defaults to None.
+
+        Parameters
+        ----------
+        json_obj : dict
+            json-compatible dictionary
+
+        Returns
+        -------
+        MobileNetV3MixerParams
+            the parameters
+        """
         mhapool_params = json_obj.get("mhapool_cascade_params", None)
         if mhapool_params is not None:
             mhapool_params = MHAPool2DCascadeParams.from_json(mhapool_params)
@@ -307,7 +441,7 @@ class MobileNetV3MixerParams(ModelParams):
 
 
 class ClassifierParams(ModelParams):
-    """Parameters for creating a Classifer block.
+    """Parameters for creating a Classifier block.
 
     The classifier takes a feature vector as input and returns a logit vector and a softmax vector
     as output.
@@ -326,6 +460,15 @@ class ClassifierParams(ModelParams):
         dropout coefficient. Value 0.2 is good. If provided, a Dropout layer is included.
     gen : int
         model generation/family number, starting from 1
+
+    Examples
+    --------
+    >>> from mt.base import ClassifierParams
+    >>> params = ClassifierParams(dropout=0.2)
+    >>> params.to_json()
+    {'zero_mean_logit_biases': False, 'l2_coeff': None, 'dropout': 0.2, 'gen': 1}
+    >>> ClassifierParams.from_json({"dropout": 0.5}).dropout
+    0.5
     """
 
     yaml_tag = "!ClassifierParams"
@@ -337,6 +480,8 @@ class ClassifierParams(ModelParams):
         dropout: tp.Optional[float] = None,
         gen: int = 1,
     ):
+        """Stores the parameters as attributes of the same names."""
+
         super().__init__(gen=gen)
 
         self.zero_mean_logit_biases = zero_mean_logit_biases
@@ -344,7 +489,11 @@ class ClassifierParams(ModelParams):
         self.dropout = dropout
 
     def to_json(self) -> dict:
-        """Returns an equivalent json object."""
+        """Returns an equivalent json object (a dictionary).
+
+        Missing attributes (for example when the object was loaded from an old YAML file) fall
+        back to their defaults.
+        """
         return {
             "zero_mean_logit_biases": getattr(self, "zero_mean_logit_biases", False),
             "l2_coeff": getattr(self, "l2_coeff", None),
@@ -354,7 +503,20 @@ class ClassifierParams(ModelParams):
 
     @classmethod
     def from_json(cls, json_obj: dict) -> "ClassifierParams":
-        """Instantiates from a json object."""
+        """Instantiates from a json object, as returned by :meth:`to_json`.
+
+        All keys are optional and default to the defaults of the constructor.
+
+        Parameters
+        ----------
+        json_obj : dict
+            json-compatible dictionary
+
+        Returns
+        -------
+        ClassifierParams
+            the parameters
+        """
         return ClassifierParams(
             zero_mean_logit_biases=json_obj.get("zero_mean_logit_biases", False),
             l2_coeff=json_obj.get("l2_coeff", None),

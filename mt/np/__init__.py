@@ -12,7 +12,22 @@ You do:
 
    from mt import np
 
-It will import the numpy package plus the additional stuff implemented here.
+It will import the numpy package plus the additional stuff implemented here:
+
+- array helpers: :func:`ndarray_repr`, :func:`sigmoid`, :func:`asigmoid`, :func:`frombytes`,
+  :func:`divide_no_nan`, :func:`to_b85`, :func:`from_b85`;
+- sparse arrays: :class:`SparseNdarray`, :func:`sparse_vector`;
+- matrix functions: :func:`psd_approx`, :func:`sqrtm`, :func:`powm`;
+- image helpers: :func:`quantise_images`, :func:`dequantise_images`;
+- :func:`get_class_color`.
+
+Examples
+--------
+>>> from mt import np
+>>> np.sigmoid(0.0)
+0.5
+>>> np.divide_no_nan(1.0, 0.0)
+0.0
 
 Please see the `numpy`_ package for more details.
 

@@ -1,5 +1,10 @@
 """File-based resource lock that can be used by multiple processes provided they use the same path.
 
+A lock is held on both the file (across processes) and an in-process thread lock (across
+threads), so it is safe to use from several threads and several processes at once. The lock
+file is created if needed and is not deleted afterwards. The lock is not re-entrant: acquiring
+the same path twice from the same thread without releasing blocks (or times out).
+
 Example
 -------
 
@@ -30,7 +35,6 @@ finally:
 See Also
 --------
 https://github.com/mwilliamson/locket.py
-
 """
 
 import time
@@ -87,6 +91,34 @@ _locks = weakref.WeakValueDictionary()
 
 
 def lock_file(path, **kwds):
+    """Creates a lock object bound to a path, to be used as a context manager or manually.
+
+    Nothing is locked until `acquire()` is called on the result or the result is entered in a
+    with statement. Calls with the same path share the same underlying lock while it is in use,
+    so threads of one process exclude each other too.
+
+    Parameters
+    ----------
+    path : str
+        path to the lock file, created if it does not exist
+    timeout : float, optional
+        keyword argument. Maximum number of seconds to wait for the lock. If None (default), wait
+        forever. With 0, fail immediately if the lock is held.
+    retry_period : float, optional
+        keyword argument. Number of seconds to sleep between attempts when a timeout is given.
+        Default to 0.05.
+
+    Returns
+    -------
+    object
+        a lock with methods `acquire()` and `release()`, which can also be used in a with statement
+
+    Raises
+    ------
+    LockError
+        when `acquire()` (or entering the with statement) fails to get the lock within `timeout`
+    """
+
     _locks_lock.acquire()
     try:
         lock = _locks.get(path)
@@ -105,6 +137,8 @@ def _create_lock_file(path):
 
 
 class LockError(Exception):
+    """Raised when a lock cannot be acquired within the given timeout."""
+
     pass
 
 

@@ -1,4 +1,10 @@
-"""Concurrency using multiprocessing only."""
+"""Concurrency using multiprocessing only.
+
+The main tools are :class:`WorkIterator`, a Python iterator that computes the results of a
+function over work ids 0, 1, 2, ... in background processes, and :class:`ProcessParalleliser`,
+the lower-level engine it is built on. Both work with a function that takes a non-negative integer
+work id. The function must be picklable or inherited by fork (e.g. defined at module level).
+"""
 
 import os
 from time import sleep
@@ -27,12 +33,16 @@ def worker_process(
 ):
     """The worker process.
 
+    It is the target of the subprocesses created by :class:`ProcessParalleliser` and is not meant
+    to be called directly by users.
+
     The worker process operates in the following way. There is a pipe, named `heartbeat_pipe` to
-    communicate between the worker and its parent process about their heartbeats. Each side of the
-    pipe constantly sends a heartbeat in every 0.5 seconds. If one side does not hear any heartbeat
-    within 5*240 seconds, then it can assume the other side has died for some unexpected reason.
-    After detecting this fateful event, the parent process can abruptly kill the worker process,
-    but in contrast, the worker can only finish its own fate.
+    communicate between the worker and its parent process about their heartbeats. The worker loops
+    every 0.5 seconds (`INTERVAL`) and each side of the pipe sends a heartbeat once every 5 loops
+    (`HEARTBEAT_PERIOD`), i.e. every 2.5 seconds. If one side has not heard any heartbeat for 240
+    consecutive loops (`MAX_MISS_CNT`, about 120 seconds), then it can assume the other side has
+    died for some unexpected reason. After detecting this fateful event, the parent process can
+    abruptly kill the worker process, but in contrast, the worker can only finish its own fate.
 
     A heart beat from the parent process is a byte. If the heartbeat is 0, the parent is alive. If
     it is 1, the worker process must do a seppuku.
@@ -62,6 +72,11 @@ def worker_process(
         queue containing results `(work_id, ...)`
     logger : IndentedLoggerAdapter, optional
         logger for debugging purposes
+
+    Notes
+    -----
+    If `func` raises an exception, the worker logs it (if a logger is provided) and dies after
+    flushing the results it already has; the failed work id never gets a result.
     """
 
     to_die = False
@@ -153,15 +168,46 @@ class ProcessParalleliser(object):
 
     """Run a function with different inputs in parallel using multiprocessing.
 
+    Worker processes are spawned on construction (fewer than requested if memory usage is above
+    90%) and live until :func:`close` is invoked. The user pushes work ids with :func:`push` and
+    collects `(work_id, result)` pairs with :func:`pop`, in completion order, which is not
+    necessarily the push order. Workers poll their queues every 0.5 seconds, so this class is
+    meant for works that take at least a fraction of a second each. Consider the higher-level
+    :class:`WorkIterator` first.
+
     Parameters
     ----------
     func : function
         a function to be run in parallel. The function takes as input a non-negative integer
         'work_id' and returns some result.
     max_num_workers : int, optional
-        maximum number of concurrent workers or equivalently processes to be allocated
+        maximum number of concurrent workers or equivalently processes to be allocated. If not
+        specified, the number of cpus is used.
     logger : IndentedLoggerAdapter, optional
         for logging messages
+
+    Attributes
+    ----------
+    num_workers : int
+        number of worker processes actually spawned
+    state : str
+        one of 'living', 'dying' and 'dead'
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from mt.concurrency import ProcessParalleliser
+
+        def square(work_id):
+            return work_id * work_id
+
+        if __name__ == "__main__":
+            pp = ProcessParalleliser(square, max_num_workers=2)
+            for i in range(3):
+                pp.push(i)
+            print(sorted(pp.pop() for _ in range(3)))  # [(0, 0), (1, 1), (2, 4)]
+            pp.close()
     """
 
     def __init__(self, func, max_num_workers=None, logger=None):
@@ -303,7 +349,11 @@ class ProcessParalleliser(object):
         self.state = "dead"
 
     def close(self):
-        """Closes the instance properly."""
+        """Closes the instance properly.
+
+        It asks the workers to die and returns immediately, without waiting for them. After that,
+        :func:`push` refuses new work. Invoking it more than once is harmless.
+        """
         if self.state == "living":
             self.state = "dying"
         # while self.state != 'dead':
@@ -322,7 +372,13 @@ class ProcessParalleliser(object):
         Returns
         -------
         bool
-            whether or not the work id has been pushed
+            whether or not the work id has been pushed. It is False if the instance is no longer
+            living or the push timed out.
+
+        Raises
+        ------
+        ValueError
+            if `work_id` is not an integer or is negative
 
         Notes
         -----
@@ -341,7 +397,14 @@ class ProcessParalleliser(object):
             return False
 
     def empty(self):
-        """Returns whether the output queue is empty."""
+        """Returns whether the output queue is empty.
+
+        Returns
+        -------
+        bool
+            True if there is currently no result to :func:`pop`. As with
+            :meth:`multiprocessing.Queue.empty`, the answer is not reliable.
+        """
         return self.queue_out.empty()
 
     def pop(self, timeout=60 * 60):
@@ -357,12 +420,14 @@ class ProcessParalleliser(object):
         int
             non-negative integer representing the work id
         object
-            work result
+            work result, i.e. whatever the function returned for that work id
 
         Raises
         ------
         queue.Empty
             if there is no work result after the timeout
+        RuntimeError
+            if the instance is dead
         """
         if self.state == "dead":
             raise RuntimeError(
@@ -377,8 +442,11 @@ class ProcessParalleliser(object):
 class WorkIterator(object):
     """Iterates work from id 0 to infinity, returning the work result in each iteration.
 
-    By default, the class invokes ProcessParalleliser to do a few works ahead of time. It switches
-    to serial mode if requested.
+    By default, the class invokes :class:`ProcessParalleliser` to do a few works ahead of time. It
+    switches to serial mode if requested. The iterator never raises :class:`StopIteration` by
+    itself: the function is called with ever-increasing work ids. The caller decides when to stop
+    (e.g. with :func:`itertools.islice`, or a fixed number of `next` calls). In parallel mode,
+    results come back in completion order, which may differ from work id order.
 
     Parameters
     ----------
@@ -394,21 +462,23 @@ class WorkIterator(object):
     pop_timeout : float, optional
         timeout in second for each pop from output queue. See :func:`ProcessParalleliser.pop`.
     skip_null : bool, optional
-        whether or not to skip the iteration that contains None as the work result.
-    logger : IndentedLoggerAdapter, optional
-        for logging messages
+        whether or not to skip the iteration that contains None as the work result. Note that if
+        the function returns None forever, iterating then never returns.
     max_num_workers : int, optional
         maximum number of concurrent workers or equivalently processes to be allocated
     serial_mode : bool
-        whether or not to activate the serial mode. Useful when the number of works is small.
-    logger : logging.Logger, optional
-        logger for debugging purposes
+        whether or not to activate the serial mode. Useful when the number of works is small. In
+        this mode, the function is invoked in the calling process, one work id per iteration, and
+        the buffer and timeout arguments are ignored.
+    logger : IndentedLoggerAdapter, optional
+        for logging messages
 
     Notes
     -----
-    Instances of the class qualify as a thread-safe Python iterator. Each iteration returns a
-    (work_id, result) pair. To avoid a possible deadlock during garbage collection, it is
-    recommended to explicitly invoke :func:`close` to clean up background processes.
+    Instances of the class qualify as a thread-safe Python iterator. Each iteration returns
+    whatever the function returned for one work id, which, following the convention of the
+    function, is a `(work_id, ...)` tuple. To avoid a possible deadlock during garbage collection,
+    it is recommended to explicitly invoke :func:`close` to clean up background processes.
 
     As of 2021/2/17, instances of WorkIterator can be used in a with statement. Upon exiting,
     :func:`close` is invoked.
@@ -417,6 +487,38 @@ class WorkIterator(object):
 
     As of 2021/08/13, the class has been extended to do work in serial if the number of works is
     provided and is less than or equal a provided threshold.
+
+    See Also
+    --------
+    ProcessParalleliser : the engine used in parallel mode
+    serial_work_generator : a generator version of the serial mode for a finite number of works
+
+    Examples
+    --------
+    The serial mode needs no extra process:
+
+    >>> from itertools import islice
+    >>> from mt.concurrency import WorkIterator
+    >>> def work(work_id):
+    ...     return None if work_id % 2 else (work_id, work_id * work_id)
+    >>> list(islice(WorkIterator(work, serial_mode=True), 3))
+    [(0, 0), (2, 4), (4, 16)]
+    >>> list(islice(WorkIterator(work, serial_mode=True, skip_null=False), 3))
+    [(0, 0), None, (2, 4)]
+
+    The parallel mode, with a function defined at module level of a script:
+
+    .. code-block:: python
+
+        from mt.concurrency import WorkIterator
+
+        def square(work_id):
+            return (work_id, work_id * work_id)
+
+        if __name__ == "__main__":
+            with WorkIterator(square, max_num_workers=2) as it:
+                print(sorted(next(it) for _ in range(5)))
+                # [(0, 0), (1, 1), (2, 4), (3, 9), (4, 16)]
     """
 
     def __init__(
@@ -457,7 +559,12 @@ class WorkIterator(object):
     # ----- cleaning up resources -----
 
     def close(self):
-        """Closes the iterator for further use."""
+        """Closes the iterator for further use.
+
+        In parallel mode, the background worker processes are asked to die; subsequent iterations
+        raise :class:`RuntimeError`. In serial mode, it does nothing. It is invoked automatically
+        when leaving a `with` block.
+        """
         if self.serial_mode:
             return
         with self.lock:
@@ -528,6 +635,7 @@ class WorkIterator(object):
                 return result
 
     def next(self):
+        """Returns the next work result. Same as `next(self)`, for Python 2 style code."""
         return self.__next__()
 
     def __iter__(self):

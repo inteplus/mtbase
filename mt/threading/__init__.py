@@ -12,7 +12,9 @@ You do:
 
    from mt import threading
 
-It will import the threading package plus the additional stuff implemented here.
+It will import the threading package plus the additional stuff implemented here:
+:class:`ReadWriteLock` (with the context-manager helpers :class:`ReadRWLock` and
+:class:`WriteRWLock`) and :class:`LockedIterator`.
 
 Please see Python package `threading`_ for more details.
 
@@ -31,8 +33,38 @@ __all__ = ["ReadWriteLock", "ReadRWLock", "WriteRWLock", "LockedIterator"]
 
 
 class ReadWriteLock:
-    """A lock object that allows many simultaneous "read locks", but
-    only one "write lock." """
+    """A lock object that allows many simultaneous "read locks", but only one "write lock".
+
+    Readers block only while a writer holds the lock; a writer waits until all readers have
+    released. Writers are counted as soon as they request the lock, so new readers cannot starve
+    a waiting writer. The write lock is re-entrant for the same thread.
+
+    Prefer the context managers :class:`ReadRWLock` and :class:`WriteRWLock` (each constructed
+    with the :class:`ReadWriteLock` as its only argument, acquiring on entry and releasing on exit),
+    which guarantee the release, over calling the ``acquire_*``/``release_*`` methods directly.
+
+    Parameters
+    ----------
+    withPromotion : bool
+        whether a thread that holds a read lock may request a write lock ("lock promotion"). It is
+        allowed only if every current reader is itself requesting the write lock. Otherwise the
+        writer waits for the other readers to finish, which can deadlock if the promoting thread
+        still holds its own read lock.
+
+    Examples
+    --------
+    >>> from mt import threading
+    >>> lock = threading.ReadWriteLock()
+    >>> with threading.ReadRWLock(lock):
+    ...     with threading.ReadRWLock(lock):  # many readers are fine
+    ...         print(lock.is_free())
+    False
+    >>> with threading.WriteRWLock(lock):
+    ...     print(lock.is_free())
+    False
+    >>> lock.is_free()
+    True
+    """
 
     def __init__(self, withPromotion=False):
         self._read_ready = Condition(RLock())
@@ -44,8 +76,10 @@ class ReadWriteLock:
 
     def acquire_read(self):
         # logging.debug("RWL : acquire_read()")
-        """Acquire a read lock. Blocks only if a thread has
-        acquired the write lock."""
+        """Acquires a read lock. Blocks only if a thread has acquired the write lock.
+
+        Every call must be paired with a call to :meth:`release_read` from the same thread.
+        """
         self._read_ready.acquire()
         try:
             while self._writers > 0:
@@ -59,7 +93,10 @@ class ReadWriteLock:
 
     def release_read(self):
         # logging.debug("RWL : release_read()")
-        """Release a read lock."""
+        """Releases a read lock previously acquired by the calling thread.
+
+        Wakes up waiting writers when the last reader leaves.
+        """
         self._read_ready.acquire()
         try:
             self._readers -= 1
@@ -73,8 +110,12 @@ class ReadWriteLock:
 
     def acquire_write(self):
         # logging.debug("RWL : acquire_write()")
-        """Acquire a write lock. Blocks until there are no
-        acquired read or write locks."""
+        """Acquires a write lock. Blocks until there are no acquired read or write locks.
+
+        The calling thread holds the lock until it calls :meth:`release_write`. With lock
+        promotion enabled (see the constructor), a thread that currently holds a read lock may
+        call this method too.
+        """
         from threading import get_ident
 
         self._read_ready.acquire()  # A re-entrant lock lets a thread re-acquire the lock
@@ -94,7 +135,10 @@ class ReadWriteLock:
 
     def release_write(self):
         # logging.debug("RWL : release_write()")
-        """Release a write lock."""
+        """Releases a write lock previously acquired by the calling thread.
+
+        Wakes up all waiting threads.
+        """
         from threading import get_ident
 
         self._writers -= 1
@@ -103,7 +147,13 @@ class ReadWriteLock:
         self._read_ready.release()
 
     def is_free(self):
-        """Returns whether there is no reader and no writer."""
+        """Returns whether there is no reader and no writer.
+
+        Returns
+        -------
+        bool
+            True if no thread currently holds or requests a read or write lock
+        """
         return not self._readers and not self._writers
 
 
@@ -145,7 +195,23 @@ class WriteRWLock:
 
 
 class LockedIterator(object):
-    """An wrapper that locks the input iterator to make sure it is thread-safe."""
+    """A wrapper that locks the input iterator to make sure it is thread-safe.
+
+    Each call to ``next`` is serialised by a lock, so several threads can safely consume the same
+    iterator (each item is delivered to exactly one thread).
+
+    Parameters
+    ----------
+    it : iterable
+        the iterable to wrap; ``iter(it)`` is taken once at construction
+
+    Examples
+    --------
+    >>> from mt import threading
+    >>> it = threading.LockedIterator([1, 2, 3])
+    >>> list(it)
+    [1, 2, 3]
+    """
 
     def __init__(self, it):
         self.lock = Lock()

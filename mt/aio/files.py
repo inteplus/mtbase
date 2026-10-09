@@ -1,4 +1,10 @@
-"""Useful asyn functions dealing with files."""
+"""Useful asyn functions dealing with files.
+
+Most functions here are asyn functions: they take a keyword argument `context_vars` whose
+`'async'` entry selects asynchronous or synchronous execution (see :mod:`mt.aio`). In
+synchronous mode, call them with :func:`mt.aio.srun`. Writers first write to a temporary file with
+the '.mttmp' extension and rename it, so readers never see a half-written file.
+"""
 
 import io
 import os
@@ -27,15 +33,23 @@ from .path import (
 def make_mttmp_filepath(filepath: tp.Union[Path, str]) -> Path:
     """Generates a temporary filepath with '.mttmp' extension.
 
+    The extension is appended to the full path, it does not replace an existing one.
+
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         path to the file
 
     Returns
     -------
     Path
         the temporary filepath with '.mttmp' extension
+
+    Examples
+    --------
+    >>> from mt.aio.files import make_mttmp_filepath
+    >>> str(make_mttmp_filepath("/data/a.txt"))
+    '/data/a.txt.mttmp'
     """
     return Path(str(filepath) + ".mttmp")
 
@@ -46,11 +60,14 @@ async def wait_until_file_exists(
     check_interval: float = 0.1,
     context_vars: dict = {},
 ):
-    """Waits until a file exists or a timeout occurs.
+    """An asyn function that waits until a file exists or a timeout occurs.
+
+    It is useful on network file systems, where a file that has just been written may take a
+    moment to become visible.
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         path to the file
     timeout : float
         maximum time to wait for the file to appear, in seconds
@@ -59,6 +76,22 @@ async def wait_until_file_exists(
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
+
+    Raises
+    ------
+    TimeoutError
+        if the file does not exist after `timeout` seconds
+
+    Examples
+    --------
+    >>> import asyncio
+    >>> from mt.aio.files import wait_until_file_exists
+    >>> asyncio.run(wait_until_file_exists(
+    ...     "/nonexistent/file", timeout=0.1, check_interval=0.02, context_vars={"async": True}
+    ... ))
+    Traceback (most recent call last):
+        ...
+    TimeoutError: File '/nonexistent/file' did not appear within 0.1 seconds.
     """
     start_time = time.time()
     while True:
@@ -75,6 +108,22 @@ async def wait_until_file_exists(
 
 
 async def safe_chmod(filepath: tp.Union[Path, str], file_mode: int = 0o664) -> None:
+    """A coroutine that waits for a file to exist (up to 10 seconds) and then chmods it.
+
+    It always runs asynchronously.
+
+    Parameters
+    ----------
+    filepath : str or Path
+        path to the file
+    file_mode : int
+        file mode to be set using :func:`os.chmod`
+
+    Raises
+    ------
+    TimeoutError
+        if the file does not appear in time
+    """
     context_vars = {"async": True}
     await wait_until_file_exists(filepath, context_vars=context_vars)
     await chmod_asyn(filepath, file_mode, context_vars=context_vars)
@@ -85,6 +134,25 @@ async def safe_rename(
     new_filepath: tp.Union[Path, str],
     context_vars: dict = {},
 ) -> None:
+    """A coroutine that waits for a file to exist (up to 10 seconds) and then renames it.
+
+    An existing destination is overwritten. Note that the `context_vars` argument is ignored: the
+    function always runs asynchronously.
+
+    Parameters
+    ----------
+    filepath : str or Path
+        path to the existing source file
+    new_filepath : str or Path
+        new path of the file
+    context_vars : dict
+        ignored
+
+    Raises
+    ------
+    TimeoutError
+        if the source file does not appear in time
+    """
     context_vars = {"async": True}
     await wait_until_file_exists(filepath, context_vars=context_vars)
     await rename_asyn(filepath, new_filepath, context_vars=context_vars, overwrite=True)
@@ -95,6 +163,24 @@ async def safe_chmod_and_rename(
     new_filepath: tp.Union[Path, str],
     file_mode: int = 0o664,
 ) -> None:
+    """A coroutine that waits for a file to exist, chmods it and renames it, overwriting.
+
+    It waits up to 10 seconds for the source file, and always runs asynchronously.
+
+    Parameters
+    ----------
+    filepath : str or Path
+        path to the existing source file
+    new_filepath : str or Path
+        new path of the file. An existing file at this path is overwritten.
+    file_mode : int
+        file mode to be set using :func:`os.chmod`
+
+    Raises
+    ------
+    TimeoutError
+        if the source file does not appear in time
+    """
     context_vars = {"async": True}
     await wait_until_file_exists(filepath, context_vars=context_vars)
     await chmod_asyn(filepath, file_mode, context_vars=context_vars)
@@ -106,11 +192,14 @@ async def read_binary(
 ) -> bytes:
     """An asyn function that opens a binary file and reads the content.
 
+    If the process has too many open files (errno 24), it waits a while and retries up to 3 times
+    in total before raising the error.
+
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         path to the file
-    size : int
+    size : int, optional
         size to read from the beginning of the file, in bytes. If None is given, read the whole
         file.
     context_vars : dict
@@ -121,6 +210,29 @@ async def read_binary(
     -------
     bytes
         the content read from file
+
+    Raises
+    ------
+    OSError
+        if the file cannot be opened or read
+
+    See Also
+    --------
+    write_binary : the opposite operation
+
+    Examples
+    --------
+    >>> import asyncio, os, tempfile
+    >>> from mt.aio import read_binary, write_binary
+    >>> async def main():
+    ...     with tempfile.TemporaryDirectory() as d:
+    ...         fp = os.path.join(d, "a.bin")
+    ...         await write_binary(fp, b"abcdef", context_vars={"async": True})
+    ...         whole = await read_binary(fp, context_vars={"async": True})
+    ...         head = await read_binary(fp, 2, context_vars={"async": True})
+    ...         return whole, head
+    >>> asyncio.run(main())
+    (b'abcdef', b'ab')
     """
 
     for i in range(3):
@@ -155,21 +267,23 @@ async def write_binary(
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         path to the file
     buf : bytes
         data (in bytes) to be written to the file
-    file_mode : int
-        file mode to be set to using :func:`os.chmod`. Only valid if fp is a string. If None is
-        given, no setting of file mode will happen.
+    file_mode : int, optional
+        file mode to be set using :func:`os.chmod` on the file before it is renamed to its final
+        name. If None is given, no setting of file mode will happen.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
     file_write_delayed : bool
-        Only valid in asynchronous mode. If True, wraps the file write task into a future and
-        returns the future. In all other cases, proceeds as usual.
+        Only valid in asynchronous mode. If True, wraps the file write task into a future (via
+        :func:`asyncio.ensure_future`) and returns the future without waiting for it. In all other
+        cases, proceeds as usual.
     make_dirs : bool
-        Whether or not to make the folders containing the path before writing to the file.
+        Whether or not to make the folders containing the path before writing to the file. Only
+        honoured in asynchronous mode; in synchronous mode the folders must already exist.
 
     Returns
     -------
@@ -180,7 +294,25 @@ async def write_binary(
     Notes
     -----
     The content is written to a file with '.mttmp' extension first before the file is renamed to
-    the right file.
+    the right file, overwriting any existing file. In asynchronous mode the temporary file is
+    removed if anything fails.
+
+    See Also
+    --------
+    read_binary : the opposite operation
+    write_text : the text counterpart
+
+    Examples
+    --------
+    >>> import asyncio, os, tempfile
+    >>> from mt.aio import write_binary
+    >>> async def main():
+    ...     with tempfile.TemporaryDirectory() as d:
+    ...         fp = os.path.join(d, "sub", "a.bin")
+    ...         n = await write_binary(fp, b"abc", context_vars={"async": True}, make_dirs=True)
+    ...         return n, os.listdir(os.path.dirname(fp))
+    >>> asyncio.run(main())
+    (3, ['a.bin'])
     """
 
     if context_vars["async"]:
@@ -218,13 +350,15 @@ async def write_binary(
 async def read_text(filepath, size: int = None, context_vars: dict = {}) -> str:
     """An asyn function that opens a text file and reads the content.
 
+    The file is opened in text mode with the default encoding of the platform.
+
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         path to the file
-    size : int
-        size to read from the beginning of the file, in bytes. If None is given, read the whole
-        file.
+    size : int, optional
+        number of characters to read from the beginning of the file. If None is given, read the
+        whole file.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
@@ -233,6 +367,22 @@ async def read_text(filepath, size: int = None, context_vars: dict = {}) -> str:
     -------
     str
         the content read from file
+
+    See Also
+    --------
+    write_text : the opposite operation
+
+    Examples
+    --------
+    >>> import asyncio, os, tempfile
+    >>> from mt.aio import read_text, write_text
+    >>> async def main():
+    ...     with tempfile.TemporaryDirectory() as d:
+    ...         fp = os.path.join(d, "a.txt")
+    ...         await write_text(fp, "hello", context_vars={"async": True})
+    ...         return await read_text(fp, context_vars={"async": True})
+    >>> asyncio.run(main())
+    'hello'
     """
 
     if context_vars["async"]:
@@ -255,32 +405,54 @@ async def write_text(
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         path to the file
     buf : str
-        data (in bytes) to be written to the file
-    file_mode : int
-        file mode to be set to using :func:`os.chmod`. Only valid if fp is a string. If None is
-        given, no setting of file mode will happen.
+        text to be written to the file
+    file_mode : int, optional
+        file mode to be set using :func:`os.chmod` on the file before it is renamed to its final
+        name. If None is given, no setting of file mode will happen.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
     file_write_delayed : bool
-        Only valid in asynchronous mode. If True, wraps the file write task into a future and
-        returns the future. In all other cases, proceeds as usual.
+        Only valid in asynchronous mode. If True, wraps the file write task into a future (via
+        :func:`asyncio.ensure_future`) and returns the future without waiting for it. In all other
+        cases, proceeds as usual.
     make_dirs : bool
-        Whether or not to make the folders containing the path before writing to the file.
+        Whether or not to make the folders containing the path before writing to the file. Only
+        honoured in asynchronous mode; in synchronous mode the folders must already exist.
 
     Returns
     -------
     asyncio.Future or int
-        either a future or the number of bytes written, depending on whether the file write
+        either a future or the number of characters written, depending on whether the file write
         task is delayed or not
 
     Notes
     -----
     The content is written to a file with '.mttmp' extension first before the file is renamed to
-    the right file.
+    the right file, overwriting any existing file.
+
+    See Also
+    --------
+    read_text : the opposite operation
+    write_binary : the binary counterpart
+
+    Examples
+    --------
+    >>> import asyncio, os, tempfile
+    >>> from mt.aio import write_text
+    >>> async def main():
+    ...     with tempfile.TemporaryDirectory() as d:
+    ...         fp = os.path.join(d, "a.txt")
+    ...         fut = await write_text(
+    ...             fp, "hello", context_vars={"async": True}, file_write_delayed=True
+    ...         )
+    ...         n = await fut  # the write is only guaranteed to be done after this
+    ...         return n, os.listdir(d)
+    >>> asyncio.run(main())
+    (5, ['a.txt'])
     """
 
     if context_vars["async"]:
@@ -322,7 +494,7 @@ async def json_load(filepath: tp.Union[Path, str], context_vars: dict = {}, **kw
 
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         path to the file
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
@@ -334,6 +506,22 @@ async def json_load(filepath: tp.Union[Path, str], context_vars: dict = {}, **kw
     -------
     object
         the loaded json-like object
+
+    See Also
+    --------
+    json_save : the opposite operation
+
+    Examples
+    --------
+    >>> import asyncio, os, tempfile
+    >>> from mt.aio import json_load, json_save
+    >>> async def main():
+    ...     with tempfile.TemporaryDirectory() as d:
+    ...         fp = os.path.join(d, "a.json")
+    ...         await json_save(fp, {"a": [1, 2]}, context_vars={"async": True})
+    ...         return await json_load(fp, context_vars={"async": True})
+    >>> asyncio.run(main())
+    {'a': [1, 2]}
     """
 
     content = await read_text(filepath, context_vars=context_vars)
@@ -351,31 +539,40 @@ async def json_save(
 ) -> tp.Union[asyncio.Future, int]:
     """An asyn function that saves a json-like object to a file.
 
+    The object is serialised with :func:`json.dumps` and written with :func:`write_text`.
+
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         path to the file
     obj : object
         json-like object to be written to the file
-    file_mode : int
-        file mode to be set to using :func:`os.chmod`. Only valid if fp is a string. If None is
-        given, no setting of file mode will happen.
+    file_mode : int, optional
+        file mode to be set using :func:`os.chmod` on the file before it is renamed to its final
+        name. If None is given, no setting of file mode will happen.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
     file_write_delayed : bool
-        Only valid in asynchronous mode. If True, wraps the file write task into a future and
-        returns the future. In all other cases, proceeds as usual.
+        Only valid in asynchronous mode. If True, wraps the file write task into a future (via
+        :func:`asyncio.ensure_future`) and returns the future without waiting for it. In all other
+        cases, proceeds as usual.
     make_dirs : bool
-        Whether or not to make the folders containing the path before writing to the file.
+        Whether or not to make the folders containing the path before writing to the file. Only
+        honoured in asynchronous mode; in synchronous mode the folders must already exist.
     **kwds : dict
         keyword arguments passed as-is to :func:`json.dumps`
 
     Returns
     -------
     asyncio.Future or int
-        either a future or the number of bytes written, depending on whether the file write
+        either a future or the number of characters written, depending on whether the file write
         task is delayed or not
+
+    See Also
+    --------
+    json_load : the opposite operation
+    write_text : the underlying writer
     """
 
     content = json.dumps(obj, **kwds)
@@ -394,9 +591,11 @@ async def npz_load(
 ) -> dict:
     """An asyn function that loads a dictionary of arrays from an NPZ file.
 
+    The whole file is read into memory and all arrays are loaded eagerly.
+
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         path to the file
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
@@ -408,6 +607,23 @@ async def npz_load(
     -------
     dict
         the loaded dictionary of numpy arrays
+
+    See Also
+    --------
+    npz_save : the opposite operation
+
+    Examples
+    --------
+    >>> import asyncio, os, tempfile
+    >>> import numpy as np
+    >>> from mt.aio import npz_load, npz_save
+    >>> async def main():
+    ...     with tempfile.TemporaryDirectory() as d:
+    ...         fp = os.path.join(d, "a.npz")
+    ...         await npz_save(fp, {"x": np.arange(3)}, context_vars={"async": True})
+    ...         return await npz_load(fp, context_vars={"async": True})
+    >>> asyncio.run(main())
+    {'x': array([0, 1, 2])}
     """
 
     import numpy as np
@@ -428,29 +644,40 @@ async def npz_save(
 ) -> tp.Union[asyncio.Future, int]:
     """An asyn function that saves a dictionary of arrays to an NPZ file.
 
+    The arrays are compressed with :func:`numpy.savez_compressed` in memory and then written with
+    :func:`write_binary`.
+
     Parameters
     ----------
-    filepath : str
+    filepath : str or Path
         path to the file
-    obj : object
-        json-like object to be written to the file
-    file_mode : int
-        file mode to be set to using :func:`os.chmod`. Only valid if fp is a string. If None is
-        given, no setting of file mode will happen.
+    obj : dict
+        dictionary mapping array names (strings) to arrays, as keyword arguments of
+        :func:`numpy.savez_compressed`
+    file_mode : int, optional
+        file mode to be set using :func:`os.chmod` on the file before it is renamed to its final
+        name. If None is given, no setting of file mode will happen.
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
     file_write_delayed : bool
-        Only valid in asynchronous mode. If True, wraps the file write task into a future and
-        returns the future. In all other cases, proceeds as usual.
+        Only valid in asynchronous mode. If True, wraps the file write task into a future (via
+        :func:`asyncio.ensure_future`) and returns the future without waiting for it. In all other
+        cases, proceeds as usual.
     make_dirs : bool
-        Whether or not to make the folders containing the path before writing to the file.
+        Whether or not to make the folders containing the path before writing to the file. Only
+        honoured in asynchronous mode; in synchronous mode the folders must already exist.
 
     Returns
     -------
     asyncio.Future or int
         either a future or the number of bytes written, depending on whether the file write
         task is delayed or not
+
+    See Also
+    --------
+    npz_load : the opposite operation
+    write_binary : the underlying writer
     """
     import numpy as np
 
@@ -473,6 +700,9 @@ async def npz_save(
 async def mkdtemp(context_vars: dict = {}):
     """An asyn context manager that opens and creates a temporary directory.
 
+    The directory and its content are removed when the context exits. It is an asynchronous
+    context manager, so use it with `async with`.
+
     Parameters
     ----------
     context_vars : dict
@@ -483,6 +713,17 @@ async def mkdtemp(context_vars: dict = {}):
     -------
     tmpdir : object
         the context manager whose enter-value is a string containing the temporary dirpath.
+
+    Examples
+    --------
+    >>> import asyncio, os
+    >>> from mt.aio import mkdtemp
+    >>> async def main():
+    ...     async with mkdtemp(context_vars={"async": True}) as tmpdir:
+    ...         inside = os.path.isdir(tmpdir)
+    ...     return inside, os.path.exists(tmpdir)
+    >>> asyncio.run(main())
+    (True, False)
     """
 
     if context_vars["async"]:
@@ -500,8 +741,10 @@ class CreateFileH5:
     chmodded and renamed to a given name. Any intermediate folder that does not exist is created
     automatically.
 
-    The context can be synchronous or asynchronous, by specifying the 'async' keyword and argument
-    'context_vars'.
+    The context can be used with `with` or `async with`. The chmod and rename steps on exit are
+    synchronous in the former and asynchronous (waiting up to 10 seconds for the file to be
+    visible) in the latter. Entering the context requires :mod:`h5py`. If the body of the context
+    raises, the temporary file is left in place and the final file is not created.
 
     Parameters
     ----------
@@ -520,9 +763,16 @@ class CreateFileH5:
     Attributes
     ----------
     tmp_filepath : str
-        the local file path of the temporary HDF5 file
+        the local file path of the temporary HDF5 file (available after entering the context)
     handle : h5py.File
-        the handle of the temporary HDF5 file
+        the handle of the temporary HDF5 file, opened in 'w' mode (available after entering the
+        context)
+
+    Notes
+    -----
+    The synchronous exit with a non-None `file_mode` refers to a name `file_mode` that is not
+    defined in its scope and so fails with a :class:`NameError`; pass `file_mode=None` when using
+    the synchronous `with`, or use `async with`.
     """
 
     def __init__(

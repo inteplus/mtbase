@@ -1,4 +1,11 @@
-"""Wrapper around threading for running things in background."""
+"""Wrapper around threading for running things in background.
+
+:class:`BgInvoke` runs one function call in a background thread, :class:`BgThread` is a
+long-lived background thread that can run the same function many times, :func:`parallelise` runs
+many jobs over a pool of threads, and :func:`bg_run_proc` queues fire-and-forget procedures. An
+exception raised in a background thread is captured and re-raised in the caller as a
+:class:`BgException` when the result is read.
+"""
 
 from collections import deque
 import multiprocessing as _mp
@@ -20,6 +27,19 @@ __all__ = [
 
 
 class BgException(Exception):
+    """Raised in the calling thread when a function run in a background thread raised an exception.
+
+    The message contains the formatted traceback of the original exception.
+
+    Parameters
+    ----------
+    message : str
+        short description, placed at the top of the message
+    exc_info : tuple
+        the `(type, value, traceback)` triple of the original exception, as returned by
+        :func:`sys.exc_info`
+    """
+
     def __init__(self, message, exc_info):
         lines = traceback.format_exception(*exc_info)
         lines = ["  " + x for x in lines]
@@ -31,11 +51,29 @@ class BgException(Exception):
 class BgInvoke:
     """Thin wrapper around threading.Thread to run `target(*args, **kwds)` in background.
 
-    Once invoked, the thread keeps running in background until function `self.is_running()` returns
-    `False`, at which point `self.result` holds the output of the invocation.
+    The thread starts immediately at construction and is a daemon thread, so it does not keep the
+    interpreter alive. Poll `self.is_running()` until it returns `False`, at which point attribute
+    `self.result` returns the output of the invocation.
 
-    If an exception was raised, `self.result` would contain the exception and other useful
-    information.
+    If an exception was raised in the target, reading `self.result` raises a :class:`BgException`
+    that carries the original traceback. Only subclasses of :class:`Exception` are captured.
+
+    Parameters
+    ----------
+    target : callable
+        callable object to be invoked in the background thread
+    *args : tuple
+        positional arguments for the target invocation
+    **kwds : dict
+        keyword arguments for the target invocation
+
+    Attributes
+    ----------
+    thread : threading.Thread
+        the background thread
+    result : object
+        the return value of the target. Reading it raises :class:`ValueError` if the invocation
+        has not finished yet and :class:`BgException` if the target raised an exception.
 
     Notes
     -----
@@ -43,7 +81,7 @@ class BgInvoke:
 
     Examples
     --------
-    >>> def slow_count(nbTimes=100000000):
+    >>> def slow_count(nbTimes=1000000):
     ...     cnt = 0
     ...     for i in range(nbTimes):
     ...         cnt = cnt+1
@@ -51,15 +89,17 @@ class BgInvoke:
     ...
     >>> from mt.base.bg_invoke import BgInvoke
     >>> from time import sleep
-    >>> a = BgInvoke(slow_count, nbTimes=100000000)
+    >>> a = BgInvoke(slow_count, nbTimes=1000000)
     >>> while a.is_running():
-    ...     sleep(0.5)
+    ...     sleep(0.1)
     ...
     >>> print(a.result)
-    100000000
+    1000000
     """
 
     def _wrapper(self, g, *args, **kwds):
+        """Runs `g(*args, **kwds)` and stores either its output or its exception info."""
+
         try:
             self._result = True, g(*args, **kwds)
         except Exception:
@@ -67,7 +107,15 @@ class BgInvoke:
 
     @property
     def result(self):
-        """The result of invoking a function."""
+        """The result of invoking the function.
+
+        Raises
+        ------
+        ValueError
+            if the invocation has not finished yet
+        BgException
+            if the function raised an exception
+        """
         if hasattr(self, "_result"):
             if self._result[0]:  # succeeded
                 return self._result[1]  # returning object
@@ -84,12 +132,12 @@ class BgInvoke:
 
         Parameters
         ----------
-            target : callable
-                callable object to be invoked. Default to None, meaning nothing is called.
-            *args : tuple
-                argument tuple for the target invocation. Default to ().
-            **kwds : dict
-                dictionary of keyword arguments for the target. Default to {}.
+        target : callable
+            callable object to be invoked
+        *args : tuple
+            positional argument tuple for the target invocation
+        **kwds : dict
+            dictionary of keyword arguments for the target
         """
         self.thread = _t.Thread(
             target=self._wrapper, args=(target,) + args, kwargs=kwds
@@ -105,13 +153,14 @@ class BgInvoke:
 class BgThread(_t.Thread):
     """Thin wrapper around threading.Thread to run `func(*args, **kwds)` in background.
 
-    Once invoked via :func:`invoke`, the thread waits until the last function call has finished,
-    then invokes the function with new arguments in background. The user can do other things.
-    They should invoke :func:`is_running` to determine when the function invocation is completed.
-    They can also use attribute :attr:`result` to wait and get the result.
+    The thread starts immediately at construction, as a daemon thread, and then sleeps. Once invoked
+    via :func:`invoke`, the thread waits until the last function call has finished, then invokes the
+    function with new arguments in background. The user can do other things. They should invoke
+    :func:`is_running` to determine when the function invocation is completed. They can also use
+    attribute :attr:`result` to wait and get the result. Call :func:`close` when done (it is also
+    called when the object is deleted).
 
-    If an exception was raised, `self.result` would contain the exception and other useful
-    information.
+    If an exception was raised in the function, reading `self.result` raises a :class:`BgException`.
 
     Parameters
     ----------
@@ -121,8 +170,8 @@ class BgThread(_t.Thread):
     Attributes
     ----------
     result : object
-        the current result if it has not been consumed. Otherwise blocks until the new result
-        becomes available.
+        the result of the latest invocation. It blocks until that result becomes available and
+        consumes it, so reading it twice without a new :func:`invoke` in between blocks forever.
 
     Notes
     -----
@@ -130,7 +179,7 @@ class BgThread(_t.Thread):
 
     Examples
     --------
-    >>> def slow_count(nbTimes=100000000):
+    >>> def slow_count(nbTimes=1000000):
     ...     cnt = 0
     ...     for i in range(nbTimes):
     ...         cnt = cnt+1
@@ -139,18 +188,18 @@ class BgThread(_t.Thread):
     >>> from mt.base.bg_invoke import BgThread
     >>> from time import sleep
     >>> a = BgThread(slow_count)
-    >>> a.invoke(nbTimes=100000000)
-    >>> while a.is_running():
-    ...     sleep(0.5)
-    ...
+    >>> a.invoke(nbTimes=1000000)
     >>> print(a.result)
-    100000000
+    1000000
     >>> a.invoke(nbTimes=100000)
     >>> print(a.result)
     100000
+    >>> a.close()
     """
 
     def __init__(self, func):
+
+        """Wraps `func` and starts the background thread."""
 
         super(BgThread, self).__init__()
 
@@ -172,7 +221,17 @@ class BgThread(_t.Thread):
         self.start()
 
     def close(self):
-        """Waits for the current task to be done and closes the thread."""
+        """Waits for the current task to be done and closes the thread.
+
+        After closing, :func:`invoke` and the :attr:`result` property raise
+        :class:`RuntimeError`. An input that was submitted but not yet picked up by the thread
+        is discarded.
+
+        Raises
+        ------
+        TimeoutError
+            if the thread is still alive 30 seconds after the current task has finished
+        """
         # print("Bg thread {} closing.".format(self.ident))
         with self.input_cv:
             self.is_thread_running = False
@@ -186,6 +245,8 @@ class BgThread(_t.Thread):
             )
 
     def __del__(self):
+        """Closes the thread."""
+
         self.close()
 
     def run(self):
@@ -224,15 +285,21 @@ class BgThread(_t.Thread):
     def invoke(self, *args, **kwds):
         """Invokes the function in a graceful way.
 
-        This function blocks until the last function arguments have been consumed and then signals
-        the function to be invoked again. It returns immediately.
+        This function blocks only until the previous arguments have been picked up by the thread (so
+        it may wait if the thread has just been invoked), then hands over the new arguments. It
+        returns without waiting for the function to finish. Use :attr:`result` to get the output.
 
         Parameters
         ----------
-        args : list
+        *args : list
             positional arguments of the function
-        kwds : dict
+        **kwds : dict
             keyword arguments of the function
+
+        Raises
+        ------
+        RuntimeError
+            if the thread has been closed
         """
 
         with self.input_cv:
@@ -251,7 +318,18 @@ class BgThread(_t.Thread):
 
     @property
     def result(self):
-        """The result after waiting for the function call to finish."""
+        """The result after waiting for the function call to finish.
+
+        The result is consumed by reading it. Reading it again blocks until the function is invoked
+        again and finishes.
+
+        Raises
+        ------
+        BgException
+            if the function raised an exception
+        RuntimeError
+            if the thread has been closed
+        """
         with self.output_cv:
             while (
                 self.is_thread_running and not self.new_output
@@ -284,7 +362,12 @@ def parallelise(
     pass_logger=False,
     **fn_kwds,
 ):
-    """Embarrasingly parallelises to excecute many jobs with a limited number of threads.
+    """Embarrassingly parallelises the execution of many jobs with a limited number of threads.
+
+    Job `i`, for `i` in `range(num_jobs)`, calls `func(i, *fn_args, **fn_kwds)` in a background
+    thread (see :class:`BgInvoke`), with at most `num_threads` jobs running at the same time.
+    Completion is polled about once per second when all threads are busy, so it is meant for
+    jobs that take a while, rather than for tiny ones. The call returns when all jobs are done.
 
     Parameters
     ----------
@@ -292,19 +375,22 @@ def parallelise(
         a function of the form `def func(job_id, *args, **kwds)` that can return something
     num_jobs : int
         number of jobs to execute, must be positive integer
+    *fn_args : iterable
+        list of positional arguments for the function, after the job id
     num_threads : int, optional
         number of threads to be used. If not specified, then 80% of available CPUs are used
+        (at least 1)
     bg_exception : {'raise', 'warn'}
-        whether to re-rasise a BgException raised by a thread or to suppress all of them and warn
-        instead, in which case `logger` must not be None
-    logger : IndentedLoggerAdaptor, optional
+        whether to re-raise a :class:`BgException` raised by a thread or to suppress all of them and
+        warn instead, in which case the output of the failed job is None. Warnings are only
+        logged if `logger` is provided, otherwise the exception is silently dropped. The value is
+        only checked when a job raises.
+    logger : mt.logg.IndentedLoggerAdapter, optional
         for logging purposes
     pass_logger : bool
-        whether or not to include `logger` to `func_kwds` if it does not exist in `func_kwds`
+        whether or not to include `logger` to `fn_kwds` if it does not exist in `fn_kwds`
         so the function can use the same logger as `parallelise()`
-    *fn_args : iterable
-        list of postional arguments for the function
-    *fn_kwds : dict
+    **fn_kwds : dict
         list of keyword arguments for the function
 
     Returns
@@ -315,13 +401,24 @@ def parallelise(
 
     Raises
     ------
+    ValueError
+        if `num_jobs` is not a positive integer, or if `bg_exception` is unknown and a job fails
     BgException
-        an exception raised by a background thread
+        an exception raised by a background thread, if `bg_exception` is 'raise'
 
     Notes
     -----
-        use this function instead of joblib if you want to integrate with mt.logg and
-        BgException better
+    Use this function instead of joblib if you want to integrate with mt.logg and
+    BgException better.
+
+    Examples
+    --------
+    >>> from mt.base.bg_invoke import parallelise
+    >>> def multiply(job_id, factor):
+    ...     return job_id * factor
+    ...
+    >>> parallelise(multiply, 4, 10, num_threads=2)
+    [0, 10, 20, 30]
     """
     if not isinstance(num_jobs, int) or num_jobs <= 0:
         raise ValueError(
@@ -390,16 +487,24 @@ def parallelise(
 class BgProcManager:
     """A manager to run procedures in background threads.
 
-    A procedure is a function that returns None. If it an error is raised while executing the
-    procedure, it will be reported as a warning in the logger (optional).
+    A procedure is a function that takes no input and returns None. Procedures are queued with
+    :func:`append_new_proc` and are run, in order, by background threads, at most one per CPU at a
+    time. If an error is raised while executing a procedure, it is reported as a warning in the
+    logger (optional).
 
     Parameters
     ----------
     logger : logging.Logger or equivalent
         logger for catching the exceptions as warnings
+
+    See Also
+    --------
+    bg_run_proc : the user-friendly way to queue a procedure on the default manager
     """
 
     def __init__(self, logger=None):
+        """Creates the manager and starts its manager thread."""
+
         self.logger = logger
 
         self.is_alive = True
@@ -416,7 +521,7 @@ class BgProcManager:
 
         Parameters
         ----------
-        proc : funcion
+        proc : function
             a procedure taking no input. If it an error is raised, it will be reported as a warning
             in the logger.
         """
@@ -463,16 +568,24 @@ class BgProcManager:
             time.sleep(0.1)
 
     def is_deque_empty(self):
+        """Returns whether no procedure is waiting in the queue."""
+
         return not self.deque
 
     def is_no_running_threads(self):
+        """Returns whether no procedure is currently running."""
+
         return not self.running_threads
 
     def wait_until_empty(self):
+        """Blocks until the queue is empty and all running procedures are done."""
+
         time.sleep_until(self.is_deque_empty, logger=self.logger)
         time.sleep_until(self.is_no_running_threads, logger=self.logger)
 
     def __del__(self):
+        """Stops accepting procedures and waits for the pending ones to finish."""
+
         self.is_alive = False
         self.wait_until_empty()
 
@@ -483,6 +596,10 @@ bg_proc_manager = BgProcManager(logger=logg.logger)
 def bg_run_proc(proc, *args, **kwds):
     """Runs a procedure in a background thread.
 
+    The procedure is queued on the module-level manager `bg_proc_manager`, which runs at most one
+    procedure per CPU at a time. To wait for all queued procedures, invoke
+    `bg_proc_manager.wait_until_empty()`.
+
     Parameters
     ----------
     proc : function
@@ -492,5 +609,12 @@ def bg_run_proc(proc, *args, **kwds):
         positional arguments to be passed as-is to the procedure
     **kwds : dict
         keyword arguments to be passed as-is to the procedure
+
+    Examples
+    --------
+    >>> from mt.base.bg_invoke import bg_run_proc, bg_proc_manager
+    >>> bg_run_proc(print, "hello", "world", sep=", ")
+    >>> bg_proc_manager.wait_until_empty()
+    hello, world
     """
     bg_proc_manager.append_new_proc(lambda: proc(*args, **kwds))

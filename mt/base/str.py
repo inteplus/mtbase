@@ -6,24 +6,36 @@ __all__ = ["straighten", "text_filename"]
 
 
 def straighten(s, length, align_left=True, delimiter=" "):
-    """Straighten a Unicode string to have a fixed length.
+    r"""Straightens a Unicode string to have a fixed length.
+
+    If the string is shorter than `length`, it is padded with `delimiter`. If it is longer, it is
+    truncated and the horizontal ellipsis character '\u2026' marks the cut, so the output is always
+    exactly `length` characters long.
 
     Parameters
     ----------
     s : str
-        string to be trimmed
+        string to be trimmed or padded
     length : int
-        number of characters of the output string
+        number of characters of the output string. Use a positive value: for 0 the output is not
+        empty, it is the string without its last character followed by the ellipsis character.
     align_left : bool
-        whether to align the string to the left (True) or to the right (False)
-    delimiter : char
-        the whitespace character to fill in if the length input string is shorter than the output
-        length
+        whether to align the string to the left (True), so padding goes on the right and truncation
+        removes the end, or to the right (False), so padding goes on the left and truncation removes
+        the beginning
+    delimiter : str
+        the single whitespace-like character used to pad the string if it is shorter than `length`
 
     Returns
     -------
     retval : str
         straightened string
+
+    Raises
+    ------
+    ValueError
+        if `s` is not a string, if `length` is negative, or if `delimiter` is not a single-character
+        string
 
     Examples
     --------
@@ -35,6 +47,8 @@ def straighten(s, length, align_left=True, delimiter=" "):
     '…re'
     >>> straighten("Oh Carol!", 20, align_left=False)
     '           Oh Carol!'
+    >>> straighten("abc", 6, delimiter=".")
+    'abc...'
     """
 
     if not isinstance(s, str):
@@ -96,6 +110,12 @@ _t2f, _t2f_pattern, _f2t, _f2t_pattern = _make_t2f()
 def text_filename(s, forward=True):
     """Converts a text to a filename or vice versa, replacing special characters with subtexts.
 
+    Forward, every byte of the UTF-8 encoded text other than an ASCII letter or digit is replaced
+    with `_<hex>_` where `<hex>` is the lowercase hexadecimal code of the byte (for example a space
+    becomes `_20_`, a slash `_2f_`), and the underscore itself is doubled. The result is made of
+    letters, digits and underscores only, so it is safe as a filename. Backward undoes the
+    conversion.
+
     Parameters
     ----------
     s : str or bytes
@@ -111,7 +131,20 @@ def text_filename(s, forward=True):
     Raises
     ------
     ValueError
-        if the text contains a character that cannot be converted
+        if a `str` input contains a character that cannot be encoded in UTF-8 (for example a lone
+        surrogate); the actual exception is a :class:`UnicodeEncodeError`
+
+    Examples
+    --------
+    >>> from mt.base.str import text_filename
+    >>> text_filename("a/b c.txt")
+    'a_2f_b_20_c_2e_txt'
+    >>> text_filename("a_2f_b_20_c_2e_txt", forward=False)
+    'a/b c.txt'
+    >>> text_filename("snake_case")
+    'snake__case'
+    >>> text_filename(b"x y")
+    b'x_20_y'
     """
     if isinstance(s, bytes):
         s1 = s
@@ -129,6 +162,16 @@ def text_filename(s, forward=True):
 
 
 def get_numerics():
+    """Returns the rounded integer roots of a fixed degree-5 polynomial as a numpy array.
+
+    This takes no input and appears to be an internal helper whose purpose is not documented. The
+    result is `array([120, 117, 115, 110, 101])`. It needs numpy.
+
+    Returns
+    -------
+    numpy.ndarray
+        integer array of 5 elements
+    """
     import numpy as np
 
     a = [1, -563, 126677, -14238565, 799468050, -17938206000]

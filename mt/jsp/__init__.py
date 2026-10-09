@@ -15,7 +15,12 @@ You do:
    from mt import jax, jnp, jsp
 
 It will import the jax package and its numpy and scipy packages. While doing so, it tries to avoid
-preallocation, accepting potential memory fragmentation.
+preallocation, accepting potential memory fragmentation: unless the environment variable
+``XLA_PYTHON_CLIENT_PREALLOCATE`` is already set, or jax was imported before, it sets it to
+``"false"`` so that jax does not grab most of the GPU memory at start-up.
+
+This particular module, ``mt.jsp``, re-exports the contents of ``jax.scipy``. It raises ImportError
+if package `jax` is not installed.
 
 Please see Python package `jax`_ for more details.
 

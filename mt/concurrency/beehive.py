@@ -9,6 +9,37 @@ The BeeHive model can be useful for applications like making ML model prediction
 In this case, the queen bee owns access to the ML model and the dataframe, delegates the
 potentially IO-related preprocessing and postprocessing tasks of every row of the dataframe to
 worker bees, and deals with making batch predictions from the model.
+
+The entry point is the asyn function :func:`beehive_run`. The user subclasses :class:`WorkerBee`
+and :class:`QueenBee` and writes asyn member functions, one per kind of task. The queen runs a task
+requested by :func:`beehive_run` and, inside it, hands out sub-tasks to worker bees via
+:func:`Bee.delegate`. Every task function of a worker or queen bee receives a keyword argument
+`context_vars`. Worker subprocesses are created with
+:func:`mt.base.s3.create_context_vars`, so the context needs the S3 tooling to be available.
+
+Examples
+--------
+.. code-block:: python
+
+    import asyncio
+    from mt.concurrency import beehive
+
+    class Worker(beehive.WorkerBee):
+        async def square(self, x, context_vars={}):
+            return x * x
+
+    class Queen(beehive.QueenBee):
+        async def squares(self, n, context_vars={}):
+            outcomes = await asyncio.gather(*[self.delegate("square", i) for i in range(n)])
+            return [task_result["returning_value"] for task_result, child_id in outcomes]
+
+    async def main():
+        return await beehive.beehive_run(
+            Queen, Worker, "squares", task_args=(5,), context_vars={"async": True}
+        )
+
+    if __name__ == "__main__":
+        print(asyncio.run(main()))  # [0, 1, 4, 9, 16]
 """
 
 import collections
@@ -32,7 +63,17 @@ __all__ = [
 
 
 def logger_debug_msg(msg, logger=None):
-    """Logs debugging statements extracted from a bee message. For internal use only."""
+    """Logs debugging statements extracted from a bee message. For internal use only.
+
+    Parameters
+    ----------
+    msg : dict
+        a bee message. The optional keys 'traceback', 'exception' and 'other_details' (which may
+        itself contain a nested 'msg') are logged in dedicated scopes, the rest under 'Message'.
+        The input is not modified.
+    logger : mt.logg.IndentedLoggerAdapter, optional
+        the logger to log to. If None, the function does nothing.
+    """
     if logger is None:
         return  # only works if logger is available
 
@@ -67,16 +108,16 @@ class Bee:
     more child bees via message passing. Communication means executing a task for the parent and
     delegating child bees to do subtasks. All tasks are asynchronous.
 
-    Each bee maintains a private communication its parent via a full-duplex `(p_p2m, p_m2p)` pair
-    of queues. `p2m` and `m2p` stand for parent-to-me and me-to-parent. For every new task to
-    be delegated to a child, the bee broadcasts a zero-based task id by sending a message
-    `{'msg_type': 'new_task', 'task_id': int}` to every child. If a child wishes to process the
-    order, it places a  message `{'msg_type': 'task_accepted', 'task_id': int}` back to the parent
-    via its `p_m2p`. If it does not wish to process the order, it should place a different message
-    `{'msg_type': 'task_denied', 'task_id': int}`. The parent would choose one of the responders
-    for doing the task and would send `{'msg_type': 'task_taken', 'task_id': int}` to all late
-    accepters regarding the task. The communication to the chosen child is conducted via 2 further
-    messages, each of which is a key-value dictionary.
+    Each bee maintains a private communication with its parent via a full-duplex
+    `(p_p2m, p_m2p)` pair of queues. `p2m` and `m2p` stand for parent-to-me and me-to-parent. For
+    every new task to be delegated to a child, the bee broadcasts a zero-based task id by sending a
+    message `{'msg_type': 'new_task', 'task_id': int}` to every child. If a child wishes to process
+    the order, it places a  message `{'msg_type': 'task_accepted', 'task_id': int}` back to the
+    parent via its `p_m2p`. If it does not wish to process the order, it should place a different
+    message `{'msg_type': 'task_denied', 'task_id': int}`. The parent would choose one of the
+    responders for doing the task and would send `{'msg_type': 'task_taken', 'task_id': int}` to all
+    late accepters regarding the task. The communication to the chosen child is conducted via 2
+    further messages, each of which is a key-value dictionary.
 
     The first message is sent from the parent bee describing the task to be delegated to the child
     `{'msg_type': 'task_info', 'task_id': int, 'name': str, 'args': tuple, 'kwargs': dict}`.
@@ -90,7 +131,9 @@ class Bee:
     `{'msg_type': 'task_done', 'task_id': int, 'status': str, ...}` back to the parent bee.
     `status` can be one of 3 values: 'cancelled', 'raised' and 'succeeded', depending on whether
     the task was cancelled, raised an exception, or succeeded without any exception. If `status` is
-    'cancelled', key `reason` tells the reason if it is not None. If `status` is 'raised', key
+    'cancelled', key `reason` tells the reason if it is not None. (Note that the parent's
+    :func:`delegate` reports a task cancelled by the child as 'raised', with a
+    :class:`mt.traceback.LogicError` as the exception.) If `status` is 'raised', key
     `exception` contains an Exception instance and key `traceback` contains a list of text lines
     describing the call stack, and key `other_details` contains other supporting information.
     Finally, if `status` is 'succeeded', key `returning_value` holds the returning value.
@@ -124,6 +167,11 @@ class Bee:
         there is no constraint in maximum number of concurrent tasks.
     logger : mt.logg.IndentedLoggerAdapter, optional
         logger for debugging purposes
+
+    Raises
+    ------
+    ValueError
+        if `max_concurrency` is neither an integer nor None
     """
 
     def __init__(
@@ -158,7 +206,14 @@ class Bee:
     # ----- public -----
 
     async def run(self):
-        """Implements the life-cycle of the bee. Invoke this function only once."""
+        """Implements the life-cycle of the bee. Invoke this function only once.
+
+        The bee serves tasks until its parent sends 'die' and all its tasks are done, then asks
+        its own children (if any) to die, waits for them, and finally reports its death to the
+        parent. Tasks delegated with :func:`delegate` only make progress while this coroutine is
+        running, so run it as a task (e.g. via :func:`asyncio.ensure_future`) alongside the code
+        that delegates.
+        """
         await self._run_initialise()
         while (
             (not self.to_terminate)
@@ -181,6 +236,10 @@ class Bee:
     async def delegate(self, name: str, *args, **kwargs):
         """Delegates a task to one of child bees and awaits the result.
 
+        The task is first offered to all living children. The first child that accepts it executes
+        it. If every child denies it, or none accepts it within 10 minutes, a 'cancelled' result is
+        returned with child id -1. It must be invoked while :func:`run` is running.
+
         Parameters
         ----------
         name : str
@@ -195,10 +254,14 @@ class Bee:
         -------
         task_result : dict
             returning message in the form `{'status': str, ...}` where `status` is one of
-            'cancelled', 'raised' and 'succeeded'. The remaining keys are described in the class
-            docstring.
+            'cancelled', 'raised' and 'succeeded'. If 'succeeded', key `returning_value` holds the
+            value returned by the task. If 'raised' (including when the child cancelled the task
+            or died), keys `exception` (a :class:`mt.traceback.LogicError`, with the original
+            error as its cause) and `traceback` hold the details. If 'cancelled' (nobody took
+            the task), key `reason` holds the reason. The remaining keys are described in the
+            class docstring.
         child_id : int
-            the id of the child that has executed the task
+            the id of the child that has executed the task, or -1 if no child took the task
         """
 
         import asyncio
@@ -572,7 +635,10 @@ class Bee:
 class WorkerBee(Bee):
     """A worker bee in the BeeHive concurrency model.
 
-    See parent :class:`Bee` for more details.
+    See parent :class:`Bee` for more details. Subclass it and add asyn member functions, one per
+    task name. Each task function is called with the delegated positional and keyword arguments
+    plus an extra keyword argument `context_vars`, the dictionary given at construction (any
+    `context_vars` given in the delegation kwargs takes priority).
 
     Parameters
     ----------
@@ -611,6 +677,8 @@ class WorkerBee(Bee):
 
     async def busy_status(self, context_vars: dict = {}):
         """A task to check how busy the worker bee is.
+
+        It can be delegated like any other task, e.g. `await bee.delegate('busy_status')`.
 
         Parameters
         ----------
@@ -651,6 +719,11 @@ def subprocess_workerbee(
     logger: tp.Optional[logg.IndentedLoggerAdapter] = None,
 ):
     """Creates a daemon subprocess that holds a worker bee and runs the bee in the subprocess.
+
+    Inside the subprocess, a context is created via :func:`mt.base.s3.create_context_vars` and the
+    bee is built and run in an asyncio event loop. If the bee dies from an exception, a message
+    `{'msg_type': 'dead', 'death_type': 'killed', ...}` is sent to the parent. Note that the
+    `logger` argument is currently not forwarded to the subprocess.
 
     Parameters
     ----------
@@ -776,7 +849,11 @@ class QueenBee(WorkerBee):
     The queen bee herself is a worker bee. However, initialising a queen bee, the user must provide
     a subclass of :class:`WorkerBee` to represent the worker bee class, from which the queen can
     spawn worker bees. Like other bees, it is expected that the user write member asynchornous
-    functions to handle tasks.
+    functions to handle tasks. Usually she is not instantiated directly but by :func:`beehive_run`.
+
+    A background routine manages the worker population: it starts with one worker and, every 10
+    seconds, adds a worker (up to the number of cpus minus one) or retires the least busy one if
+    there are too many workers or the cpu or memory usage is too high.
 
     Parameters
     ----------
@@ -932,6 +1009,7 @@ class QueenBee(WorkerBee):
     _mourn_death.__doc__ = WorkerBee._mourn_death.__doc__
 
     def _spawn_new_workerbee(self):
+        """Spawns a new worker bee in a subprocess and registers it as a child. Returns its id."""
         worker_id = len(self.child_conn_list)  # get new worker id
         child_id = len(self.child_conn_list)  # get new child id
         process, p_c2m, p_m2c = subprocess_workerbee(
@@ -987,6 +1065,11 @@ async def beehive_run(
 ):
     """An asyn function that runs a task in a BeeHive concurrency model.
 
+    It creates a queen bee, assigns her the task, waits for the result, then asks her to die (and
+    her workers with her) and waits until she has. It can only run in asynchronous mode, from
+    within a running event loop. The population manager of the queen sleeps in 10-second steps,
+    so a call takes at least about 10 seconds.
+
     Parameters
     ----------
     queenbee_class : class
@@ -1031,10 +1114,19 @@ async def beehive_run(
 
     Raises
     ------
+    ValueError
+        if `context_vars['async']` is not True
     RuntimeError
+        when the queen bee did not accept the task
+    asyncio.CancelledError
         when the queen bee has cancelled her task
     Exception
-        anything raised by the task assigned to the queen bee
+        anything raised by the task assigned to the queen bee (as a
+        :class:`mt.traceback.LogicError` wrapping the original error)
+
+    Examples
+    --------
+    See the example in the docstring of the module :mod:`mt.concurrency.beehive`.
     """
 
     if not context_vars["async"]:

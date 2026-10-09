@@ -1,4 +1,15 @@
-"""Concurrency using multiprocessing and asyncio."""
+"""Concurrency using multiprocessing and asyncio.
+
+The public names are re-exported here from three submodules:
+
+- :mod:`mt.concurrency.base`: :class:`Counter`, :func:`split_works`, :func:`serial_work_generator`
+  and resource checks.
+- :mod:`mt.concurrency.multiprocessing`: :class:`WorkIterator` and :class:`ProcessParalleliser`.
+- :mod:`mt.concurrency.aio`: :func:`aio_work_generator`, :func:`asyn_work_generator`,
+  :func:`asyn_pmap`, etc.
+
+The BeeHive model lives apart, in :mod:`mt.concurrency.beehive`.
+"""
 
 from .base import *
 from .multiprocessing import *

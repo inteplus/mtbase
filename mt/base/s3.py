@@ -1,4 +1,24 @@
-"""Useful subroutines dealing with S3 files via botocore and aioboto3."""
+"""Useful subroutines dealing with S3 files via botocore and aioboto3.
+
+Most functions are coroutines that work in both asynchronous and synchronous modes, selected by
+`context_vars['async']`, where `context_vars` is a dictionary created by
+:func:`create_context_vars`. S3 locations are given as s3cmd urls of the form
+'s3://bucket[/prefix]'. They need valid AWS credentials and network access.
+
+Examples
+--------
+The functions that talk to S3 cannot be demonstrated offline. Typical usage looks like this.
+
+.. code-block:: python
+
+    from mt.base import s3
+
+    async def main():
+        async with s3.create_context_vars(profile="myprofile", asyn=True) as context_vars:
+            await s3.put_object("s3://mybucket/hello.txt", b"hi", context_vars=context_vars)
+            data = await s3.get_object("s3://mybucket/hello.txt", context_vars=context_vars)
+            records = await s3.list_objects("s3://mybucket/", context_vars=context_vars)
+"""
 
 import errno
 import asyncio
@@ -50,6 +70,18 @@ def join(bucket: str, prefix: tp.Optional[str] = None):
     -------
     str
         an s3cmd url in the form 's3://bucket_name[/prefix]'
+
+    See Also
+    --------
+    split : the reverse operation
+
+    Examples
+    --------
+    >>> from mt.base import s3
+    >>> s3.join("mybucket", "folder/file.txt")
+    's3://mybucket/folder/file.txt'
+    >>> s3.join("mybucket")
+    's3://mybucket'
     """
 
     if prefix is None:
@@ -69,8 +101,28 @@ def split(s3cmd_url: str):
     -------
     bucket : str
         bucket name, always exists
-    prefix : str
-        prefix. Can be None.
+    prefix : str or None
+        prefix. It is None if the url has no slash after the bucket name, and an empty string if
+        the url ends right after the slash.
+
+    Raises
+    ------
+    ValueError
+        if the url does not start with 's3://'
+
+    See Also
+    --------
+    join : the reverse operation
+
+    Examples
+    --------
+    >>> from mt.base import s3
+    >>> s3.split("s3://mybucket/folder/file.txt")
+    ('mybucket', 'folder/file.txt')
+    >>> s3.split("s3://mybucket")
+    ('mybucket', None)
+    >>> s3.split("s3://mybucket/")
+    ('mybucket', '')
     """
 
     if not s3cmd_url.startswith("s3://"):
@@ -97,7 +149,7 @@ def get_session(
     Parameters
     ----------
     profile : str, optional
-        the profile from which the session is created
+        the profile from which the session is created. The default profile is used if None.
     asyn : bool
         whether session is to be used asynchronously or synchronously
 
@@ -123,6 +175,9 @@ async def create_s3_client(
 ) -> tp.Union[aiobotocore.client.AioBaseClient, botocore.client.BaseClient]:
     """An asyn context manager that creates an s3 client for a given profile.
 
+    The client allows up to 20 simultaneous connections. In asynchronous mode the client is closed
+    when the `async with` statement ends. In synchronous mode a plain boto3 client is yielded.
+
     Parameters
     ----------
     profile : str, optional
@@ -133,7 +188,11 @@ async def create_s3_client(
     Returns
     -------
     s3_client : aiobotocore.client.AioBaseClient or botocore.client.BaseClient
-        the s3 client that matches with the 'asyn' keyword argument below
+        the s3 client that matches with the `asyn` keyword argument
+
+    See Also
+    --------
+    create_context_vars : wraps this function and also creates an http session
     """
     session = get_session(profile=profile, asyn=asyn)
     config = botocore.config.Config(max_pool_connections=20)
@@ -155,6 +214,8 @@ async def create_context_vars(
 ):
     """Creates a dictionary of context variables for running functions in this package.
 
+    This is an asyn context manager, to be used with `async with`.
+
     Parameters
     ----------
     profile : str, optional
@@ -168,7 +229,21 @@ async def create_context_vars(
     -------
     context_vars : dict
         dictionary of context variables to run the functions in this package. These include
-        's3_client' and 'http_session'.
+        'async' (the value of `asyn`), 's3_client' and 'http_session'. The http session is always
+        an asynchronous :class:`aiohttp.ClientSession`, whatever the value of `asyn`.
+
+    Raises
+    ------
+    botocore.exceptions.ConnectionError
+        if the connection to S3 cannot be established. An error message is logged first if
+        `logger` is provided.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        async with create_context_vars(profile="myprofile", asyn=True) as context_vars:
+            info = await list_object_info("s3://mybucket/key", context_vars=context_vars)
     """
 
     try:
@@ -211,13 +286,26 @@ async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict =
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
-        statement invoking :func:`mt.base.s3.create_s3_client`.
+        statement invoking :func:`mt.base.s3.create_s3_client`. The easiest way to get such a
+        dictionary is :func:`create_context_vars`.
 
     Returns
     -------
     list
-        list of records, each of which corresponds to an object prefixed with the given s3cmd url.
-        The record has multiple attributes.
+        list of records, each of which is a dictionary corresponding to an object prefixed with the
+        given s3cmd url, with keys like 'Key', 'LastModified', 'ETag', 'Size' and 'StorageClass'.
+        The list is empty if no object is found.
+
+    Raises
+    ------
+    botocore.exceptions.ClientError
+        if S3 reports an error other than a missing key
+    ConnectionResetError
+        if a page of results is unexpectedly empty after earlier pages were received
+
+    See Also
+    --------
+    list_object_info : looks at a single object
     """
 
     s3_client = context_vars["s3_client"]
@@ -272,16 +360,17 @@ async def list_objects(s3cmd_url: str, show_progress=False, context_vars: dict =
 async def list_recent_objects(
     s3cmd_url: str, min_dt: datetime, show_progress=False, context_vars: dict = {}
 ):
-    """An asyn function that lists all recents objects prefixed with a given s3cmd url.
+    """An asyn function that lists all recent objects prefixed with a given s3cmd url.
 
-    This is the same as :func:`list_objects`, but with objects later than a certain datetime only.
+    This is meant to be the same as :func:`list_objects`, but with objects modified at or after a
+    certain datetime only.
 
     Parameters
     ----------
     s3cmd_url : str
         an s3cmd_url in the form 's3://bucket/[prefix]'. Note that there must be a slash after the
         bucket.
-    min_dt : datetime
+    min_dt : datetime.datetime
         minimum datetime of the objects to be listed. Must be a zone-aware datetime.
     show_progress : bool
         show a progress spinner in the terminal
@@ -289,13 +378,27 @@ async def list_recent_objects(
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
-        statement invoking :func:`mt.base.s3.create_s3_client`.
+        statement invoking :func:`mt.base.s3.create_s3_client`. The easiest way to get such a
+        dictionary is :func:`create_context_vars`.
 
     Returns
     -------
     list
-        list of records, each of which corresponds to an object prefixed with the given s3cmd url.
-        The record has multiple attributes.
+        list of records, each of which is a dictionary corresponding to an object prefixed with
+        the given s3cmd url.
+
+    Raises
+    ------
+    botocore.exceptions.ClientError
+        if S3 reports an error other than a missing key
+
+    Notes
+    -----
+    As currently implemented, the filtered iterator yields the matching object records themselves,
+    yet each of them is then looked up for a 'Contents' key, which they do not have. As a result the
+    function returns an empty list, both when it matches no object and when it matches some (it
+    gives up at the first record). Use :func:`list_objects` and filter on 'LastModified'
+    yourself until this is fixed.
     """
 
     s3_client = context_vars["s3_client"]
@@ -361,18 +464,25 @@ async def list_object_info(s3cmd_url: str, context_vars: dict = {}):
     Parameters
     ----------
     s3cmd_url : str
-        an s3cmd_url in the form 's3://bucket[/prefix]'
+        an s3cmd_url in the form 's3://bucket/prefix', where the prefix is the full key of the
+        object
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
-        statement invoking :func:`mt.base.s3.create_s3_client`.
+        statement invoking :func:`mt.base.s3.create_s3_client`. The easiest way to get such a
+        dictionary is :func:`create_context_vars`.
 
     Returns
     -------
     dict or None
         A dictionary of attributes related to the object, like 'Key', 'LastModified', 'ETag',
         'Size', 'StorageClass', etc. If the object does not exist, None is returned.
+
+    Raises
+    ------
+    botocore.exceptions.ClientError
+        if S3 reports an error other than a missing key
     """
 
     bucket, prefix = split(s3cmd_url)
@@ -410,19 +520,29 @@ async def get_object(
     Parameters
     ----------
     s3cmd_url : str
-        an s3cmd_url in the form 's3://bucket[/prefix]'
+        an s3cmd_url in the form 's3://bucket/key'
     show_progress : bool
         show a progress spinner in the terminal
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
-        statement invoking :func:`mt.base.s3.create_s3_client`.
+        statement invoking :func:`mt.base.s3.create_s3_client`. The easiest way to get such a
+        dictionary is :func:`create_context_vars`.
 
     Returns
     -------
     bytes
         the content of the given s3cmd url
+
+    Raises
+    ------
+    botocore.exceptions.ClientError
+        if S3 reports an error, for example when the key does not exist
+
+    See Also
+    --------
+    put_object : the reverse operation
     """
 
     bucket, prefix = split(s3cmd_url)
@@ -444,22 +564,29 @@ async def get_object(
 
 
 async def get_object_acl(s3cmd_url: str, context_vars: dict = {}):
-    """An asyn function that gets the object properties of a given s3cmd url.
+    """An asyn function that gets the access control list (ACL) of the object at a given s3cmd url.
 
     Parameters
     ----------
     s3cmd_url : str
-        an s3cmd_url in the form 's3://bucket[/prefix]'
+        an s3cmd_url in the form 's3://bucket/key'
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
-        statement invoking :func:`mt.base.s3.create_s3_client`.
+        statement invoking :func:`mt.base.s3.create_s3_client`. The easiest way to get such a
+        dictionary is :func:`create_context_vars`.
 
     Returns
     -------
-    bytes
-        the content of the given s3cmd url
+    dict
+        the response of S3 to the 'get_object_acl' request, with keys like 'Owner' and 'Grants'
+        (it is not the content of the object)
+
+    Raises
+    ------
+    botocore.exceptions.ClientError
+        if S3 reports an error, for example when the key does not exist
     """
 
     bucket, prefix = split(s3cmd_url)
@@ -474,26 +601,32 @@ async def get_object_acl(s3cmd_url: str, context_vars: dict = {}):
 async def put_object(
     s3cmd_url: str, data: bytes, show_progress: bool = False, context_vars: dict = {}
 ):
-    """An asyn function that puts some content to given s3cmd url.
+    """An asyn function that puts some content to a given s3cmd url.
 
     Parameters
     ----------
     s3cmd_url : str
-        an s3cmd_url in the form 's3://bucket[/prefix]'
-    data: bytes
-         the content to be uploaded
+        an s3cmd_url in the form 's3://bucket/key'
+    data : bytes
+        the content to be uploaded
     show_progress : bool
         show a progress spinner in the terminal
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
-        statement invoking :func:`mt.base.s3.create_s3_client`.
+        statement invoking :func:`mt.base.s3.create_s3_client`. The easiest way to get such a
+        dictionary is :func:`create_context_vars`.
 
     Returns
     -------
     bytes
-        the content of the given s3cmd url
+        the `data` that has been uploaded
+
+    See Also
+    --------
+    get_object : the reverse operation
+    put_files : uploads many files
     """
 
     bucket, prefix = split(s3cmd_url)
@@ -516,16 +649,17 @@ async def delete_object(s3cmd_url: str, context_vars: dict = {}):
     Parameters
     ----------
     s3cmd_url : str
-        an s3cmd_url in the form 's3://bucket[/prefix]'
+        an s3cmd_url in the form 's3://bucket/key'
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
-        statement invoking :func:`mt.base.s3.create_s3_client`.
+        statement invoking :func:`mt.base.s3.create_s3_client`. The easiest way to get such a
+        dictionary is :func:`create_context_vars`.
 
     Returns
     -------
-    list
+    dict
         the response from S3 of the deletion operation. Lots of attributes expected.
     """
 
@@ -547,11 +681,10 @@ async def put_files(
     """An asyn function that uploads many files to the same S3 bucket.
 
     In asynchronous mode, the files are uploaded concurrently. In synchronous mode, the files are
-    uploaded sequentially.
+    uploaded sequentially. Every file is read entirely in memory before it is uploaded.
 
     Despite our best effort, this function may sometimes be slower than calling 'aws s3 sync'.
-    Please
-    see the following thread for more details:
+    Please see the following thread for more details:
 
     https://stackoverflow.com/questions/56639630/how-can-i-increase-my-aws-s3-upload-speed-when-using-boto3
 
@@ -565,17 +698,24 @@ async def put_files(
         mapping from local filepath to bucket key, defining which file to upload and where to
         upload to in the S3 bucket
     show_progress : bool
-        show a progress bar in the terminal
+        show a progress bar in the terminal, counting files
     context_vars : dict
         a dictionary of context variables within which the function runs. It must include
         `context_vars['async']` to tell whether to invoke the function asynchronously or not.
         In addition, variable 's3_client' must exist and hold an enter-result of an async with
-        statement invoking :func:`mt.base.s3.create_s3_client`.
+        statement invoking :func:`mt.base.s3.create_s3_client`. The easiest way to get such a
+        dictionary is :func:`create_context_vars`.
+
+    See Also
+    --------
+    put_files_boto3 : a faster, multi-threaded alternative
     """
 
     async def process_item(
         filepath, bucket, key, progress_bar, context_vars: dict = {}
     ):
+        """Reads one file and uploads it, then advances the progress bar if any."""
+
         s3cmd_url = join(bucket, key)
         data = await aio.read_binary(filepath, context_vars=context_vars)
         await put_object(
@@ -621,7 +761,9 @@ def put_files_boto3(
     """Uploads many files to the same S3 bucket using boto3.
 
     This function implements the code in the url below. It does not use asyncio but it uses
-    multi-threading.
+    multi-threading (up to 20 concurrent transfers) and blocks until all the uploads are done. It
+    is a regular function and not a coroutine, and it needs a synchronous client, so create the
+    context variables with `asyn=False`.
 
     https://stackoverflow.com/questions/56639630/how-can-i-increase-my-aws-s3-upload-speed-when-using-boto3
 
@@ -633,18 +775,20 @@ def put_files_boto3(
         mapping from local filepath to bucket key, defining which file to upload and where to
         upload to in the S3 bucket
     show_progress : bool
-        show a progress bar in the terminal
-    total_filesize : int
+        show a progress bar in the terminal, counting bytes
+    total_filesize : int, optional
         total size of all files in bytes, if you know. Useful for drawing a progress bar.
     set_acl_public_read : bool
         whether or not to set ACL public-read policy on the uploaded object(s)
     checksum_algorithm : str, optional
         if specified, the algorithm to generate a checksum. A good one is 'SHA256'.
     context_vars : dict
-        a dictionary of context variables within which the function runs. It must include
-        `context_vars['async']` to tell whether to invoke the function asynchronously or not.
-        In addition, variable 's3_client' must exist and hold an enter-result of an async with
-        statement invoking :func:`mt.base.s3.create_s3_client`.
+        a dictionary of context variables. Only variable 's3_client' is used, and it must hold a
+        synchronous boto3 client, for example from :func:`create_context_vars` with `asyn=False`.
+
+    See Also
+    --------
+    put_files : the asyn alternative
     """
 
     from boto3.s3.transfer import (

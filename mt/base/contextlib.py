@@ -1,7 +1,9 @@
 """Monkey-patching contextlib.
 
-For python 3.6 or earlier, this module corresponds to :module:`contextlib2`. Otherwise, it
-corresponds to :module:`contextlib`.
+This module re-exports everything in :mod:`mt.ctx`, which provides the same names as the
+standard :mod:`contextlib` (``contextmanager``, ``asynccontextmanager``, ``nullcontext``, etc.)
+and backports for older Python versions. Import from :mod:`mt.ctx` in new code. This module is
+planned to be deprecated starting from v4.0.
 """
 
 from mt.ctx import *
