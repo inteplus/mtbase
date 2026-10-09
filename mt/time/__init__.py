@@ -65,10 +65,8 @@ def sleep_until(func, check_interval=1, timeout=60 * 60 * 24, logger=None):
             raise TimeoutError(
                 errno.ETIMEDOUT,
                 "Slept for too long",
-                "Function {} has stayed non-true for more than {} seconds "
-                "(timeout at {} seconds).".format(
-                    func, ellapsed_time, timeout
-                ),
+                f"Function {func} has stayed non-true for more than {ellapsed_time} seconds "
+                f"(timeout at {timeout} seconds).",
             )
 
         if logger:

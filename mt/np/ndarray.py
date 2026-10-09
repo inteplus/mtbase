@@ -24,8 +24,9 @@ def ndarray_repr(a: np.ndarray) -> str:
         raise TypeError(f"An ndarray expected. Got '{type(a)}'.")
 
     if a.size > 20:
-        return "ndarray(shape={}, dtype={}, min={}, max={}, mean={}, std={})".format(
-            a.shape, a.dtype, a.min(), a.max(), a.mean(), a.std()
+        return (
+            f"ndarray(shape={a.shape}, dtype={a.dtype}, min={a.min()}, max={a.max()}, "
+            f"mean={a.mean()}, std={a.std()})"
         )
 
     return f"ndarray({a.tolist()!r}, dtype={a.dtype})"

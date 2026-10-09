@@ -230,9 +230,8 @@ class IndentedLoggerAdapter(LoggerAdapter):
             short string representing the new module
         """
         self.warn(
-            "IMPORT: module '{}' has been deprecated. Please use module '{}' instead.".format(
-                old_module, new_module
-            )
+            f"IMPORT: module '{old_module}' has been deprecated. "
+            f"Please use module '{new_module}' instead."
         )
         lines = traceback.extract_stack_compact()
         if len(lines) > 9:

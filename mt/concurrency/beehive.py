@@ -853,9 +853,8 @@ class QueenBee(WorkerBee):
             if process.exitcode is not None:
                 if self.logger:
                     self.logger.warn(
-                        "Subprocess {} has terminated with exit code {}.".format(
-                            process.pid, process.exitcode
-                        )
+                        f"Subprocess {process.pid} has terminated with exit code "
+                        f"{process.exitcode}."
                     )
 
     # ----- private -----

@@ -75,10 +75,8 @@ def split(s3cmd_url: str):
 
     if not s3cmd_url.startswith("s3://"):
         raise ValueError(
-            ("Expected an s3cmd url in the form 's3://bucket[/prefix]', "
-            "but received '{}' instead.").format(
-                s3cmd_url
-            )
+            "Expected an s3cmd url in the form 's3://bucket[/prefix]', "
+            f"but received '{s3cmd_url}' instead."
         )
     url = s3cmd_url[5:]
     pos = url.find("/")
